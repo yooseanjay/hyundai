@@ -6,6 +6,8 @@ export default defineConfig(({ mode }) => {
   // '' 접두사: VITE_가 아닌 HYUNDAI_CLIENT_SECRET도 읽는다 (서버에서만 사용, 브라우저로 안 나감)
   const env = loadEnv(mode, process.cwd(), '');
   return {
+    // 배포용 하위 경로 (예: BASE_PATH=/our-car-alive/). 개발 서버는 '/'
+    base: process.env.BASE_PATH || '/',
     plugins: [
       react(),
       hyundaiAuth({

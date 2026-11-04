@@ -3,6 +3,9 @@ import type { CosmeticId } from '../game/progress';
 import type { BodyColor } from '../data/hyundaiModels';
 import screen from '../data/screen.json';
 
+// 배포 주소가 하위 경로(/our-car-alive/)여도 이미지가 열리도록
+const ASSET = import.meta.env.BASE_URL;
+
 interface Props {
   mood: Mood;
   color?: BodyColor;
@@ -143,10 +146,10 @@ function Face({ mood, cosmetic }: { mood: Mood; cosmetic: CosmeticId }) {
 }
 
 const ROOF_ITEMS: Partial<Record<CosmeticId, string>> = {
-  crown: '/character/acc-crown.png',
-  cap: '/character/acc-cap.png',
-  scarf: '/character/acc-ribbon.png',
-  flower: '/character/acc-flower.png',
+  crown: `${ASSET}character/acc-crown.png`,
+  cap: `${ASSET}character/acc-cap.png`,
+  scarf: `${ASSET}character/acc-ribbon.png`,
+  flower: `${ASSET}character/acc-flower.png`,
 };
 
 export function CarCharacter({ mood, cosmetic, driving, color = 'yellow', size = 280 }: Props) {
@@ -161,12 +164,12 @@ export function CarCharacter({ mood, cosmetic, driving, color = 'yellow', size =
     >
       <div className="car3d-shadow" />
       <div className="car3d-body">
-        <img src={`/character/body-${color}.png`} alt="" draggable={false} />
+        <img src={`${ASSET}character/body-${color}.png`} alt="" draggable={false} />
         <div className="car3d-screen" style={{ left: `${s.left}%`, top: `${s.top}%`, width: `${s.width}%`, height: `${s.height}%` }}>
           <Face mood={mood} cosmetic={cosmetic} />
         </div>
         {roof && <img className={`car3d-roof acc-${cosmetic}`} src={roof} alt="" draggable={false} />}
-        {cosmetic === 'wrench' && <img className="car3d-badge" src="/character/acc-medal.png" alt="" draggable={false} />}
+        {cosmetic === 'wrench' && <img className="car3d-badge" src={`${ASSET}character/acc-medal.png`} alt="" draggable={false} />}
       </div>
     </div>
   );
