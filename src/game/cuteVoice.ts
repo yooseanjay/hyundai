@@ -1,18 +1,19 @@
 // 캐릭터 목소리 · 효과음 (브라우저 내장 기능만 사용 → 무료)
-//  1) 음성: 한국어 음성 중 가장 자연스러운 것을 고르고, 음높이를 올려 아기 자동차 목소리로
+//  1) 음성: 한국어 음성 중 가장 자연스러운 것(Neural)을 고르고, 음높이를 살짝만 올려 아이 목소리처럼
 //  2) 말투: 문장 끝을 귀엽게 늘이고 기분에 맞는 의성어를 붙임 (화면 글자는 그대로, 읽을 때만)
 //  3) 효과음: Web Audio로 '뿅' · '삐빅' 같은 짧은 전자음을 합성 (파일 없음)
 import type { Mood } from './character';
 
-/** 기분별 목소리 */
+/** 기분별 목소리 — 음높이를 과하게 올리면 기계음(다람쥐 소리)이 되므로
+ *  사람 아이처럼 들리는 범위(1.1~1.3)에서만 조절하고, 차이는 빠르기로 낸다. */
 const VOICE_BY_MOOD: Record<Mood, { pitch: number; rate: number }> = {
-  happy: { pitch: 1.8, rate: 1.12 },
-  excited: { pitch: 1.95, rate: 1.2 },
-  calm: { pitch: 1.65, rate: 1.05 },
-  hungry: { pitch: 1.55, rate: 0.95 },
-  sick: { pitch: 1.45, rate: 0.9 },
-  tired: { pitch: 1.4, rate: 0.88 },
-  sleepy: { pitch: 1.4, rate: 0.85 },
+  happy: { pitch: 1.25, rate: 1.05 },
+  excited: { pitch: 1.3, rate: 1.12 },
+  calm: { pitch: 1.2, rate: 1.0 },
+  hungry: { pitch: 1.15, rate: 0.92 },
+  sick: { pitch: 1.12, rate: 0.88 },
+  tired: { pitch: 1.1, rate: 0.88 },
+  sleepy: { pitch: 1.1, rate: 0.85 },
 };
 
 /** 기분별 첫마디 (읽을 때만 붙임) */
@@ -37,14 +38,16 @@ export function cuteSpeech(text: string, mood: Mood = 'calm'): string {
     .replace(/퍼센트/g, '퍼센트');
   // 문장 끝 '요.' '요!' → '용~' 느낌 (가끔만, 너무 과하지 않게)
   let n = 0;
-  t = t.replace(/요([.!?])/g, (m, p) => (++n % 2 === 0 && p !== '?' ? `용${p}` : m));
+  t = t.replace(/요([.!?])/g, (m, p) => (++n === 2 && p !== '?' ? `용${p}` : m));
   const op = OPENERS[mood];
-  if (op && Math.random() < 0.7) t = `${pick(op)} ${t}`;
+  if (op && Math.random() < 0.35) t = `${pick(op)} ${t}`;
   return t.replace(/\s{2,}/g, ' ').trim();
 }
 
-export function voiceFor(mood: Mood = 'calm') {
-  return VOICE_BY_MOOD[mood] ?? VOICE_BY_MOOD.calm;
+export function voiceFor(mood: Mood = 'calm', voice?: SpeechSynthesisVoice) {
+  const v = VOICE_BY_MOOD[mood] ?? VOICE_BY_MOOD.calm;
+  const natural = !!voice && /online|natural|neural|google|yuna/i.test(voice.name);
+  return natural ? { pitch: 1 + (v.pitch - 1) * 0.7, rate: v.rate } : v;
 }
 
 /** 가장 귀엽게 들리는 한국어 음성 우선 (밝은 여성·Neural/Online 음성) */

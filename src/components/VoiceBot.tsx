@@ -61,7 +61,7 @@ export function VoiceBot({ ctx, onLine }: { ctx: BotContext; onLine: (line: stri
       u.lang = 'ko-KR';
       const v = pickKoVoice();
       if (v) u.voice = v;
-      const { pitch, rate } = voiceFor(mood); // 아기 자동차 목소리 (기분 따라 높낮이·빠르기)
+      const { pitch, rate } = voiceFor(mood, v); // 아기 자동차 목소리 (기분 따라 높낮이·빠르기)
       u.pitch = pitch;
       u.rate = rate;
       u.onstart = () => setPhase('speaking');
