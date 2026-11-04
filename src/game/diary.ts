@@ -50,7 +50,7 @@ export function writeDiary(opts: {
   const title = newWarnings.length ? '조금 아팠던 날' : trip.distanceKm > 80 ? '먼 길 다녀온 날' : trip.hardBrakes >= 3 ? '두근두근한 날' : '평범하고 좋은 날';
 
   return {
-    id: crypto.randomUUID(),
+    id: globalThis.crypto?.randomUUID?.() ?? `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
     date: trip.endedAt,
     title,
     body: `${nickname}의 일기\n\n` + lines.join(' '),

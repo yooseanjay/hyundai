@@ -3,6 +3,7 @@ import { dataSource, simulator, WARNING_LABELS, type CarProfile, type Trip, type
 import { logout, startLogin } from './api/hyundaiClient';
 import { CarCharacter } from './components/CarCharacter';
 import { CarSheet } from './components/CarSheet';
+import { VoiceBot } from './components/VoiceBot';
 import { ENERGY_TERMS } from './data/hyundaiModels';
 import { computeStatus, WARNING_UI, type Mood } from './game/character';
 import { writeDiary, type DiaryEntry } from './game/diary';
@@ -27,6 +28,7 @@ export default function App() {
   const [toast, setToast] = useState<string | null>(null);
   const [openDiary, setOpenDiary] = useState<DiaryEntry | null>(null);
   const [carSheet, setCarSheet] = useState(false);
+  const [bot, setBot] = useState<{ line: string; mood?: Mood; speaking?: boolean } | null>(null);
 
   const [driving, setDriving] = useState(false);
   const [driveProgress, setDriveProgress] = useState(0);
@@ -136,14 +138,29 @@ export default function App() {
     setOpenDiary(diary);
   };
 
-  if (error && !snap)
+  if (error && !snap) {
+    const needLogin = /LOGIN|로그인|4011|4012/.test(error);
+    // 휴대폰처럼 이 PC가 아닌 곳에서 열면 현대 로그인(콜백 주소가 localhost)이 불가 → 데모 안내
+    const remote = !['localhost', '127.0.0.1'].includes(location.hostname);
     return (
-      <main className="app center">
-        <p className="err">{error}</p>
-        {dataSource.kind === 'hyundai' && <button className="btn primary" onClick={startLogin}>현대 계정으로 로그인</button>}
-        {dataSource.kind === 'hyundai' && <button className="btn ghost" onClick={logout}>연결 끊기</button>}
+      <main className="app center welcome">
+        <CarCharacter mood={needLogin ? 'happy' : 'sick'} cosmetic="none" color="silver" size={220} />
+        <h1 className="t-display">{needLogin ? '우리 차가 살아있다면' : '차랑 연결이 안 됐어요'}</h1>
+        <p className="muted t-label">
+          {needLogin
+            ? remote
+              ? '실제 차 연결은 PC에서만 할 수 있어요. 휴대폰에서는 데모로 모든 기능을 체험해 보세요!'
+              : '현대 계정을 연결하면 내 차가 캐릭터로 깨어나요.'
+            : error}
+        </p>
+        <div className="welcome-actions">
+          {dataSource.kind === 'hyundai' && !remote && <button className="btn primary block" onClick={startLogin}>🔑 현대 계정으로 연결</button>}
+          <button className={`btn block ${remote || !needLogin ? 'primary' : 'secondary'}`} onClick={() => { location.href = location.pathname + '?demo'; }}>🚗 데모로 체험하기</button>
+          {dataSource.kind === 'hyundai' && !needLogin && <button className="btn ghost" onClick={logout}>연결 끊기</button>}
+        </div>
       </main>
     );
+  }
   if (!car || !snap) return <main className="app center"><p className="t-title">차가 깨어나는 중… <span className="emoji">💤</span></p></main>;
 
   const st = computeStatus(snap, trips, driving);
@@ -171,7 +188,8 @@ export default function App() {
       {tab === 'home' && (
         <section className="screen">
           {Header}
-          <Stage mood={st.mood} line={st.line} cosmetic={progress.equipped} color={car.bodyColor} />
+          <Stage mood={bot?.mood ?? st.mood} line={bot?.line ?? st.line} cosmetic={progress.equipped} color={car.bodyColor} talking={!!bot?.speaking} />
+          <VoiceBot ctx={{ car, snap, status: st, trips, progress }} onLine={(line, mood, speaking) => setBot(line ? { line, mood, speaking } : null)} />
           <div className="stats">
             <Stat icon="🍙" label="에너지" value={st.energy} tone={st.energy < 20 ? 'bad' : 'good'} />
             <Stat icon="💖" label="건강" value={st.health} tone={st.health < 100 ? 'bad' : 'good'} />
@@ -386,12 +404,12 @@ function XPBar({ level, xp }: { level: number; xp: number }) {
   );
 }
 
-function Stage({ mood, line, cosmetic, color, road, moving, driving }: {
-  mood: Mood; line: string; cosmetic: Progress['equipped']; color: CarProfile['bodyColor']; road?: boolean; moving?: boolean; driving?: boolean;
+function Stage({ mood, line, cosmetic, color, road, moving, driving, talking }: {
+  mood: Mood; line: string; cosmetic: Progress['equipped']; color: CarProfile['bodyColor']; road?: boolean; moving?: boolean; driving?: boolean; talking?: boolean;
 }) {
   return (
-    <div className={`stage mood-${mood} ${road ? 'road' : ''} ${road && driving ? 'tall' : ''} ${moving ? 'moving' : ''}`}>
-      <div className="bubble">{line}</div>
+    <div className={`stage mood-${mood} ${road ? 'road' : ''} ${road && driving ? 'tall' : ''} ${moving ? 'moving' : ''} ${talking ? 'talking' : ''}`}>
+      <div className="bubble" key={line}>{line}</div>
       {road && (
         <>
           <span className="cloud" style={{ left: 40, top: 70, width: 70, height: 30 }} />

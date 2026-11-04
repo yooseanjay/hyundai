@@ -18,6 +18,6 @@ export default defineConfig(({ mode }) => {
         root: process.cwd(),
       }),
     ],
-    server: { port: 5173 },
+    server: { port: 5173, host: true }, // host: 같은 Wi-Fi의 휴대폰에서 http://<PC IP>:5173 접속 허용
   };
 });

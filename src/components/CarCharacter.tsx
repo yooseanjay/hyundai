@@ -1,7 +1,7 @@
 import type { Mood } from '../game/character';
 import type { CosmeticId } from '../game/progress';
 import type { BodyColor } from '../data/hyundaiModels';
-import screen from '../../public/character/screen.json';
+import screen from '../data/screen.json';
 
 interface Props {
   mood: Mood;

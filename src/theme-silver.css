@@ -131,3 +131,42 @@
 
 /* 은빛 글자 안의 이모지는 원래 색으로 */
 .emoji { color: initial; -webkit-text-fill-color: initial; }
+
+/* ===== AI 음성봇 ===== */
+.voicebot { display: grid; gap: 10px; padding: 14px; border-radius: var(--radius-lg);
+  background: var(--silver-soft), var(--bg-surface); border: 1px solid var(--hairline); box-shadow: var(--shadow); }
+.vb-row { display: flex; align-items: center; gap: 12px; }
+.vb-status { flex: 1; min-width: 0; display: grid; gap: 2px; }
+.vb-status .t-caption { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.vb-icon { width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; flex: none;
+  background: #1d2025; border: 1px solid var(--hairline-strong); font-size: 15px; }
+.vb-mic { position: relative; width: 56px; height: 56px; border-radius: 50%; flex: none; display: grid; place-items: center;
+  background: var(--silver); color: #0b0c0e; font-size: 22px;
+  box-shadow: 0 6px 20px rgba(210, 220, 235, .25), inset 0 1px 0 #fff, inset 0 -3px 0 rgba(0,0,0,.2); }
+.vb-mic:disabled { opacity: .5; }
+.vb-mic-icon { position: relative; z-index: 1; }
+.vb-mic.on { background: linear-gradient(135deg, #ff9aa3, #e2505e); color: #fff; }
+.vb-rings { position: absolute; inset: 0; border-radius: 50%; pointer-events: none; }
+.vb-mic.on .vb-rings { box-shadow: 0 0 0 0 rgba(255, 109, 122, .55); animation: ring 1.2s ease-out infinite; }
+@keyframes ring { to { box-shadow: 0 0 0 18px rgba(255, 109, 122, 0); } }
+.phase-thinking .vb-status b::after { content: ''; display: inline-block; width: 6px; height: 6px; margin-left: 6px; border-radius: 50%;
+  background: #dfe3e8; animation: blinkdot .8s infinite alternate; vertical-align: middle; }
+@keyframes blinkdot { from { opacity: .2; } }
+.vb-form { display: flex; gap: 8px; }
+.vb-form .text-input { flex: 1; min-width: 0; }
+.vb-form .btn { padding: 10px 16px; font-size: 14px; }
+.vb-suggest .chip { padding: 8px 12px; font-size: 12px; }
+.chip:disabled { opacity: .45; }
+
+/* 말할 때 캐릭터가 통통 튀고, 말풍선이 새로 뜬다 */
+.stage.talking .car3d-body { animation: talk3d .26s ease-in-out infinite; }
+@keyframes talk3d { 50% { transform: translateY(-2.5%) scale(1.015, .985); } }
+.stage.talking .bubble { border-color: rgba(235, 240, 248, .55); box-shadow: 0 0 18px rgba(220, 228, 240, .25); }
+.bubble { animation: bubbleIn .25s ease; }
+@keyframes bubbleIn { from { opacity: 0; transform: translate(-50%, 6px) scale(.96); } }
+
+/* 시작(로그인 전) 화면 */
+.welcome { align-content: center; padding-top: 40px; gap: 16px; }
+.welcome .car3d { margin: 0 auto 8px; }
+.welcome p { max-width: 300px; margin: 0 auto; line-height: 1.6; }
+.welcome-actions { display: grid; gap: 10px; width: 100%; max-width: 320px; margin: 8px auto 0; }
