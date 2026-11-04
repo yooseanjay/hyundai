@@ -4,14 +4,12 @@
 import { matchModel } from '../data/hyundaiModels';
 import type { CarProfile, Trip, VehicleDataSource, VehicleSnapshot, Warnings } from './types';
 
-const BASE = import.meta.env.VITE_HYUNDAI_API_BASE ?? 'https://dev.kr-ccapi.hyundai.com';
-const CLIENT_ID = import.meta.env.VITE_HYUNDAI_CLIENT_ID ?? '';
-const REDIRECT_URI = import.meta.env.VITE_HYUNDAI_REDIRECT_URI ?? `${location.origin}/callback`;
-const TOKEN_KEY = 'oca.hyundai.token';
+// 브라우저는 현대 서버를 직접 부르지 않고, 로컬 서버(server/hyundaiAuth.ts)의 /hapi 프록시를 거친다.
+// 토큰과 Client Secret은 서버에만 있고 브라우저로 오지 않는다.
+const PROXY = '/hapi';
 
-// TODO(문서 확인): 실제 경로로 교체
+// TODO(문서 확인): carList 외 경로는 추정값 — 문서 받으면 교체
 export const ENDPOINTS = {
-  authorize: '/api/v1/user/oauth2/authorize',
   carList: '/api/v1/car/profile/carlist',
   odometer: (id: string) => `/api/v1/car/status/${id}/odometer`,
   dte: (id: string) => `/api/v1/car/status/${id}/dte`,
@@ -22,23 +20,29 @@ export const ENDPOINTS = {
   trips: (id: string) => `/api/v1/car/status/${id}/drvhistory`,
 };
 
-/** OAuth 2.0 Authorization Code 흐름 시작. code→token 교환은 client_secret이 필요하므로 백엔드에서 처리해야 한다. */
+/** 현대 계정 로그인 시작 (서버가 authorize 페이지로 보내고, /callback에서 토큰 교환) */
 export function startLogin() {
-  const url = new URL(ENDPOINTS.authorize, BASE);
-  url.searchParams.set('client_id', CLIENT_ID);
-  url.searchParams.set('redirect_uri', REDIRECT_URI);
-  url.searchParams.set('response_type', 'code');
-  url.searchParams.set('state', crypto.randomUUID());
-  location.href = url.toString();
+  location.href = '/auth/login';
 }
 
-export function setAccessToken(token: string) {
-  sessionStorage.setItem(TOKEN_KEY, token);
+export function logout() {
+  location.href = '/auth/logout';
+}
+
+export async function authStatus(): Promise<{ configured: boolean; loggedIn: boolean }> {
+  try {
+    const r = await fetch('/auth/status');
+    return await r.json();
+  } catch {
+    return { configured: false, loggedIn: false };
+  }
 }
 
 /** 현대 Open API 에러 코드 → 사용자에게 보여줄 설명 (공식 문서 기준) */
 export const HYUNDAI_ERRORS: Record<string, string> = {
   '4002': '호출 인자 값 오류',
+  LOGIN: '현대 계정 로그인이 필요합니다',
+  PROXY: '현대 서버에 연결하지 못했어요',
   '4011': '인증 헤더 오류 — 다시 로그인해 주세요',
   '4012': '세션 만료 — 다시 로그인해 주세요',
   '4014': '약관 미등록 상태 — developers@hyundai.com에 등록 요청 필요',
@@ -64,9 +68,7 @@ export class HyundaiApiError extends Error {
 }
 
 async function get<T = any>(path: string): Promise<T> {
-  const token = sessionStorage.getItem(TOKEN_KEY);
-  if (!token) throw new Error('로그인이 필요합니다');
-  const res = await fetch(new URL(path, BASE), { headers: { Authorization: `Bearer ${token}` } });
+  const res = await fetch(PROXY + path, { headers: { Accept: 'application/json' } });
   const body = await res.json().catch(() => ({}));
   if (!res.ok || body?.errCode) {
     throw new HyundaiApiError(String(body?.errCode ?? res.status), body?.errMsg ?? `HTTP ${res.status}`, path);

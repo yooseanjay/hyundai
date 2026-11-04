@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { dataSource, simulator, WARNING_LABELS, type CarProfile, type Trip, type VehicleSnapshot, type WarningKey } from './api';
-import { startLogin } from './api/hyundaiClient';
+import { logout, startLogin } from './api/hyundaiClient';
 import { CarCharacter } from './components/CarCharacter';
 import { CarSheet } from './components/CarSheet';
 import { ENERGY_TERMS } from './data/hyundaiModels';
@@ -81,6 +81,17 @@ export default function App() {
   }, [updateProgress]);
 
   useEffect(() => {
+    // 로그인 콜백 결과 (/?auth=ok 또는 /?auth_error=...)
+    const q = new URLSearchParams(location.search);
+    if (q.has('auth') || q.has('auth_error')) {
+      const authErr = q.get('auth_error');
+      history.replaceState(null, '', location.pathname + location.hash);
+      if (authErr) {
+        setError(`로그인 실패: ${authErr}`);
+        return;
+      }
+      showToast('🔑 현대 계정 연결 완료!');
+    }
     refresh();
     return () => {
       if (timer.current) window.clearInterval(timer.current);
@@ -130,9 +141,10 @@ export default function App() {
       <main className="app center">
         <p className="err">{error}</p>
         {dataSource.kind === 'hyundai' && <button className="btn primary" onClick={startLogin}>현대 계정으로 로그인</button>}
+        {dataSource.kind === 'hyundai' && <button className="btn ghost" onClick={logout}>연결 끊기</button>}
       </main>
     );
-  if (!car || !snap) return <main className="app center"><p className="t-title">차가 깨어나는 중… 💤</p></main>;
+  if (!car || !snap) return <main className="app center"><p className="t-title">차가 깨어나는 중… <span className="emoji">💤</span></p></main>;
 
   const st = computeStatus(snap, trips, driving);
   const level = levelOf(progress.xp);
@@ -254,7 +266,7 @@ export default function App() {
       {tab === 'diary' && (
         <section className="screen">
           <div>
-            <h1 className="t-display">📔 {car.nickname}의 일기장</h1>
+            <h1 className="t-display"><span className="emoji">📔</span> {car.nickname}의 일기장</h1>
             <p className="t-label muted">함께 달린 날마다 한 장씩 쌓여요</p>
           </div>
           <div className="summary">
@@ -290,7 +302,7 @@ export default function App() {
       {tab === 'closet' && (
         <section className="screen">
           <div>
-            <h1 className="t-display">👗 꾸미기</h1>
+            <h1 className="t-display"><span className="emoji">👗</span> 꾸미기</h1>
             <p className="t-label muted">잘 달리고, 잘 돌봐줄수록 새로운 모습이 열려요</p>
           </div>
           <div className="preview"><CarCharacter color={car.bodyColor} mood="happy" cosmetic={progress.equipped} size={236} /></div>
@@ -320,6 +332,7 @@ export default function App() {
               simulator?.reset(); localStorage.removeItem('oca.progress.v1'); location.reload();
             }}>시연 데이터 초기화</button>
           )}
+          {dataSource.kind === 'hyundai' && <button className="btn ghost" onClick={logout}>현대 계정 연결 끊기</button>}
         </section>
       )}
 
@@ -337,7 +350,7 @@ export default function App() {
             <CarCharacter color={car.bodyColor} mood="happy" cosmetic={progress.equipped} size={170} />
             <article className="paper">
               <p className="t-caption">{new Date(openDiary.date).toLocaleString('ko-KR', { month: 'long', day: 'numeric', weekday: 'long', hour: '2-digit', minute: '2-digit' })}</p>
-              <h3 className="t-title">📔 {car.nickname}의 일기 — {openDiary.title}</h3>
+              <h3 className="t-title"><span className="emoji">📔</span> {car.nickname}의 일기 — {openDiary.title}</h3>
               <p className="t-diary">{openDiary.body.replace(/^.*의 일기\n\n/, '')}</p>
               <div className="paper-chips">
                 <span style={{ background: 'var(--accent-sky-soft)' }}>🛣️ {openDiary.distanceKm}km</span>

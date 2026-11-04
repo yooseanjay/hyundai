@@ -1,32 +1,40 @@
 /* 디자인 토큰 — Figma "🎨 Design System" 페이지의 Color / Radius & Space 변수와 동일 */
 :root {
-  --bg-canvas: #fff8ec;
-  --bg-surface: #ffffff;
-  --bg-sunken: #f6efe2;
-  --text-primary: #2b2340;
-  --text-secondary: #8b8299;
-  --text-on-dark: #ffffff;
-  --brand-yellow: #ffc83d;
-  --brand-yellow-soft: #fff1c7;
-  --brand-ink: #2b2340;
-  --accent-sky: #7db7ff;
-  --accent-sky-soft: #e3f0ff;
-  --accent-pink-soft: #ffe6f0;
-  --status-good: #34c68a;
-  --status-bad: #ff6b6b;
-  --status-bad-soft: #ffecec;
-  --status-warn: #ff9f43;
-  --stage-day: #ddeeff;
-  --stage-sick: #ffe0e6;
-  --stage-hungry: #fff0cc;
-  --stage-excited: #ffd9ea;
-  --stage-night: #3d3f7a;
+  /* 블랙 + 실버 테마 (Figma Color 변수와 동일. 이전 라이트 값은 Figma 변수 설명에 보관) */
+  --bg-canvas: #0a0b0d;
+  --bg-surface: #16181c;
+  --bg-sunken: #24272d;
+  --text-primary: #eef0f3;
+  --text-secondary: #8e939c;
+  --text-on-dark: #0b0c0e;
+  --brand-yellow: #cfd3da;
+  --brand-yellow-soft: #262930;
+  --brand-ink: #e4e7eb;
+  --accent-sky: #a8c8ff;
+  --accent-sky-soft: #1b2433;
+  --accent-pink-soft: #2c1c24;
+  --status-good: #5ad8a6;
+  --status-bad: #ff6d7a;
+  --status-bad-soft: #2b1619;
+  --status-warn: #ffb661;
+  --stage-day: #1c1f25;
+  --stage-sick: #3a1820;
+  --stage-hungry: #3a2e16;
+  --stage-excited: #3a1834;
+  --stage-night: #11132a;
+
+  /* 실버 메탈 */
+  --silver: linear-gradient(135deg, #fbfcfd 0%, #c3c8d0 24%, #f2f4f6 46%, #8f96a0 72%, #e3e6ea 100%);
+  --silver-soft: linear-gradient(160deg, rgba(255,255,255,.10), rgba(255,255,255,.02) 40%, rgba(255,255,255,.06));
+  --silver-text: linear-gradient(180deg, #ffffff 0%, #d9dde3 45%, #8d949e 100%);
+  --hairline: rgba(220, 226, 235, 0.14);
+  --hairline-strong: rgba(220, 226, 235, 0.28);
 
   --radius-sm: 12px;
   --radius-md: 20px;
   --radius-lg: 28px;
   --radius-xl: 36px;
-  --shadow: 0 8px 24px rgba(43, 34, 64, 0.08);
+  --shadow: 0 10px 30px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.06);
 
   --font-display: 'Jua', 'Noto Sans KR', sans-serif;
   --font-body: 'Noto Sans KR', system-ui, sans-serif;
@@ -38,7 +46,7 @@
   -webkit-tap-highlight-color: transparent;
 }
 * { box-sizing: border-box; }
-body { margin: 0; background: #f1e8d8; }
+body { margin: 0; background: #000; }
 button { font: inherit; color: inherit; cursor: pointer; border: 0; background: none; padding: 0; }
 button:disabled { cursor: not-allowed; }
 h1, h2, h3, p, figure { margin: 0; }
