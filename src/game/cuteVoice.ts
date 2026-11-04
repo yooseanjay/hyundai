@@ -120,3 +120,58 @@ export const sfx = {
   /** 못 알아들음: 갸웃 */
   confused: () => tone([600, 500], 0.1, 'sine', 0.08, 0.04),
 };
+
+// ---- 아이 목소리 (Typecast, 로컬 서버 /tts 경유) ----
+// 배포된 정적 사이트에는 /tts가 없으므로 자동으로 브라우저 목소리를 쓴다.
+let serverVoice: Promise<boolean> | null = null;
+export function hasServerVoice() {
+  serverVoice ??= fetch(`${import.meta.env.BASE_URL}tts/status`)
+    .then((r) => (r.ok ? r.json() : { enabled: false }))
+    .then((j) => !!j.enabled)
+    .catch(() => false);
+  return serverVoice;
+}
+
+/** 아이 목소리용 문장: 캐시가 잘 맞도록 무작위 의성어 없이 정리만 */
+export function cleanForSpeech(text: string) {
+  return text.replace(/[\p{Extended_Pictographic}‍️]/gu, '').replace(/["“”]/g, '').replace(/[~…]+/g, ', ').replace(/\s{2,}/g, ' ').trim();
+}
+
+let current: AudioBufferSourceNode | null = null;
+
+/** 아이 목소리로 말하기 (Web Audio로 재생 → 탭할 때 이미 잠금 해제됨). 실패하면 false → 브라우저 목소리로 대체 */
+export async function speakWithServer(text: string, mood: Mood, onStart: () => void): Promise<boolean> {
+  if (!(await hasServerVoice())) return false;
+  const a = ctx();
+  if (!a) return false;
+  try {
+    const r = await fetch(`${import.meta.env.BASE_URL}tts`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text: cleanForSpeech(text), mood }),
+    });
+    if (!r.ok) return false;
+    const buf = await a.decodeAudioData(await r.arrayBuffer());
+    current?.stop();
+    const src = a.createBufferSource();
+    src.buffer = buf;
+    src.connect(a.destination);
+    current = src;
+    await new Promise<void>((done) => {
+      src.onended = () => done();
+      src.start();
+      onStart();
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export function stopServerVoice() {
+  try {
+    current?.stop();
+  } catch {
+    /* 이미 멈춤 */
+  }
+}

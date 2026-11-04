@@ -3,7 +3,7 @@
 // 음성 인식이 안 되는 브라우저(예: Firefox)나 조용한 곳에서는 글자로 물어볼 수 있다.
 import { useEffect, useRef, useState } from 'react';
 import type { Mood } from '../game/character';
-import { cuteSpeech, pickKoVoice, sfx, unlockAudio, voiceFor } from '../game/cuteVoice';
+import { cuteSpeech, pickKoVoice, sfx, speakWithServer, stopServerVoice, unlockAudio, voiceFor } from '../game/cuteVoice';
 import { reply, type BotContext } from '../game/voiceBot';
 
 type Phase = 'idle' | 'listening' | 'thinking' | 'speaking';
@@ -57,6 +57,16 @@ export function VoiceBot({ ctx, onLine }: { ctx: BotContext; onLine: (line: stri
       }
       speechSynthesis.cancel();
       const mood = r.mood ?? 'calm';
+      const done = () => { onLine(r.text, r.mood, false); finish(); };
+      (r.intent === 'unknown' ? sfx.confused : () => sfx.reply(mood))();
+      // 1순위: 진짜 아이 목소리(Typecast, PC 서버) → 실패하면 2순위: 브라우저 목소리
+      void speakWithServer(r.text, mood, () => setPhase('speaking')).then((ok) => {
+        if (ok) return done();
+        browserSpeak(mood, done);
+      });
+    }, 350);
+
+    const browserSpeak = (mood: Mood, done: () => void) => {
       const u = new SpeechSynthesisUtterance(cuteSpeech(r.text, mood));
       u.lang = 'ko-KR';
       const v = pickKoVoice();
@@ -65,16 +75,15 @@ export function VoiceBot({ ctx, onLine }: { ctx: BotContext; onLine: (line: stri
       u.pitch = pitch;
       u.rate = rate;
       u.onstart = () => setPhase('speaking');
-      u.onend = u.onerror = () => { onLine(r.text, r.mood, false); finish(); };
-      (r.intent === 'unknown' ? sfx.confused : () => sfx.reply(mood))();
-      window.setTimeout(() => speechSynthesis.speak(u), 220);
-      return;
-    }, 350);
+      u.onend = u.onerror = () => done();
+      window.setTimeout(() => speechSynthesis.speak(u), 120);
+    };
   };
 
   const listen = () => {
     if (phase === 'listening') return recRef.current?.stop();
     if (!muted) unlockAudio();
+    stopServerVoice();
     if (canSpeak) speechSynthesis.cancel();
     const rec = new SR();
     recRef.current = rec;

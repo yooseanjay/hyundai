@@ -5,3 +5,4 @@ dist
 *.log
 .hyundai-token.json
 dist-pages
+.tts-cache
