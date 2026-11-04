@@ -1,173 +1,171 @@
 import type { Mood } from '../game/character';
 import type { CosmeticId } from '../game/progress';
+import screen from '../../public/character/screen.json';
 
 interface Props {
-  color: string;
   mood: Mood;
   cosmetic: CosmeticId;
   driving?: boolean;
   size?: number;
 }
 
-function Eyes({ mood }: { mood: Mood }) {
-  const L = 92, R = 148, Y = 78;
+// 스크린 얼굴 좌표계 (screen.json 비율과 맞춤)
+const VW = 400;
+const VH = Math.round((VW * (screen.screen.height * screen.height)) / (screen.screen.width * screen.width));
+const EL = 104; // 왼쪽 눈 x
+const ER = VW - 104; // 오른쪽 눈 x
+const EY = VH * 0.46;
+const MY = VH * 0.78;
+
+const GLOW = '#e9fbff';
+
+function RingEye({ x, look = 0 }: { x: number; look?: number }) {
+  return (
+    <g className="blink" style={{ transformOrigin: `${x}px ${EY}px` }}>
+      <circle cx={x} cy={EY} r="40" fill="none" stroke={GLOW} strokeWidth="10" />
+      <circle cx={x + look * 6} cy={EY - Math.abs(look) * 2} r="17" fill={GLOW} opacity=".18" />
+      <circle cx={x + 8 + look * 6} cy={EY - 10} r="6" fill={GLOW} />
+    </g>
+  );
+}
+
+function Face({ mood, cosmetic }: { mood: Mood; cosmetic: CosmeticId }) {
+  const stroke = { stroke: GLOW, strokeWidth: 9, strokeLinecap: 'round' as const, fill: 'none' };
+  let eyes: JSX.Element;
+  let mouth: JSX.Element;
+  let extra: JSX.Element | null = null;
+
   switch (mood) {
     case 'happy':
-      return (
-        <g stroke="#1b2333" strokeWidth="5" fill="none" strokeLinecap="round">
-          <path d={`M${L - 10} ${Y + 3} Q${L} ${Y - 9} ${L + 10} ${Y + 3}`} />
-          <path d={`M${R - 10} ${Y + 3} Q${R} ${Y - 9} ${R + 10} ${Y + 3}`} />
+      eyes = (
+        <g {...stroke}>
+          <path d={`M${EL - 30} ${EY + 10} Q${EL} ${EY - 32} ${EL + 30} ${EY + 10}`} />
+          <path d={`M${ER - 30} ${EY + 10} Q${ER} ${EY - 32} ${ER + 30} ${EY + 10}`} />
         </g>
       );
+      mouth = <path {...stroke} d={`M${VW / 2 - 26} ${MY - 8} Q${VW / 2} ${MY + 16} ${VW / 2 + 26} ${MY - 8}`} />;
+      break;
     case 'excited':
-      return (
-        <g fill="#ffcf3f" stroke="#1b2333" strokeWidth="2">
-          {[L, R].map((x) => (
-            <path key={x} d={`M${x} ${Y - 12} L${x + 4} ${Y - 3} L${x + 13} ${Y - 2} L${x + 6} ${Y + 4} L${x + 8} ${Y + 13} L${x} ${Y + 8} L${x - 8} ${Y + 13} L${x - 6} ${Y + 4} L${x - 13} ${Y - 2} L${x - 4} ${Y - 3} Z`} />
+      eyes = (
+        <g fill={GLOW}>
+          {[EL, ER].map((x) => (
+            <path key={x} className="twinkle" style={{ transformOrigin: `${x}px ${EY}px` }}
+              d={`M${x} ${EY - 36} Q${x + 6} ${EY - 6} ${x + 36} ${EY} Q${x + 6} ${EY + 6} ${x} ${EY + 36} Q${x - 6} ${EY + 6} ${x - 36} ${EY} Q${x - 6} ${EY - 6} ${x} ${EY - 36} Z`} />
           ))}
         </g>
       );
-    case 'sleepy':
+      mouth = <path fill={GLOW} d={`M${VW / 2 - 30} ${MY - 14} Q${VW / 2} ${MY + 26} ${VW / 2 + 30} ${MY - 14} Z`} />;
+      break;
     case 'tired':
-      return (
-        <g stroke="#1b2333" strokeWidth="5" strokeLinecap="round">
-          <line x1={L - 10} y1={Y} x2={L + 10} y2={Y} />
-          <line x1={R - 10} y1={Y} x2={R + 10} y2={Y} />
-        </g>
-      );
-    case 'sick':
-      return (
+      eyes = (
         <g>
-          <g stroke="#1b2333" strokeWidth="4" strokeLinecap="round">
-            <path d={`M${L - 9} ${Y - 6} L${L + 9} ${Y + 6} M${L + 9} ${Y - 6} L${L - 9} ${Y + 6}`} />
-          </g>
-          <circle cx={R} cy={Y} r="9" fill="#1b2333" />
-          <circle cx={R + 3} cy={Y - 3} r="3" fill="#fff" />
-        </g>
-      );
-    default:
-      return (
-        <g>
-          {[L, R].map((x) => (
+          {[EL, ER].map((x) => (
             <g key={x}>
-              <circle cx={x} cy={Y} r="10" fill="#1b2333" />
-              <circle cx={x + 3} cy={Y - 4} r="3.5" fill="#fff" />
+              <path d={`M${x - 34} ${EY} A34 34 0 0 0 ${x + 34} ${EY}`} fill="none" stroke={GLOW} strokeWidth="9" strokeLinecap="round" />
+              <line x1={x - 38} y1={EY} x2={x + 38} y2={EY} stroke={GLOW} strokeWidth="9" strokeLinecap="round" />
+              <circle cx={x + 6} cy={EY + 14} r="6" fill={GLOW} />
             </g>
           ))}
         </g>
       );
+      mouth = <path {...stroke} d={`M${VW / 2 - 28} ${MY} q9 -9 18 0 q9 9 18 0 q9 -9 18 0`} />;
+      break;
+    case 'sleepy':
+      eyes = (
+        <g {...stroke}>
+          <path d={`M${EL - 30} ${EY - 4} Q${EL} ${EY + 22} ${EL + 30} ${EY - 4}`} />
+          <path d={`M${ER - 30} ${EY - 4} Q${ER} ${EY + 22} ${ER + 30} ${EY - 4}`} />
+        </g>
+      );
+      mouth = <ellipse cx={VW / 2} cy={MY} rx="9" ry="7" fill="none" stroke={GLOW} strokeWidth="7" />;
+      extra = (
+        <g className="zzz" fill={GLOW} fontFamily="'Jua', sans-serif" fontWeight="700">
+          <text x={VW - 70} y={VH * 0.32} fontSize="34">z</text>
+          <text x={VW - 44} y={VH * 0.2} fontSize="24">z</text>
+        </g>
+      );
+      break;
+    case 'hungry':
+      eyes = (
+        <g>
+          <RingEye x={EL} look={-1} />
+          <RingEye x={ER} look={-1} />
+        </g>
+      );
+      mouth = (
+        <g>
+          <ellipse cx={VW / 2} cy={MY - 2} rx="16" ry="14" fill="none" stroke={GLOW} strokeWidth="8" />
+          <path className="drip" d={`M${VW / 2 + 20} ${MY + 2} q8 14 0 20 q-8 -6 0 -20`} fill="#8fe3ff" />
+        </g>
+      );
+      break;
+    case 'sick':
+      eyes = (
+        <g {...stroke}>
+          <path d={`M${EL - 26} ${EY - 22} L${EL + 22} ${EY} L${EL - 26} ${EY + 22}`} />
+          <path d={`M${ER + 26} ${EY - 22} L${ER - 22} ${EY} L${ER + 26} ${EY + 22}`} />
+        </g>
+      );
+      mouth = <path {...stroke} d={`M${VW / 2 - 30} ${MY + 6} q10 -14 20 0 q10 14 20 0 q10 -14 20 0`} />;
+      extra = <text x={VW - 64} y={VH * 0.34} fontSize="40" fill="#ffb4b4">!</text>;
+      break;
+    default: // calm
+      eyes = (
+        <g>
+          <RingEye x={EL} />
+          <RingEye x={ER} />
+        </g>
+      );
+      mouth = <path {...stroke} d={`M${VW / 2 - 22} ${MY - 6} Q${VW / 2} ${MY + 12} ${VW / 2 + 22} ${MY - 6}`} />;
   }
-}
 
-function Mouth({ mood }: { mood: Mood }) {
-  const cx = 120, y = 134;
-  if (mood === 'hungry')
-    return (
-      <g>
-        <ellipse cx={cx} cy={y} rx="12" ry="10" fill="#1b2333" />
-        <path d={`M${cx + 9} ${y + 6} q4 10 0 14 q-4 -4 0 -14`} fill="#8fd3ff" />
-      </g>
-    );
-  if (mood === 'sick' || mood === 'tired') return <path d={`M${cx - 14} ${y + 4} Q${cx} ${y - 6} ${cx + 14} ${y + 4}`} stroke="#1b2333" strokeWidth="5" fill="none" strokeLinecap="round" />;
-  if (mood === 'sleepy') return <ellipse cx={cx} cy={y} rx="6" ry="4" fill="#1b2333" />;
-  if (mood === 'excited') return <path d={`M${cx - 18} ${y - 6} Q${cx} ${y + 22} ${cx + 18} ${y - 6} Z`} fill="#1b2333" />;
-  return <path d={`M${cx - 16} ${y - 4} Q${cx} ${y + 12} ${cx + 16} ${y - 4}`} stroke="#1b2333" strokeWidth="5" fill="none" strokeLinecap="round" />;
-}
-
-function Accessory({ id }: { id: CosmeticId }) {
-  switch (id) {
-    case 'sunglasses':
-      return (
-        <g>
-          <rect x="74" y="66" width="38" height="24" rx="8" fill="#1b2333" />
-          <rect x="128" y="66" width="38" height="24" rx="8" fill="#1b2333" />
-          <rect x="110" y="72" width="20" height="5" fill="#1b2333" />
-          <rect x="80" y="70" width="12" height="5" rx="2" fill="#fff" opacity=".5" />
-        </g>
-      );
-    case 'scarf':
-      return (
-        <g>
-          <path d="M44 112 Q120 128 196 112 L196 124 Q120 140 44 124 Z" fill="#e2524b" />
-          <path d="M170 120 L182 158 L166 156 L160 124 Z" fill="#c63d37" />
-          <g stroke="#fff" strokeWidth="3" opacity=".6">
-            <line x1="70" y1="118" x2="70" y2="128" />
-            <line x1="100" y1="122" x2="100" y2="132" />
-            <line x1="140" y1="122" x2="140" y2="132" />
-          </g>
-        </g>
-      );
-    case 'cap':
-      return (
-        <g>
-          <path d="M78 34 Q120 2 162 34 Z" fill="#2b6cf6" />
-          <path d="M150 32 Q186 30 196 40 L156 40 Z" fill="#1d4fc0" />
-          <circle cx="120" cy="14" r="5" fill="#1d4fc0" />
-        </g>
-      );
-    case 'crown':
-      return <path d="M88 36 L94 6 L108 24 L120 0 L132 24 L146 6 L152 36 Z" fill="#ffcf3f" stroke="#c99a12" strokeWidth="3" strokeLinejoin="round" />;
-    case 'flower':
-      return (
-        <g transform="translate(176 46)">
-          {[0, 72, 144, 216, 288].map((a) => (
-            <ellipse key={a} cx="0" cy="-10" rx="7" ry="11" fill="#ff9ec4" transform={`rotate(${a})`} />
-          ))}
-          <circle r="6" fill="#ffd84d" />
-        </g>
-      );
-    case 'wrench':
-      return (
-        <g transform="translate(60 150)">
-          <circle r="15" fill="#ffcf3f" stroke="#c99a12" strokeWidth="3" />
-          <text y="6" textAnchor="middle" fontSize="16">🔧</text>
-        </g>
-      );
-    default:
-      return null;
-  }
-}
-
-export function CarCharacter({ color, mood, cosmetic, driving, size = 240 }: Props) {
   return (
-    <svg className={`car ${driving ? 'is-driving' : ''} mood-${mood}`} viewBox="0 0 240 200" width={size} height={(size * 200) / 240} role="img" aria-label={`차 캐릭터 (${mood})`}>
-      <ellipse cx="120" cy="190" rx="92" ry="8" fill="#000" opacity=".12" className="car-shadow" />
-      <g className="car-body">
-        {/* 지붕 + 창 */}
-        <path d="M62 104 L78 46 Q84 34 98 34 L142 34 Q156 34 162 46 L178 104 Z" fill={color} />
-        <path d="M74 98 L86 54 Q90 44 100 44 L140 44 Q150 44 154 54 L166 98 Z" fill="#e8f6ff" />
-        <path d="M92 50 L104 50 L88 92 L80 92 Z" fill="#fff" opacity=".7" />
-        {/* 몸통 */}
-        <rect x="26" y="96" width="188" height="72" rx="30" fill={color} />
-        <rect x="26" y="96" width="188" height="72" rx="30" fill="url(#shine)" />
-        {/* 헤드램프 */}
-        <rect x="38" y="112" width="30" height="12" rx="6" fill="#fff8d6" stroke="#1b2333" strokeOpacity=".15" />
-        <rect x="172" y="112" width="30" height="12" rx="6" fill="#fff8d6" stroke="#1b2333" strokeOpacity=".15" />
-        {/* 볼터치 */}
-        <ellipse cx="62" cy="140" rx="12" ry="7" fill="#ff8fa3" opacity={mood === 'sick' ? 0.15 : 0.55} />
-        <ellipse cx="178" cy="140" rx="12" ry="7" fill="#ff8fa3" opacity={mood === 'sick' ? 0.15 : 0.55} />
-        <Eyes mood={mood} />
-        <Mouth mood={mood} />
-        {mood === 'sick' && <rect x="150" y="104" width="32" height="10" rx="4" fill="#f6e2c0" transform="rotate(-18 166 109)" />}
-        {mood === 'sleepy' && (
-          <text x="180" y="40" fontSize="22" fill="#1b2333" className="zzz">z<tspan fontSize="16" dy="-10">z</tspan></text>
+    <svg viewBox={`0 0 ${VW} ${VH}`} preserveAspectRatio="xMidYMid meet" className="face-svg">
+      <g className="face-glow">
+        {cosmetic === 'sunglasses' && mood !== 'sleepy' ? (
+          <g>
+            <rect x={EL - 50} y={EY - 30} width="100" height="60" rx="22" fill="#05070a" stroke={GLOW} strokeWidth="6" />
+            <rect x={ER - 50} y={EY - 30} width="100" height="60" rx="22" fill="#05070a" stroke={GLOW} strokeWidth="6" />
+            <line x1={EL + 50} y1={EY - 12} x2={ER - 50} y2={EY - 12} stroke={GLOW} strokeWidth="6" />
+            <path d={`M${EL - 34} ${EY - 16} l18 0`} stroke={GLOW} strokeWidth="5" strokeLinecap="round" opacity=".7" />
+            <path d={`M${ER - 34} ${EY - 16} l18 0`} stroke={GLOW} strokeWidth="5" strokeLinecap="round" opacity=".7" />
+          </g>
+        ) : (
+          eyes
         )}
-        <Accessory id={cosmetic} />
+        {mouth}
+        {extra}
       </g>
-      {/* 바퀴 */}
-      {[70, 170].map((x) => (
-        <g key={x} className="wheel" style={{ transformOrigin: `${x}px 168px` }}>
-          <circle cx={x} cy="168" r="20" fill="#1b2333" />
-          <circle cx={x} cy="168" r="9" fill="#c8d1dc" />
-          <rect x={x - 2} y="150" width="4" height="10" fill="#c8d1dc" />
-        </g>
-      ))}
-      <defs>
-        <linearGradient id="shine" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor="#fff" stopOpacity=".35" />
-          <stop offset=".5" stopColor="#fff" stopOpacity="0" />
-        </linearGradient>
-      </defs>
     </svg>
+  );
+}
+
+const ROOF_ITEMS: Partial<Record<CosmeticId, string>> = {
+  crown: '/character/acc-crown.png',
+  cap: '/character/acc-cap.png',
+  scarf: '/character/acc-ribbon.png',
+  flower: '/character/acc-flower.png',
+};
+
+export function CarCharacter({ mood, cosmetic, driving, size = 280 }: Props) {
+  const s = screen.screen;
+  const roof = ROOF_ITEMS[cosmetic];
+  return (
+    <div
+      className={`car3d mood-${mood} ${driving ? 'is-driving' : ''}`}
+      style={{ width: size, aspectRatio: `${screen.width} / ${screen.height}` }}
+      role="img"
+      aria-label={`차 캐릭터 (${mood})`}
+    >
+      <div className="car3d-shadow" />
+      <div className="car3d-body">
+        <img src="/character/body.png" alt="" draggable={false} />
+        <div className="car3d-screen" style={{ left: `${s.left}%`, top: `${s.top}%`, width: `${s.width}%`, height: `${s.height}%` }}>
+          <Face mood={mood} cosmetic={cosmetic} />
+        </div>
+        {roof && <img className={`car3d-roof acc-${cosmetic}`} src={roof} alt="" draggable={false} />}
+        {cosmetic === 'wrench' && <img className="car3d-badge" src="/character/acc-medal.png" alt="" draggable={false} />}
+      </div>
+    </div>
   );
 }

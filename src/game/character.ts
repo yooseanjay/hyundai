@@ -30,7 +30,7 @@ export function computeStatus(s: VehicleSnapshot, trips: Trip[], driving = false
   } else if (activeWarnings.length > 0) {
     mood = 'sick';
     const w = WARNING_LABELS[activeWarnings[0]];
-    line = activeWarnings.length > 1 ? `몸이 여기저기 아파요… (${w} 외 ${activeWarnings.length - 1}곳)` : `${w}이(가) 좀 불편해요… 봐주실래요?`;
+    line = activeWarnings.length > 1 ? `여기저기 아파요… (${w} 외 ${activeWarnings.length - 1}곳)` : `${w} 쪽이 불편해요… 🥺`;
   } else if (energy < 20) {
     mood = 'hungry';
     line = `배고파요… 🍙 이대로면 ${s.dteKm}km밖에 못 가요`;
@@ -53,3 +53,13 @@ export function computeStatus(s: VehicleSnapshot, trips: Trip[], driving = false
 
   return { energy, health, fatigue, mood, line, activeWarnings };
 }
+
+/** 경고별 아이콘과 캐릭터식 표현 (돌봐주세요 카드) */
+export const WARNING_UI: Record<WarningKey, { icon: string; hint: string }> = {
+  tirePressure: { icon: '🛞', hint: '바퀴가 말랑말랑해요…' },
+  engineOil: { icon: '🛢️', hint: '속이 더부룩해요…' },
+  brakeOil: { icon: '🛑', hint: '멈추기가 힘들어요…' },
+  washerFluid: { icon: '💧', hint: '앞이 잘 안 보여요…' },
+  lamp: { icon: '💡', hint: '눈이 침침해요…' },
+  smartKeyBattery: { icon: '🔑', hint: '열쇠가 졸려해요…' },
+};

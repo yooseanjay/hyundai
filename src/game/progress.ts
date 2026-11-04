@@ -31,7 +31,7 @@ export const COSMETICS: Cosmetic[] = [
   { id: 'sunglasses', name: '선글라스', emoji: '🕶️', condition: 'Lv.2 달성', unlocked: (p) => levelOf(p.xp) >= 2 },
   { id: 'flower', name: '꽃 장식', emoji: '🌸', condition: '부드러운 운전 3회', unlocked: (p) => p.calmTrips >= 3 },
   { id: 'wrench', name: '정비왕 배지', emoji: '🔧', condition: '정비 3회 완료', unlocked: (p) => p.fixes >= 3 },
-  { id: 'scarf', name: '스카프', emoji: '🧣', condition: 'Lv.3 달성', unlocked: (p) => levelOf(p.xp) >= 3 },
+  { id: 'scarf', name: '리본', emoji: '🎀', condition: 'Lv.3 달성', unlocked: (p) => levelOf(p.xp) >= 3 },
   { id: 'cap', name: '드라이버 캡', emoji: '🧢', condition: '누적 300km 주행', unlocked: (p) => p.totalKm >= 300 },
   { id: 'crown', name: '왕관', emoji: '👑', condition: 'Lv.5 달성', unlocked: (p) => levelOf(p.xp) >= 5 },
 ];

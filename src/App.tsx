@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { dataSource, simulator, WARNING_LABELS, type CarProfile, type Trip, type VehicleSnapshot, type WarningKey } from './api';
 import { startLogin } from './api/hyundaiClient';
 import { CarCharacter } from './components/CarCharacter';
-import { computeStatus } from './game/character';
+import { computeStatus, WARNING_UI, type Mood } from './game/character';
 import { writeDiary, type DiaryEntry } from './game/diary';
 import {
   COSMETICS, levelOf, loadProgress, newlyUnlocked, saveProgress, xpForTrip,
@@ -13,6 +13,7 @@ type Tab = 'home' | 'drive' | 'diary' | 'closet';
 type Style = 'calm' | 'normal' | 'sporty';
 
 const STYLE_LABEL: Record<Style, string> = { calm: '🌿 차분하게', normal: '🚗 보통', sporty: '🔥 신나게' };
+const TABS: [Tab, string, string][] = [['home', '🏠', '홈'], ['drive', '🛣️', '운전'], ['diary', '📔', '일기장'], ['closet', '👗', '꾸미기']];
 
 export default function App() {
   const [tab, setTab] = useState<Tab>('home');
@@ -24,7 +25,6 @@ export default function App() {
   const [toast, setToast] = useState<string | null>(null);
   const [openDiary, setOpenDiary] = useState<DiaryEntry | null>(null);
 
-  // 운전 상태
   const [driving, setDriving] = useState(false);
   const [driveProgress, setDriveProgress] = useState(0);
   const [style, setStyle] = useState<Style>('normal');
@@ -93,7 +93,7 @@ export default function App() {
           if (timer.current) window.clearInterval(timer.current);
           return 100;
         }
-        return p + 2.5;
+        return p + 2;
       });
     }, 100);
   };
@@ -129,70 +129,73 @@ export default function App() {
         {dataSource.kind === 'hyundai' && <button className="btn primary" onClick={startLogin}>현대 계정으로 로그인</button>}
       </main>
     );
-  if (!car || !snap) return <main className="app center"><p>차가 깨어나는 중… 🚗💤</p></main>;
+  if (!car || !snap) return <main className="app center"><p className="t-title">차가 깨어나는 중… 💤</p></main>;
 
   const st = computeStatus(snap, trips, driving);
   const level = levelOf(progress.xp);
   const xpInLevel = progress.xp % XP_PER_LEVEL;
+  const kmNow = Math.round((distance * driveProgress) / 100);
+
+  const Header = (
+    <>
+      <header className="header">
+        <div>
+          <p className="eyebrow t-caption">우리 차가 살아있다면 <span className={`demo-tag ${dataSource.kind === 'hyundai' ? 'live' : ''}`}>{dataSource.kind === 'mock' ? 'DEMO' : 'LIVE'}</span></p>
+          <h1 className="t-display">{car.nickname}</h1>
+        </div>
+        <div className="car-pill"><span>🚙</span><span className="t-caption">{car.model} · {snap.odometerKm.toLocaleString()}km</span></div>
+      </header>
+      <XPBar level={level} xp={xpInLevel} />
+    </>
+  );
 
   return (
     <main className="app">
-      <header className="top">
-        <div>
-          <p className="eyebrow">우리 차가 살아있다면</p>
-          <h1>{car.nickname} <span className="lv">Lv.{level}</span></h1>
-          <p className="sub">{car.model} · 누적 {snap.odometerKm.toLocaleString()}km</p>
-        </div>
-        <span className={`src ${dataSource.kind}`}>{dataSource.kind === 'mock' ? '시뮬레이터' : 'LIVE'}</span>
-      </header>
-
-      <div className="xpbar" aria-label="경험치">
-        <div style={{ width: `${xpInLevel}%` }} />
-        <span>{xpInLevel} / {XP_PER_LEVEL} XP</span>
-      </div>
-
       {tab === 'home' && (
         <section className="screen">
-          <div className={`stage bg-${st.mood}`}>
-            <div className="bubble">{st.line}</div>
-            <CarCharacter color={car.color} mood={st.mood} cosmetic={progress.equipped} />
-          </div>
-
+          {Header}
+          <Stage mood={st.mood} line={st.line} cosmetic={progress.equipped} />
           <div className="stats">
-            <Stat icon="🍙" label="에너지" value={st.energy} hint={`${snap.dteKm}km 주행 가능`} tone={st.energy < 20 ? 'bad' : 'good'} />
-            <Stat icon="💖" label="건강" value={st.health} hint={st.activeWarnings.length ? `경고 ${st.activeWarnings.length}개` : '이상 없음'} tone={st.health < 60 ? 'bad' : 'good'} />
-            <Stat icon="😪" label="피로도" value={st.fatigue} hint="오늘 주행량" tone={st.fatigue > 70 ? 'bad' : 'neutral'} />
+            <Stat icon="🍙" label="에너지" value={st.energy} tone={st.energy < 20 ? 'bad' : 'good'} />
+            <Stat icon="💖" label="건강" value={st.health} tone={st.health < 100 ? 'bad' : 'good'} />
+            <Stat icon="😪" label="피로도" value={st.fatigue} tone={st.fatigue > 70 ? 'bad' : 'neutral'} />
           </div>
-
           <div className="card">
-            <h2>🩺 돌봐주세요</h2>
+            <h2 className="t-heading">🩺 돌봐주세요</h2>
             {st.activeWarnings.length === 0 ? (
-              <p className="muted">아픈 곳이 없어요. 고마워요!</p>
+              <div className="empty-care"><span className="care-icon">✨</span><span className="t-label">아픈 곳이 없어요. 고마워요!</span></div>
             ) : (
               <ul className="care">
                 {st.activeWarnings.map((k) => (
-                  <li key={k}>
-                    <span>⚠️ {WARNING_LABELS[k]}</span>
+                  <li key={k} className="care-item">
+                    <span className="care-icon">{WARNING_UI[k].icon}</span>
+                    <span className="care-text">
+                      <b className="t-heading">{WARNING_LABELS[k]}</b>
+                      <span className="t-caption">{WARNING_UI[k].hint}</span>
+                    </span>
                     {simulator ? (
-                      <button className="btn small" onClick={() => { simulator?.fix(k); refresh(snap); }}>정비 완료 +{XP_FOR_FIX[k]}XP</button>
+                      <button className="btn care-btn" onClick={() => { simulator?.fix(k); refresh(snap); }}>정비 완료 +{XP_FOR_FIX[k]}XP</button>
                     ) : (
-                      <span className="muted small">정비 후 새로고침하면 회복돼요</span>
+                      <span className="t-caption">정비 후 새로고침</span>
                     )}
                   </li>
                 ))}
               </ul>
             )}
             <div className="row">
-              {simulator && car.fuelType === 'ev' && <button className="btn" onClick={() => { simulator?.charge(); refresh(snap); }}>⚡ 밥 주기(충전)</button>}
-              <button className="btn ghost" onClick={() => refresh(snap)}>↻ 새로고침</button>
+              {simulator && car.fuelType === 'ev' && <button className="btn secondary" onClick={() => { simulator?.charge(); refresh(snap); }}>⚡ 밥 주기(충전)</button>}
+              <button className="btn secondary" onClick={() => refresh(snap)}>↻ 새로고침</button>
             </div>
           </div>
-
           {snap.parking && (
             <div className="card">
-              <h2>📍 지금 쉬는 곳</h2>
-              <p>{snap.parking.label}</p>
-              <a className="muted small" href={`https://map.kakao.com/link/map/${encodeURIComponent(car.nickname)},${snap.parking.lat},${snap.parking.lng}`} target="_blank" rel="noreferrer">지도에서 보기 →</a>
+              <div className="row between">
+                <div>
+                  <p className="t-caption">지금 쉬는 곳</p>
+                  <p className="t-heading">📍 {snap.parking.label}</p>
+                </div>
+                <a className="btn secondary" href={`https://map.kakao.com/link/map/${encodeURIComponent(car.nickname)},${snap.parking.lat},${snap.parking.lng}`} target="_blank" rel="noreferrer">지도</a>
+              </div>
             </div>
           )}
         </section>
@@ -200,37 +203,43 @@ export default function App() {
 
       {tab === 'drive' && (
         <section className="screen">
-          <div className={`stage road ${driving ? 'moving' : ''}`}>
-            <div className="bubble">{driving ? (driveProgress >= 100 ? '도착! 내려도 돼요 🙌' : st.line) : '시동 걸어 주세요!'}</div>
-            <CarCharacter color={car.color} mood={driving ? 'excited' : st.mood} cosmetic={progress.equipped} driving={driving} />
-            <div className="lane" />
-          </div>
+          {Header}
+          <Stage
+            road
+            moving={driving}
+            mood={driving ? 'excited' : st.mood}
+            line={driving ? (driveProgress >= 100 ? '도착! 내려도 돼요 🙌' : '부릉부릉~ 바람이 시원해요!') : '어디로 갈까요? 시동 걸어 주세요!'}
+            cosmetic={progress.equipped}
+            driving={driving}
+          />
           {!simulator ? (
             <div className="card">
-              <p>실제 차량 모드에서는 운전을 마치고 앱을 열면 운행 정보로 일기가 자동 작성돼요.</p>
-              <button className="btn" onClick={() => refresh(snap)}>운행 기록 불러오기</button>
+              <p className="t-label">실제 차량 모드에서는 운전을 마치고 앱을 열면 운행 정보로 일기가 자동 작성돼요.</p>
+              <button className="btn primary block" onClick={() => refresh(snap)}>운행 기록 불러오기</button>
             </div>
           ) : !driving ? (
             <div className="card">
-              <h2>🧪 주행 시뮬레이터</h2>
-              <p className="muted small">API 승인 전 시연용. 실제 차량에서는 운행 정보 API가 이 역할을 해요.</p>
-              <label className="field">운전 스타일
-                <div className="seg">
-                  {(Object.keys(STYLE_LABEL) as Style[]).map((s) => (
-                    <button key={s} className={style === s ? 'on' : ''} onClick={() => setStyle(s)}>{STYLE_LABEL[s]}</button>
-                  ))}
-                </div>
-              </label>
-              <label className="field">목표 거리 <b>{distance}km</b>
-                <input type="range" min={5} max={150} step={5} value={distance} onChange={(e) => setDistance(Number(e.target.value))} />
-              </label>
-              <button className="btn primary big" onClick={startDrive}>🔑 시동 걸기</button>
+              <div>
+                <h2 className="t-heading">🧪 주행 시뮬레이터</h2>
+                <p className="t-caption">API 승인 전 시연용 · 실제 차량에선 운행 정보 API로 대체</p>
+              </div>
+              <p className="t-label muted">운전 스타일</p>
+              <div className="chips">
+                {(Object.keys(STYLE_LABEL) as Style[]).map((s) => (
+                  <button key={s} className={`chip ${style === s ? 'on' : ''}`} onClick={() => setStyle(s)}>{STYLE_LABEL[s]}</button>
+                ))}
+              </div>
+              <div className="row between"><span className="t-label muted">목표 거리</span><b className="t-heading">{distance}km</b></div>
+              <input className="slider" type="range" min={5} max={150} step={5} value={distance}
+                style={{ ['--p' as string]: `${((distance - 5) / 145) * 100}%` }} onChange={(e) => setDistance(Number(e.target.value))} />
+              <button className="btn primary block" onClick={startDrive}>🔑 시동 걸기</button>
             </div>
           ) : (
             <div className="card">
-              <div className="progress"><div style={{ width: `${driveProgress}%` }} /></div>
-              <p className="muted small">{Math.round((distance * driveProgress) / 100)} / {distance}km · {STYLE_LABEL[style]}</p>
-              <button className="btn primary big" onClick={getOff}>🚪 하차하기 → 오늘의 일기</button>
+              <div className="row between"><h2 className="t-heading">🛣️ 주행 중</h2><span className="t-number">{kmNow} / {distance}km</span></div>
+              <div className="track"><div style={{ width: `${driveProgress}%` }} /></div>
+              <p className="t-caption">{STYLE_LABEL[style]}</p>
+              <button className="btn dark block" onClick={getOff}>🚪 하차하고 오늘의 일기 보기</button>
             </div>
           )}
         </section>
@@ -238,50 +247,69 @@ export default function App() {
 
       {tab === 'diary' && (
         <section className="screen">
-          <h2 className="h">📔 {car.nickname}의 일기장</h2>
-          {progress.diaries.length === 0 && <p className="muted">아직 일기가 없어요. 함께 드라이브를 떠나 보세요!</p>}
-          <ul className="diaries">
-            {progress.diaries.map((d) => (
-              <li key={d.id}>
-                <button onClick={() => setOpenDiary(d)}>
-                  <span className="stamp">{d.stamp}</span>
-                  <span className="meta">
-                    <b>{d.title}</b>
-                    <small>{new Date(d.date).toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', weekday: 'short' })} · {d.distanceKm}km · {d.place}</small>
-                  </span>
-                  <span className="xp">+{d.xpGained}</span>
-                </button>
-              </li>
-            ))}
-          </ul>
+          <div>
+            <h1 className="t-display">📔 {car.nickname}의 일기장</h1>
+            <p className="t-label muted">함께 달린 날마다 한 장씩 쌓여요</p>
+          </div>
+          <div className="summary">
+            <div style={{ background: 'var(--brand-yellow-soft)' }}><b className="t-number">{progress.tripCount}</b><span className="t-caption">함께 달린 날</span></div>
+            <div style={{ background: 'var(--accent-sky-soft)' }}><b className="t-number">{progress.totalKm}km</b><span className="t-caption">누적 거리</span></div>
+            <div style={{ background: 'var(--accent-pink-soft)' }}><b className="t-number">{progress.fixes}회</b><span className="t-caption">돌봐준 횟수</span></div>
+          </div>
+          {progress.diaries.length === 0 ? (
+            <div className="empty">
+              <CarCharacter mood="sleepy" cosmetic={progress.equipped} size={180} />
+              <p className="t-label muted">아직 일기가 없어요. 함께 드라이브를 떠나 볼까요?</p>
+              <button className="btn primary" onClick={() => setTab('drive')}>🛣️ 운전하러 가기</button>
+            </div>
+          ) : (
+            <ul className="diaries">
+              {progress.diaries.map((d) => (
+                <li key={d.id}>
+                  <button className="diary-card" onClick={() => setOpenDiary(d)}>
+                    <span className="stamp">{d.stamp}</span>
+                    <span className="diary-meta">
+                      <b className="t-heading">{d.title}</b>
+                      <span className="t-caption">{new Date(d.date).toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', weekday: 'short' })} · {d.distanceKm}km · {d.place}</span>
+                    </span>
+                    <span className="xp-pill">+{d.xpGained}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
         </section>
       )}
 
       {tab === 'closet' && (
         <section className="screen">
-          <div className="stage small">
-            <CarCharacter color={car.color} mood="happy" cosmetic={progress.equipped} size={180} />
+          <div>
+            <h1 className="t-display">👗 꾸미기</h1>
+            <p className="t-label muted">잘 달리고, 잘 돌봐줄수록 새로운 모습이 열려요</p>
           </div>
-          <h2 className="h">👗 꾸미기</h2>
-          <p className="muted small">잘 달리고, 잘 돌봐줄수록 새로운 모습이 열려요.</p>
+          <div className="preview"><CarCharacter mood="happy" cosmetic={progress.equipped} size={236} /></div>
+          <XPBar level={level} xp={xpInLevel} />
           <div className="closet">
             {COSMETICS.map((c) => {
               const open = c.unlocked(progress);
+              const on = progress.equipped === c.id;
               return (
-                <button key={c.id} disabled={!open} className={progress.equipped === c.id ? 'on' : ''}
-                  onClick={() => updateProgress((p) => ({ ...p, equipped: c.id }))}>
-                  <span className="emoji">{open ? c.emoji : '🔒'}</span>
-                  <b>{c.name}</b>
-                  <small>{open ? (progress.equipped === c.id ? '착용 중' : '착용하기') : c.condition}</small>
+                <button key={c.id} disabled={!open} className={`tile ${on ? 'on' : ''}`} onClick={() => updateProgress((p) => ({ ...p, equipped: c.id }))}>
+                  <span className="tile-thumb">
+                    <CarCharacter mood="happy" cosmetic={c.id} size={92} />
+                    {!open && <span className="tile-lock">🔒</span>}
+                  </span>
+                  <b className="t-label">{c.name}</b>
+                  <span className={`t-caption ${on ? 'on-text' : ''}`}>{open ? (on ? '착용 중' : '착용하기') : c.condition}</span>
                 </button>
               );
             })}
           </div>
           <div className="card stats-summary">
-            <span>🚗 {progress.tripCount}회</span><span>🛣️ {progress.totalKm}km</span><span>🔧 {progress.fixes}회</span><span>🌿 {progress.calmTrips}회</span>
+            <span className="t-label">🚗 {progress.tripCount}회</span><span className="t-label">🛣️ {progress.totalKm}km</span><span className="t-label">🔧 {progress.fixes}회</span><span className="t-label">🌿 {progress.calmTrips}회</span>
           </div>
           {simulator && (
-            <button className="btn ghost small" onClick={() => {
+            <button className="btn ghost" onClick={() => {
               if (!confirm('시뮬레이터와 성장 기록을 모두 초기화할까요?')) return;
               simulator?.reset(); localStorage.removeItem('oca.progress.v1'); location.reload();
             }}>시연 데이터 초기화</button>
@@ -290,26 +318,29 @@ export default function App() {
       )}
 
       <nav className="tabs">
-        {([['home', '🏠', '홈'], ['drive', '🛣️', '운전'], ['diary', '📔', '일기장'], ['closet', '👗', '꾸미기']] as const).map(([id, icon, label]) => (
-          <button key={id} className={tab === id ? 'on' : ''} onClick={() => setTab(id)} disabled={driving && id !== 'drive'}>
-            <span>{icon}</span>{label}
+        {TABS.map(([id, icon, label]) => (
+          <button key={id} className={tab === id ? 'on' : ''} onClick={() => setTab(id)} disabled={driving && id !== 'drive'} aria-label={label}>
+            <span>{icon}</span><span className="tab-label">{label}</span>
           </button>
         ))}
       </nav>
 
       {openDiary && (
         <div className="modal" onClick={() => setOpenDiary(null)}>
-          <article className="paper" onClick={(e) => e.stopPropagation()}>
-            <header>
-              <span className="stamp big">{openDiary.stamp}</span>
-              <div>
-                <small>{new Date(openDiary.date).toLocaleString('ko-KR', { month: 'long', day: 'numeric', weekday: 'long', hour: '2-digit', minute: '2-digit' })}</small>
-                <h3>{openDiary.title}</h3>
+          <div className="paper-wrap" onClick={(e) => e.stopPropagation()}>
+            <CarCharacter mood="happy" cosmetic={progress.equipped} size={170} />
+            <article className="paper">
+              <p className="t-caption">{new Date(openDiary.date).toLocaleString('ko-KR', { month: 'long', day: 'numeric', weekday: 'long', hour: '2-digit', minute: '2-digit' })}</p>
+              <h3 className="t-title">📔 {car.nickname}의 일기 — {openDiary.title}</h3>
+              <p className="t-diary">{openDiary.body.replace(/^.*의 일기\n\n/, '')}</p>
+              <div className="paper-chips">
+                <span style={{ background: 'var(--accent-sky-soft)' }}>🛣️ {openDiary.distanceKm}km</span>
+                <span style={{ background: 'var(--brand-yellow-soft)' }}>⭐ +{openDiary.xpGained} XP</span>
+                <span style={{ background: 'var(--accent-pink-soft)' }}>📍 {openDiary.place}</span>
               </div>
-            </header>
-            <p className="hand">{openDiary.body}</p>
-            <button className="btn primary" onClick={() => setOpenDiary(null)}>닫기</button>
-          </article>
+              <button className="btn primary block" onClick={() => setOpenDiary(null)}>일기장에 붙이기 ✨</button>
+            </article>
+          </div>
         </div>
       )}
 
@@ -318,12 +349,41 @@ export default function App() {
   );
 }
 
-function Stat({ icon, label, value, hint, tone }: { icon: string; label: string; value: number; hint: string; tone: 'good' | 'bad' | 'neutral' }) {
+function XPBar({ level, xp }: { level: number; xp: number }) {
+  return (
+    <div className="xpbar" aria-label="경험치">
+      <span className="lv-pill">Lv.{level}</span>
+      <div className="track"><div style={{ width: `${(xp / XP_PER_LEVEL) * 100}%` }} /></div>
+      <span className="t-caption">{xp}/{XP_PER_LEVEL}</span>
+    </div>
+  );
+}
+
+function Stage({ mood, line, cosmetic, road, moving, driving }: {
+  mood: Mood; line: string; cosmetic: Progress['equipped']; road?: boolean; moving?: boolean; driving?: boolean;
+}) {
+  return (
+    <div className={`stage mood-${mood} ${road ? 'road' : ''} ${road && driving ? 'tall' : ''} ${moving ? 'moving' : ''}`}>
+      <div className="bubble">{line}</div>
+      {road && (
+        <>
+          <span className="cloud" style={{ left: 40, top: 70, width: 70, height: 30 }} />
+          <span className="cloud" style={{ left: 240, top: 96, width: 90, height: 38 }} />
+          <span className="grass" />
+          <span className="road-strip"><span className="lanes" /></span>
+        </>
+      )}
+      <CarCharacter mood={mood} cosmetic={cosmetic} driving={driving} size={road ? 266 : 282} />
+    </div>
+  );
+}
+
+function Stat({ icon, label, value, tone }: { icon: string; label: string; value: number; tone: 'good' | 'bad' | 'neutral' }) {
   return (
     <div className={`stat ${tone}`}>
-      <div className="stat-top"><span>{icon} {label}</span><b>{value}</b></div>
-      <div className="meter"><div style={{ width: `${value}%` }} /></div>
-      <small>{hint}</small>
+      <div className="stat-top"><span>{icon}</span><span className="t-caption">{label}</span></div>
+      <b className="t-number">{value}</b>
+      <div className="track thin"><div style={{ width: `${value}%` }} /></div>
     </div>
   );
 }

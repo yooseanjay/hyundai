@@ -27,7 +27,18 @@
 - **일기장**: 날짜별 캐릭터 일기
 - **꾸미기**: 레벨·누적 거리·정비 횟수·안전 운전으로 해금되는 외형
 
-디자인: [Figma – 우리 차가 살아있다면 App UI](https://www.figma.com/design/d391qsxYI9dMTT0ui0Py3W)
+## 디자인
+
+[Figma – 우리 차가 살아있다면 App UI](https://www.figma.com/design/d391qsxYI9dMTT0ui0Py3W)
+
+- **📱 Screens**: v2 화면 6종 (홈 · 운전 전 · 운전 중 · 오늘의 일기 · 일기장 · 꾸미기) + v1 프로토타입 보관
+- **🎨 Design System**: Color / Radius & Space 변수, 텍스트 스타일 8종, 컴포넌트 (Button, Chip, StatCard, CareItem, DiaryCard, ClosetTile, XPBar, SpeechBubble, TabBar)
+- **🚗 Character**: 표정 7종 × 꾸미기 6종 Character 컴포넌트, 컨셉 시안
+
+캐릭터는 3D 이미지 본체 + 앞면 스크린의 **SVG 얼굴**로 구성됩니다. 얼굴만 바꿔 표정을 만들기 때문에 생김새가 항상 일정하고, 눈 깜빡임·반짝임 같은 애니메이션이 가능합니다.
+`http://localhost:5173/#moods` 에서 모든 표정과 꾸미기를 한 번에 볼 수 있습니다.
+
+캐릭터 에셋 재생성: `python -I design/tools/prepare_character.py design/concepts/C_yellow_screen-face.png public/character`
 
 ## 실행
 
