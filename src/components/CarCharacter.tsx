@@ -1,9 +1,11 @@
 import type { Mood } from '../game/character';
 import type { CosmeticId } from '../game/progress';
+import type { BodyColor } from '../data/hyundaiModels';
 import screen from '../../public/character/screen.json';
 
 interface Props {
   mood: Mood;
+  color?: BodyColor;
   cosmetic: CosmeticId;
   driving?: boolean;
   size?: number;
@@ -147,7 +149,7 @@ const ROOF_ITEMS: Partial<Record<CosmeticId, string>> = {
   flower: '/character/acc-flower.png',
 };
 
-export function CarCharacter({ mood, cosmetic, driving, size = 280 }: Props) {
+export function CarCharacter({ mood, cosmetic, driving, color = 'yellow', size = 280 }: Props) {
   const s = screen.screen;
   const roof = ROOF_ITEMS[cosmetic];
   return (
@@ -159,7 +161,7 @@ export function CarCharacter({ mood, cosmetic, driving, size = 280 }: Props) {
     >
       <div className="car3d-shadow" />
       <div className="car3d-body">
-        <img src="/character/body.png" alt="" draggable={false} />
+        <img src={`/character/body-${color}.png`} alt="" draggable={false} />
         <div className="car3d-screen" style={{ left: `${s.left}%`, top: `${s.top}%`, width: `${s.width}%`, height: `${s.height}%` }}>
           <Face mood={mood} cosmetic={cosmetic} />
         </div>

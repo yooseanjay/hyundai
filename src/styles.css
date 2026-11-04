@@ -228,3 +228,23 @@ h1, h2, h3, p, figure { margin: 0; }
 .sheet-grid { display: flex; flex-wrap: wrap; gap: 20px; margin-bottom: 32px; }
 .sheet-item { margin: 0; padding: 40px 20px 16px; background: #fff; border-radius: 24px; display: grid; justify-items: center; gap: 10px; }
 .sheet-item figcaption { font-size: 13px; color: var(--text-secondary); }
+
+/* ===== 내 차 고르기 시트 ===== */
+.car-pill:disabled { cursor: default; }
+.sheet-modal { place-items: end center; padding: 0; }
+.sheet-panel { width: 100%; max-width: 430px; max-height: 88dvh; overflow-y: auto; background: var(--bg-canvas); border-radius: 32px 32px 0 0;
+  padding: 10px 20px calc(24px + env(safe-area-inset-bottom)); display: grid; gap: 10px; animation: sheetUp .3s cubic-bezier(.2,1,.3,1); }
+@keyframes sheetUp { from { transform: translateY(40%); opacity: 0; } }
+.sheet-grip { width: 40px; height: 5px; border-radius: 99px; background: var(--bg-sunken); justify-self: center; margin-bottom: 4px; }
+.sheet-preview { display: flex; align-items: flex-end; gap: 12px; padding: 34px 16px 12px; border-radius: var(--radius-lg); background: linear-gradient(180deg, var(--brand-yellow-soft), var(--bg-surface)); }
+.field-label { margin-top: 6px; }
+.text-input { width: 100%; padding: 12px 14px; border-radius: 14px; border: 2px solid var(--bg-sunken); background: var(--bg-surface); font: inherit; font-size: 15px; color: var(--text-primary); outline: none; }
+.text-input:focus { border-color: var(--brand-yellow); }
+.scroll-x { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 2px; scrollbar-width: none; }
+.scroll-x .chip { flex: none; }
+.model-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+.model-item { text-align: left; display: grid; gap: 2px; padding: 12px; border-radius: 16px; background: var(--bg-surface); border: 2px solid transparent; box-shadow: var(--shadow); }
+.model-item.on { border-color: var(--brand-yellow); background: var(--brand-yellow-soft); box-shadow: none; }
+.swatches { display: flex; flex-wrap: wrap; gap: 10px; }
+.swatch { width: 34px; height: 34px; border-radius: 50%; border: 2px solid rgba(43,34,64,.12); }
+.swatch.on { outline: 3px solid var(--brand-ink); outline-offset: 2px; }

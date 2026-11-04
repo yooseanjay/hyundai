@@ -1,13 +1,14 @@
 // 현대 Developers Open API 응답을 앱 내부에서 쓰기 쉬운 형태로 정규화한 타입
 
-export type FuelType = 'gasoline' | 'diesel' | 'hybrid' | 'ev';
+export type FuelType = 'gasoline' | 'diesel' | 'hybrid' | 'ev' | 'hydrogen';
 
 export interface CarProfile {
   carId: string;
   nickname: string;
   model: string;
   fuelType: FuelType;
-  color: string; // 캐릭터 기본 색상
+  modelId?: string; // src/data/hyundaiModels.ts 카탈로그 id
+  bodyColor: import('../data/hyundaiModels').BodyColor; // 캐릭터 차체 색
 }
 
 export interface Warnings {

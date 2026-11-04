@@ -2,6 +2,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { dataSource, simulator, WARNING_LABELS, type CarProfile, type Trip, type VehicleSnapshot, type WarningKey } from './api';
 import { startLogin } from './api/hyundaiClient';
 import { CarCharacter } from './components/CarCharacter';
+import { CarSheet } from './components/CarSheet';
+import { ENERGY_TERMS } from './data/hyundaiModels';
 import { computeStatus, WARNING_UI, type Mood } from './game/character';
 import { writeDiary, type DiaryEntry } from './game/diary';
 import {
@@ -24,6 +26,7 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [openDiary, setOpenDiary] = useState<DiaryEntry | null>(null);
+  const [carSheet, setCarSheet] = useState(false);
 
   const [driving, setDriving] = useState(false);
   const [driveProgress, setDriveProgress] = useState(0);
@@ -67,7 +70,7 @@ export default function App() {
         const gain = fixed.reduce((a, k) => a + XP_FOR_FIX[k], 0) + (charged ? XP_FOR_CHARGE : 0);
         if (gain > 0) {
           updateProgress((p) => ({ ...p, xp: p.xp + gain, fixes: p.fixes + fixed.length }));
-          showToast(fixed.length ? `💖 ${fixed.map((k) => WARNING_LABELS[k]).join(', ')} 회복! +${gain}XP` : `⚡ 배불러요! +${gain}XP`);
+          showToast(fixed.length ? `💖 ${fixed.map((k) => WARNING_LABELS[k]).join(', ')} 회복! +${gain}XP` : `🍙 배불러요! +${gain}XP`);
         }
       }
       return s;
@@ -143,7 +146,9 @@ export default function App() {
           <p className="eyebrow t-caption">우리 차가 살아있다면 <span className={`demo-tag ${dataSource.kind === 'hyundai' ? 'live' : ''}`}>{dataSource.kind === 'mock' ? 'DEMO' : 'LIVE'}</span></p>
           <h1 className="t-display">{car.nickname}</h1>
         </div>
-        <div className="car-pill"><span>🚙</span><span className="t-caption">{car.model} · {snap.odometerKm.toLocaleString()}km</span></div>
+        <button className="car-pill" onClick={() => simulator && setCarSheet(true)} disabled={!simulator || driving} aria-label="내 차 바꾸기">
+          <span>🚙</span><span className="t-caption">{car.model} · {snap.odometerKm.toLocaleString()}km</span>{simulator && <span className="t-caption">▾</span>}
+        </button>
       </header>
       <XPBar level={level} xp={xpInLevel} />
     </>
@@ -154,7 +159,7 @@ export default function App() {
       {tab === 'home' && (
         <section className="screen">
           {Header}
-          <Stage mood={st.mood} line={st.line} cosmetic={progress.equipped} />
+          <Stage mood={st.mood} line={st.line} cosmetic={progress.equipped} color={car.bodyColor} />
           <div className="stats">
             <Stat icon="🍙" label="에너지" value={st.energy} tone={st.energy < 20 ? 'bad' : 'good'} />
             <Stat icon="💖" label="건강" value={st.health} tone={st.health < 100 ? 'bad' : 'good'} />
@@ -183,7 +188,7 @@ export default function App() {
               </ul>
             )}
             <div className="row">
-              {simulator && car.fuelType === 'ev' && <button className="btn secondary" onClick={() => { simulator?.charge(); refresh(snap); }}>⚡ 밥 주기(충전)</button>}
+              {simulator && <button className="btn secondary" onClick={() => { simulator?.refill(); refresh(snap); }}>{ENERGY_TERMS[car.fuelType].icon} 밥 주기 ({ENERGY_TERMS[car.fuelType].refill})</button>}
               <button className="btn secondary" onClick={() => refresh(snap)}>↻ 새로고침</button>
             </div>
           </div>
@@ -210,6 +215,7 @@ export default function App() {
             mood={driving ? 'excited' : st.mood}
             line={driving ? (driveProgress >= 100 ? '도착! 내려도 돼요 🙌' : '부릉부릉~ 바람이 시원해요!') : '어디로 갈까요? 시동 걸어 주세요!'}
             cosmetic={progress.equipped}
+            color={car.bodyColor}
             driving={driving}
           />
           {!simulator ? (
@@ -258,7 +264,7 @@ export default function App() {
           </div>
           {progress.diaries.length === 0 ? (
             <div className="empty">
-              <CarCharacter mood="sleepy" cosmetic={progress.equipped} size={180} />
+              <CarCharacter color={car.bodyColor} mood="sleepy" cosmetic={progress.equipped} size={180} />
               <p className="t-label muted">아직 일기가 없어요. 함께 드라이브를 떠나 볼까요?</p>
               <button className="btn primary" onClick={() => setTab('drive')}>🛣️ 운전하러 가기</button>
             </div>
@@ -287,7 +293,7 @@ export default function App() {
             <h1 className="t-display">👗 꾸미기</h1>
             <p className="t-label muted">잘 달리고, 잘 돌봐줄수록 새로운 모습이 열려요</p>
           </div>
-          <div className="preview"><CarCharacter mood="happy" cosmetic={progress.equipped} size={236} /></div>
+          <div className="preview"><CarCharacter color={car.bodyColor} mood="happy" cosmetic={progress.equipped} size={236} /></div>
           <XPBar level={level} xp={xpInLevel} />
           <div className="closet">
             {COSMETICS.map((c) => {
@@ -296,7 +302,7 @@ export default function App() {
               return (
                 <button key={c.id} disabled={!open} className={`tile ${on ? 'on' : ''}`} onClick={() => updateProgress((p) => ({ ...p, equipped: c.id }))}>
                   <span className="tile-thumb">
-                    <CarCharacter mood="happy" cosmetic={c.id} size={92} />
+                    <CarCharacter color={car.bodyColor} mood="happy" cosmetic={c.id} size={92} />
                     {!open && <span className="tile-lock">🔒</span>}
                   </span>
                   <b className="t-label">{c.name}</b>
@@ -328,7 +334,7 @@ export default function App() {
       {openDiary && (
         <div className="modal" onClick={() => setOpenDiary(null)}>
           <div className="paper-wrap" onClick={(e) => e.stopPropagation()}>
-            <CarCharacter mood="happy" cosmetic={progress.equipped} size={170} />
+            <CarCharacter color={car.bodyColor} mood="happy" cosmetic={progress.equipped} size={170} />
             <article className="paper">
               <p className="t-caption">{new Date(openDiary.date).toLocaleString('ko-KR', { month: 'long', day: 'numeric', weekday: 'long', hour: '2-digit', minute: '2-digit' })}</p>
               <h3 className="t-title">📔 {car.nickname}의 일기 — {openDiary.title}</h3>
@@ -342,6 +348,14 @@ export default function App() {
             </article>
           </div>
         </div>
+      )}
+
+      {carSheet && simulator && (
+        <CarSheet
+          initial={simulator.config}
+          onClose={() => setCarSheet(false)}
+          onSave={(c) => { simulator?.setCar(c); setCarSheet(false); refresh(); showToast(`🚗 ${c.nickname}(으)로 바꿨어요!`); }}
+        />
       )}
 
       {toast && <div className="toast">{toast}</div>}
@@ -359,8 +373,8 @@ function XPBar({ level, xp }: { level: number; xp: number }) {
   );
 }
 
-function Stage({ mood, line, cosmetic, road, moving, driving }: {
-  mood: Mood; line: string; cosmetic: Progress['equipped']; road?: boolean; moving?: boolean; driving?: boolean;
+function Stage({ mood, line, cosmetic, color, road, moving, driving }: {
+  mood: Mood; line: string; cosmetic: Progress['equipped']; color: CarProfile['bodyColor']; road?: boolean; moving?: boolean; driving?: boolean;
 }) {
   return (
     <div className={`stage mood-${mood} ${road ? 'road' : ''} ${road && driving ? 'tall' : ''} ${moving ? 'moving' : ''}`}>
@@ -373,7 +387,7 @@ function Stage({ mood, line, cosmetic, road, moving, driving }: {
           <span className="road-strip"><span className="lanes" /></span>
         </>
       )}
-      <CarCharacter mood={mood} cosmetic={cosmetic} driving={driving} size={road ? 266 : 282} />
+      <CarCharacter color={color} mood={mood} cosmetic={cosmetic} driving={driving} size={road ? 266 : 282} />
     </div>
   );
 }
