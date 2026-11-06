@@ -211,3 +211,46 @@ export async function geminiSpeech(text: string, voice: string, mood: string): P
   for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
   return out.buffer;
 }
+
+// ---------------- 여행지 추천 (Google 검색으로 실제 장소 확인) ----------------
+export interface TripIdea {
+  name: string;
+  area: string;
+  distanceKm: number;
+  driveMin: number;
+  why: string;
+  tag: string;
+}
+
+/** 현재 위치·주행 가능 거리·시간·분위기에 맞는 여행지 3곳 */
+export async function recommendTrips(opts: { place: string; lat: number; lng: number; maxKm: number; hours: string; mood: string; car: string; weather: string }): Promise<TripIdea[]> {
+  const model = await chatModel();
+  const prompt = [
+    `현재 위치: ${opts.place} (위도 ${opts.lat.toFixed(3)}, 경도 ${opts.lng.toFixed(3)})`,
+    `차: ${opts.car}, 왕복을 생각해 편도 ${Math.round(opts.maxKm)}km 이내만 추천.`,
+    `여행 시간: ${opts.hours}, 원하는 분위기: ${opts.mood}, 지금 날씨: ${opts.weather}`,
+    '대한민국에 실제로 있는 장소만 3곳 추천해. 확실하지 않으면 추천하지 마.',
+    '출력은 JSON 배열만 (설명·코드블록 없이):',
+    '[{"name":"장소 이름(지도 검색되는 정확한 이름)","area":"시/군 구/읍면","distanceKm":숫자,"driveMin":숫자,"why":"추천 이유 한 문장(30자 안팎, ~요체)","tag":"바다|산|카페|맛집|야경|공원|문화|드라이브 중 하나"}]',
+  ].join('\n');
+  const body = {
+    contents: [{ role: 'user', parts: [{ text: prompt }] }],
+    tools: [{ google_search: {} }],
+    generationConfig: { temperature: 0.7, maxOutputTokens: 900 },
+  };
+  let json: any;
+  try {
+    json = await call(`/v1beta/models/${model}:generateContent`, body);
+  } catch {
+    // 검색 도구를 못 쓰는 모델이면 검색 없이
+    json = await call(`/v1beta/models/${model}:generateContent`, { ...body, tools: undefined });
+  }
+  const text: string = (json.candidates?.[0]?.content?.parts ?? []).map((p: { text?: string }) => p.text ?? '').join('');
+  const m = text.match(/\[[\s\S]*\]/);
+  if (!m) throw new Error('추천을 읽지 못했어요');
+  const list: TripIdea[] = JSON.parse(m[0]);
+  return list
+    .filter((x) => x && x.name)
+    .slice(0, 3)
+    .map((x) => ({ ...x, distanceKm: Math.round(Number(x.distanceKm) || 0), driveMin: Math.round(Number(x.driveMin) || 0), why: String(x.why ?? '').replace(/[\p{Extended_Pictographic}‍️]/gu, '') }));
+}

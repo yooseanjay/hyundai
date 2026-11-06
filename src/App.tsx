@@ -1,6 +1,6 @@
 // 화면 구성: Figma "우리 차가 살아있다면" 흑백 디자인 (홈 · AI 음성봇 · 운전 · 오늘의 일기 · 일기장 · 꾸미기)
 import {
-  ArrowUpRight, Award, BookOpen, CalendarDays, CarFront, ChevronLeft, ChevronRight, CircleCheck, Crown,
+  ArrowUpRight, Award, BookOpen, CalendarDays, CarFront, ChevronLeft, ChevronRight, CircleCheck, Compass, Crown,
   Flower2, Glasses, HardHat, House, LockKeyhole, MapPin, Mic, Ribbon, Route, Sparkles, Sun, X, type LucideIcon,
 } from 'lucide-react';
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -8,6 +8,7 @@ import { dataSource, simulator, WARNING_LABELS, type CarProfile, type Trip, type
 import { logout, startLogin } from './api/hyundaiClient';
 import { CarCharacter } from './components/CarCharacter';
 import { CarSheet } from './components/CarSheet';
+import { TripScreen } from './components/TripScreen';
 import { VehicleStatus, type LiveDrive } from './components/VehicleStatus';
 import { gpsSupported, startGpsTrip, type GpsUpdate } from './game/gpsTrip';
 import { VoiceBot } from './components/VoiceBot';
@@ -23,14 +24,14 @@ import {
   XP_FOR_CHARGE, XP_FOR_FIX, XP_PER_LEVEL, type CosmeticId, type Progress,
 } from './game/progress';
 
-type Tab = 'home' | 'drive' | 'diary' | 'closet';
+type Tab = 'home' | 'drive' | 'trip' | 'diary' | 'closet';
 type View = Tab | 'talk';
 type Style = 'calm' | 'normal' | 'sporty';
 
 const STYLE_LABEL: Record<Style, string> = { calm: '차분하게', normal: '보통', sporty: '신나게' };
 const STYLE_DESC: Record<Style, string> = { calm: '차분한 주행', normal: '보통 주행', sporty: '신나는 주행' };
 const AVG_SPEED: Record<Style, number> = { calm: 38, normal: 52, sporty: 74 };
-const TABS: [Tab, LucideIcon, string][] = [['home', House, '홈'], ['drive', CarFront, '운전'], ['diary', BookOpen, '일기장'], ['closet', Sparkles, '꾸미기']];
+const TABS: [Tab, LucideIcon, string][] = [['home', House, '홈'], ['drive', CarFront, '운전'], ['trip', Compass, '여행'], ['diary', BookOpen, '일기장'], ['closet', Sparkles, '꾸미기']];
 const COSMETIC_ICON: Record<CosmeticId, LucideIcon | null> = { none: null, sunglasses: Glasses, flower: Flower2, wrench: Award, scarf: Ribbon, cap: HardHat, crown: Crown };
 const WARNING_TITLE: Record<WarningKey, string> = {
   tirePressure: '타이어 공기압이 낮아요', engineOil: '엔진오일을 갈 때예요', brakeOil: '브레이크액을 확인해요',
@@ -448,6 +449,12 @@ export default function App() {
             </>
           ) : null}
         </section>
+      )}
+
+      {/* ---------- 여행 ---------- */}
+      {view === 'trip' && (
+        <TripScreen car={car} snap={snap} trips={trips}
+          onXp={(xp, msg) => { updateProgress((p) => ({ ...p, xp: p.xp + xp, fixes: p.fixes + 1 })); showToast(msg); }} />
       )}
 
       {/* ---------- 일기장 목록 ---------- */}

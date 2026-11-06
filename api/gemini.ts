@@ -16,7 +16,7 @@ const ALLOWED_PATH = /^\/v1beta\/(models(\?[\w=&]*)?$|models\/gemini-[\w.-]+:gen
 const ORIGINS = [/^https:\/\/yooseanjay\.github\.io$/, /^https:\/\/our-car-alive[\w-]*\.vercel\.app$/, /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/, /^http:\/\/192\.168\.\d+\.\d+(:\d+)?$/];
 const MAX_BODY = 24_000;
 const MAX_TTS_CHARS = 300;
-const MAX_OUTPUT_TOKENS = 200;
+const MAX_OUTPUT_TOKENS = 1000; // 대화는 앱이 120으로 요청, 여행지 추천은 900
 const PER_MINUTE = 12;
 
 // 서버 인스턴스별 간단한 횟수 제한 (IP당 1분에 12번)

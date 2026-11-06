@@ -213,7 +213,7 @@ a { color: inherit; text-decoration: none; }
 
 /* ---------- 하단 탭바 ---------- */
 .tabbar { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(18px + env(safe-area-inset-bottom)); width: calc(100% - 40px); max-width: 390px; height: 70px;
-  display: grid; grid-template-columns: repeat(4, 1fr); align-items: center; padding: 0 12px; border-radius: 999px;
+  display: grid; grid-template-columns: repeat(5, 1fr); align-items: center; padding: 0 8px; border-radius: 999px;
   background: rgba(17, 17, 19, .82); backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px); border: 1px solid var(--line); z-index: 20; }
 .tabbar button { display: grid; justify-items: center; gap: 5px; color: var(--fg-3); font-size: 11px; font-weight: 500; }
 .tabbar button.on { color: #fff; font-weight: 700; }
@@ -345,3 +345,22 @@ a { color: inherit; text-decoration: none; }
 .live-tag { margin-left: 8px; font-size: 10.5px; }
 .live-tag.ready { color: var(--good); }
 .live-tag.failed { color: var(--warn); }
+
+/* ===================== 여행 탭 ===================== */
+.trip .loc { display: inline-flex; align-items: center; gap: 4px; }
+.btn.sm-link { height: auto; padding: 2px 4px; color: var(--fg); text-decoration: underline; text-underline-offset: 3px; }
+.weather { display: grid; grid-template-columns: auto 1fr; align-items: baseline; column-gap: 10px; row-gap: 4px; }
+.weather .big { font-size: 40px; line-height: 1; }
+.weather .cap { grid-column: 1 / -1; }
+.tip { margin: 0; font-size: 13px; line-height: 1.5; padding: 10px 12px; border-radius: 12px; background: var(--card-2); border: 1px solid var(--line); }
+.idea { display: grid; gap: 4px; padding: 12px; border-radius: 14px; background: var(--card-2); border: 1px solid var(--line); }
+.idea .why { margin: 2px 0 4px; font-size: 13px; line-height: 1.5; }
+.idea-links { display: flex; gap: 8px; }
+.idea-links .btn { flex: 1; }
+.nearby { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; }
+.near-btn { display: grid; justify-items: center; gap: 6px; padding: 12px 2px; border-radius: 14px; background: var(--card-2); border: 1px solid var(--line); font-size: 10.5px; text-align: center; }
+.part { display: grid; gap: 6px; }
+.part .btn { justify-self: start; }
+.cap.due { color: var(--bad); font-weight: 600; }
+.spin { animation: spin 1s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
