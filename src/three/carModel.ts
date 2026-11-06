@@ -160,13 +160,13 @@ export function buildCar(shapeId?: string): CarRig {
   // ---- 현대 엠블럼 (크롬, 앞·뒤) ----
   const emblemCv = document.createElement('canvas');
   emblemCv.width = 512;
-  emblemCv.height = 328;
+  emblemCv.height = 273; // 24 : 12.8
   drawEmblem(emblemCv);
   const emblemTex = keep(new THREE.CanvasTexture(emblemCv));
   emblemTex.colorSpace = THREE.SRGBColorSpace;
   emblemTex.anisotropy = 8;
   const emblemMat = keep(new THREE.MeshBasicMaterial({ map: emblemTex, transparent: true, toneMapped: false, depthWrite: false }));
-  const emblemGeo = keep(new THREE.PlaneGeometry(0.24, 0.155));
+  const emblemGeo = keep(new THREE.PlaneGeometry(0.24, 0.128));
   const emblem = (front: boolean) => {
     const m = new THREE.Mesh(emblemGeo, emblemMat);
     m.rotation.y = front ? Math.PI / 2 : -Math.PI / 2;

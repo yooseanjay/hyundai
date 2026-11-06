@@ -592,5 +592,5 @@ a { color: inherit; text-decoration: none; }
 
 /* 현대 엠블럼 + 워드마크 */
 .brand-logo { display: inline-flex; align-items: center; gap: 10px; }
-.brand-logo .emblem { width: 40px; height: 26px; color: #fff; filter: drop-shadow(0 0 6px rgba(255,255,255,.25)); }
+.brand-logo .emblem { width: 44px; height: 24px; color: #fff; filter: drop-shadow(0 0 6px rgba(255,255,255,.25)); }
 .brand-logo .wordmark { font-size: 15px; font-weight: 700; letter-spacing: .34em; }

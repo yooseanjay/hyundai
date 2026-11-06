@@ -8,7 +8,7 @@ import { dataSource, simulator, WARNING_LABELS, type CarProfile, type Trip, type
 import { logout, startLogin } from './api/hyundaiClient';
 import { CarCharacter } from './components/CarCharacter';
 import { Studio, type StudioTab } from './components/Studio';
-import { EMBLEM_H, EMBLEM_OVAL, EMBLEM_VIEWBOX } from './three/emblem';
+import { EMBLEM_PATH, EMBLEM_VIEWBOX } from './three/emblem';
 import { colorOf, loadStyle, saveStyle, type CharStyle } from './game/style';
 import { VehicleStatus, type LiveDrive } from './components/VehicleStatus';
 import { markReplaced, partsStatus, quickWeather } from './voice/actions';
@@ -691,17 +691,11 @@ function Gauge({ label, value, bad }: { label: string; value: number; bad?: bool
   );
 }
 
-/** 현대 엠블럼 (화면용 SVG) */
+/** 현대 엠블럼 (화면용 SVG, 실제 로고 모양) */
 function HyundaiEmblem() {
-  const o = EMBLEM_OVAL;
-  const t = `rotate(${o.rotate} ${o.cx} ${o.cy})`;
   return (
     <svg className="emblem" viewBox={EMBLEM_VIEWBOX} role="img" aria-label="현대자동차">
-      <defs>
-        <clipPath id="emblem-clip"><ellipse cx={o.cx} cy={o.cy} rx={o.rx + o.stroke / 2} ry={o.ry + o.stroke / 2} transform={t} /></clipPath>
-      </defs>
-      <ellipse cx={o.cx} cy={o.cy} rx={o.rx} ry={o.ry} transform={t} fill="none" stroke="currentColor" strokeWidth={o.stroke} />
-      <path d={EMBLEM_H} fill="currentColor" clipPath="url(#emblem-clip)" />
+      <path d={EMBLEM_PATH} fill="currentColor" />
     </svg>
   );
 }
