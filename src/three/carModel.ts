@@ -37,6 +37,35 @@ function extrude(shape: THREE.Shape, depth: number, bevel = 0.05) {
   return g;
 }
 
+/** 사진→3D 모델은 유리 너머 실내(좌석)가 밝게 비침 → 창문 아래선 위의 세운 면(유리)을 까만 유리로 칠함.
+ *  지붕·보닛처럼 위를 보는 면은 그대로 둠 */
+function blackGlass(mat: THREE.MeshStandardMaterial, toCar: THREE.Matrix4, belt: number) {
+  mat.onBeforeCompile = (sh) => {
+    sh.uniforms.uBelt = { value: belt };
+    sh.uniforms.uToCar = { value: toCar };
+    sh.vertexShader = sh.vertexShader
+      .replace('#include <common>', `#include <common>
+uniform mat4 uToCar;
+varying vec3 vObjPos;
+varying vec3 vObjN;`)
+      .replace('#include <begin_vertex>', `#include <begin_vertex>
+vObjPos = (uToCar * vec4(position, 1.0)).xyz;
+vObjN = mat3(uToCar) * normal;`);
+    sh.fragmentShader = sh.fragmentShader
+      .replace('#include <common>', `#include <common>
+uniform float uBelt;
+varying vec3 vObjPos;
+varying vec3 vObjN;`)
+      .replace('#include <color_fragment>', `#include <color_fragment>
+float isGlass = step(uBelt, vObjPos.y) * step(normalize(vObjN).y, 0.97);
+diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.02, 0.022, 0.026), isGlass);`)
+      .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
+roughnessFactor = mix(roughnessFactor, 0.06, isGlass);`);
+  };
+  mat.customProgramCacheKey = () => `glass-${belt.toFixed(4)}`;
+  mat.needsUpdate = true;
+}
+
 export function buildCar(shapeId?: string): CarRig {
   const S: CarShape = shapeOf(shapeId);
   const { L, W, wr, wb, bottom, noseTop, roofY, roofFX, roofBX, deckX } = S;
@@ -268,6 +297,8 @@ export function buildCar(shapeId?: string): CarRig {
       box3 = new THREE.Box3().setFromObject(root);
       const c = box3.getCenter(new THREE.Vector3());
       root.position.set(root.position.x - c.x, root.position.y - box3.min.y, root.position.z - c.z);
+      root.updateMatrixWorld(true);
+      const beltY = S.glbBeltY ? new THREE.Box3().setFromObject(root).max.y * S.glbBeltY : 0;
       root.traverse((o) => {
         const m = o as THREE.Mesh;
         if (!m.isMesh) return;
@@ -280,6 +311,7 @@ export function buildCar(shapeId?: string): CarRig {
           sm.metalness = 0.35;
           sm.roughness = Math.min(sm.roughness, 0.45);
           sm.envMapIntensity = 1.3;
+          if (beltY) blackGlass(sm, m.matrixWorld.clone(), beltY);
           modelMats.push(sm);
           disposables.push(sm);
           if (sm.map) disposables.push(sm.map);
@@ -302,7 +334,7 @@ export function buildCar(shapeId?: string): CarRig {
       };
       const rs = new THREE.Mesh(screen.geometry, screen.material);
       rs.scale.setScalar(0.85);
-      at(rs, 0.31, 0, -1, 0.02);
+      at(rs, S.glbRearY ?? 0.31, 0, -1, 0.02);
       // 코드로 만든 차체는 숨기고 얼굴 화면만 남김
       group.children.forEach((o) => { if (!o.userData.keep && o !== acc) o.visible = false; });
       group.add(holder);

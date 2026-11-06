@@ -19,10 +19,14 @@ export interface CarShape {
   /** 실제 3D 모델 파일 (public/models) · 앞이 +x가 되도록 돌릴 각도 */
   glb?: string;
   glbRotY?: number;
+  /** 실제 모델에서 뒤 번호판 얼굴 높이 (차 높이 대비, 기본 0.31) */
+  glbRearY?: number;
+  /** 실제 모델 창문 아래선 높이 (차 높이 대비) — 이 위 유리면은 까만 유리로 (실내 좌석 안 보이게) */
+  glbBeltY?: number;
 }
 
-const ioniq5: CarShape = { L: 2.3, W: 0.93, wr: 0.38, wb: 1.45, bottom: 0.32, noseTop: 0.94, cowl: [1.05, 1.04], beltRear: 1.06, tailTop: 1.0, roofY: 1.5, roofFX: 0.12, roofBX: -1.62, deckX: -2.12, lamp: 'pixel', glb: 'models/ioniq5.glb', glbRotY: Math.PI / 2 };
-const avante: CarShape = { L: 2.33, W: 0.9, wr: 0.34, wb: 1.36, bottom: 0.3, noseTop: 0.76, cowl: [0.92, 0.92], beltRear: 0.98, tailTop: 0.98, roofY: 1.4, roofFX: -0.05, roofBX: -0.85, deckX: -1.68, lamp: 'bar' };
+const ioniq5: CarShape = { L: 2.3, W: 0.93, wr: 0.38, wb: 1.45, bottom: 0.32, noseTop: 0.94, cowl: [1.05, 1.04], beltRear: 1.06, tailTop: 1.0, roofY: 1.5, roofFX: 0.12, roofBX: -1.62, deckX: -2.12, lamp: 'pixel', glb: 'models/ioniq5.glb', glbRotY: Math.PI / 2, glbBeltY: 0.63 };
+const avante: CarShape = { L: 2.33, W: 0.9, wr: 0.34, wb: 1.36, bottom: 0.3, noseTop: 0.76, cowl: [0.92, 0.92], beltRear: 0.98, tailTop: 0.98, roofY: 1.4, roofFX: -0.05, roofBX: -0.85, deckX: -1.68, lamp: 'bar', glb: 'models/avante.glb', glbRotY: Math.PI / 2, glbRearY: 0.42, glbBeltY: 0.66 };
 const ioniq6: CarShape = { L: 2.43, W: 0.94, wr: 0.36, wb: 1.5, bottom: 0.3, noseTop: 0.7, cowl: [1.02, 0.9], beltRear: 0.98, tailTop: 0.94, roofY: 1.47, roofFX: 0.05, roofBX: -0.5, deckX: -2.08, lamp: 'pixel' };
 
 export const SHAPES: Record<string, CarShape> = {
@@ -34,8 +38,8 @@ export const SHAPES: Record<string, CarShape> = {
   casper: { L: 1.8, W: 0.8, wr: 0.32, wb: 1.2, bottom: 0.3, noseTop: 0.9, cowl: [0.95, 1.0], beltRear: 1.04, tailTop: 0.98, roofY: 1.6, roofFX: 0.25, roofBX: -1.5, deckX: -1.72, lamp: 'round' },
   avante,
   'avante-n': { ...avante, wr: 0.35, bottom: 0.26, sport: true },
-  sonata: { L: 2.45, W: 0.93, wr: 0.35, wb: 1.42, bottom: 0.3, noseTop: 0.74, cowl: [0.95, 0.92], beltRear: 0.98, tailTop: 0.97, roofY: 1.44, roofFX: -0.1, roofBX: -0.95, deckX: -1.9, lamp: 'bar' },
-  grandeur: { L: 2.5, W: 0.94, wr: 0.36, wb: 1.48, bottom: 0.32, noseTop: 0.82, cowl: [0.88, 0.96], beltRear: 1.02, tailTop: 1.01, roofY: 1.47, roofFX: -0.15, roofBX: -1.05, deckX: -1.82, lamp: 'bar' },
+  sonata: { L: 2.45, W: 0.93, wr: 0.35, wb: 1.42, bottom: 0.3, noseTop: 0.74, cowl: [0.95, 0.92], beltRear: 0.98, tailTop: 0.97, roofY: 1.44, roofFX: -0.1, roofBX: -0.95, deckX: -1.9, lamp: 'bar', glb: 'models/sonata.glb', glbRotY: Math.PI / 2, glbRearY: 0.42, glbBeltY: 0.66 },
+  grandeur: { L: 2.5, W: 0.94, wr: 0.36, wb: 1.48, bottom: 0.32, noseTop: 0.82, cowl: [0.88, 0.96], beltRear: 1.02, tailTop: 1.01, roofY: 1.47, roofFX: -0.15, roofBX: -1.05, deckX: -1.82, lamp: 'bar', glb: 'models/grandeur.glb', glbRotY: Math.PI / 2, glbRearY: 0.42, glbBeltY: 0.66 },
   venue: { L: 2.02, W: 0.88, wr: 0.34, wb: 1.26, bottom: 0.34, noseTop: 0.92, cowl: [0.9, 1.02], beltRear: 1.06, tailTop: 1.0, roofY: 1.6, roofFX: 0.05, roofBX: -1.62, deckX: -1.92, lamp: 'bar' },
   kona: { L: 2.17, W: 0.91, wr: 0.36, wb: 1.33, bottom: 0.34, noseTop: 0.9, cowl: [0.95, 1.0], beltRear: 1.05, tailTop: 0.98, roofY: 1.56, roofFX: 0.0, roofBX: -1.45, deckX: -2.02, lamp: 'bar' },
   tucson: { L: 2.3, W: 0.93, wr: 0.38, wb: 1.38, bottom: 0.36, noseTop: 0.98, cowl: [1.0, 1.06], beltRear: 1.1, tailTop: 1.04, roofY: 1.66, roofFX: 0.02, roofBX: -1.6, deckX: -2.14, lamp: 'bar' },
