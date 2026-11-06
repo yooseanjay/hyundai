@@ -11,7 +11,7 @@ const sh = (cmd, opts = {}) => execSync(cmd, { stdio: 'inherit', ...opts });
 // 1) 빌드 — 이미 있는 환경변수가 .env.local보다 우선하므로 키를 비워서 빌드
 rmSync(OUT, { recursive: true, force: true });
 sh(`npx vite build --outDir ${OUT}`, {
-  env: { ...process.env, BASE_PATH: `/${REPO}/`, VITE_DATA_SOURCE: 'mock', VITE_HYUNDAI_CLIENT_ID: '', HYUNDAI_CLIENT_SECRET: '', GEMINI_API_KEY: '', TYPECAST_API_KEY: '' },
+  env: { ...process.env, BASE_PATH: `/${REPO}/`, VITE_DATA_SOURCE: 'mock', VITE_HYUNDAI_CLIENT_ID: '', HYUNDAI_CLIENT_SECRET: '', GEMINI_API_KEY: '', TYPECAST_API_KEY: '', VITE_GEMINI_SERVER: 'https://our-car-alive.vercel.app' },
 });
 
 // 2) 안전 검사: .env.local의 실제 키 값이 빌드 결과에 있으면 중단
