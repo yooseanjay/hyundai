@@ -8,6 +8,7 @@ import { dataSource, simulator, WARNING_LABELS, type CarProfile, type Trip, type
 import { logout, startLogin } from './api/hyundaiClient';
 import { CarCharacter } from './components/CarCharacter';
 import { Studio, type StudioTab } from './components/Studio';
+import { EMBLEM_H, EMBLEM_OVAL, EMBLEM_VIEWBOX } from './three/emblem';
 import { colorOf, loadStyle, saveStyle, type CharStyle } from './game/style';
 import { VehicleStatus, type LiveDrive } from './components/VehicleStatus';
 import { markReplaced, partsStatus, quickWeather } from './voice/actions';
@@ -645,7 +646,7 @@ export default function App() {
 function Brand({ live }: { live?: boolean }) {
   return (
     <header className="brand">
-      <div className="brand-bar"><span className="wordmark">HYUNDAI</span><span className="cap">현대자동차 Open API</span></div>
+      <div className="brand-bar"><span className="brand-logo"><HyundaiEmblem /><span className="wordmark">HYUNDAI</span></span><span className="cap">현대자동차 Open API</span></div>
       <p className="cap">우리 차가 살아있다면{live === false && <em className="badge">DEMO</em>}</p>
     </header>
   );
@@ -687,5 +688,20 @@ function Gauge({ label, value, bad }: { label: string; value: number; bad?: bool
       <div className="card-head"><span className="cap">{label}</span><b className="num">{value}</b></div>
       <div className="bar thin"><div style={{ width: `${value}%` }} /></div>
     </div>
+  );
+}
+
+/** 현대 엠블럼 (화면용 SVG) */
+function HyundaiEmblem() {
+  const o = EMBLEM_OVAL;
+  const t = `rotate(${o.rotate} ${o.cx} ${o.cy})`;
+  return (
+    <svg className="emblem" viewBox={EMBLEM_VIEWBOX} role="img" aria-label="현대자동차">
+      <defs>
+        <clipPath id="emblem-clip"><ellipse cx={o.cx} cy={o.cy} rx={o.rx + o.stroke / 2} ry={o.ry + o.stroke / 2} transform={t} /></clipPath>
+      </defs>
+      <ellipse cx={o.cx} cy={o.cy} rx={o.rx} ry={o.ry} transform={t} fill="none" stroke="currentColor" strokeWidth={o.stroke} />
+      <path d={EMBLEM_H} fill="currentColor" clipPath="url(#emblem-clip)" />
+    </svg>
   );
 }

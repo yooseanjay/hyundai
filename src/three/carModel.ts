@@ -5,6 +5,7 @@ import { BODY_COLORS, type BodyColor } from '../data/hyundaiModels';
 import type { Mood } from '../game/character';
 import type { CosmeticId } from '../game/progress';
 import { DEFAULT_STYLE, type CharStyle } from '../game/style';
+import { drawEmblem } from './emblem';
 import { drawFace } from './face';
 import { shapeOf, type CarShape } from './shapes';
 
@@ -145,6 +146,38 @@ export function buildCar(shapeId?: string): CarRig {
   screen.rotation.y = Math.PI / 2;
   add(screen, F + 0.04, faceY, 0).userData.keep = true;
 
+  // ---- 뒤 번호판에도 얼굴 (같은 얼굴 질감 → 깜빡임·표정 같이 바뀜) ----
+  const rearX = S.cargo ? -L - 0.03 : -F - 0.04;
+  const rearFaceY = bottom + (S.tailTop - bottom) * 0.38;
+  const rearFrame = box(0.05, faceW * 0.42, faceW * 1.1, black);
+  rearFrame.scale.setScalar(0.8);
+  add(rearFrame, rearX + 0.03, rearFaceY, 0);
+  const rearScreen = new THREE.Mesh(screen.geometry, screen.material);
+  rearScreen.rotation.y = -Math.PI / 2;
+  rearScreen.scale.setScalar(0.8);
+  add(rearScreen, rearX, rearFaceY, 0);
+
+  // ---- 현대 엠블럼 (크롬, 앞·뒤) ----
+  const emblemCv = document.createElement('canvas');
+  emblemCv.width = 512;
+  emblemCv.height = 328;
+  drawEmblem(emblemCv);
+  const emblemTex = keep(new THREE.CanvasTexture(emblemCv));
+  emblemTex.colorSpace = THREE.SRGBColorSpace;
+  emblemTex.anisotropy = 8;
+  const emblemMat = keep(new THREE.MeshBasicMaterial({ map: emblemTex, transparent: true, toneMapped: false, depthWrite: false }));
+  const emblemGeo = keep(new THREE.PlaneGeometry(0.24, 0.155));
+  const emblem = (front: boolean) => {
+    const m = new THREE.Mesh(emblemGeo, emblemMat);
+    m.rotation.y = front ? Math.PI / 2 : -Math.PI / 2;
+    m.renderOrder = 2;
+    return m;
+  };
+  add(emblem(true), F + 0.04, lampY, 0);
+  const rearPlateTop = rearFaceY + faceW * 0.42 * 0.4;
+  add(emblem(false), rearX - 0.005, (rearPlateTop + S.tailTop - 0.12) / 2, 0);
+
+
   // ---- 바퀴 (터빈 모양 휠) ----
   const wheels: THREE.Object3D[] = [];
   const tireG = keep(new THREE.CylinderGeometry(wr, wr, 0.26, 36));
@@ -275,6 +308,25 @@ export function buildCar(shapeId?: string): CarRig {
         });
         disposables.push(m.geometry);
       });
+      // 모델 표면을 찾아서 앞·뒤에 엠블럼 · 뒤 번호판 얼굴을 붙임 (라이트는 모델의 원래 칸 그대로)
+      root.updateMatrixWorld(true);
+      const mb = new THREE.Box3().setFromObject(root);
+      const Hm = mb.max.y;
+      const ray = new THREE.Raycaster();
+      const at = (obj: THREE.Object3D, yr: number, z: number, dir: 1 | -1, off = 0.015) => {
+        const y = Hm * yr;
+        ray.set(new THREE.Vector3(dir * 20, y, z), new THREE.Vector3(-dir, 0, 0));
+        const h = ray.intersectObject(root, true)[0];
+        if (!h) return;
+        obj.position.set(h.point.x + dir * off, y, z);
+        if (!(obj as THREE.Sprite).isSprite) obj.rotation.y = dir > 0 ? Math.PI / 2 : -Math.PI / 2;
+        holder.add(obj);
+      };
+      at(emblem(true), 0.535, 0, 1, 0.02);
+      at(emblem(false), 0.6, 0, -1, 0.02);
+      const rs = new THREE.Mesh(screen.geometry, screen.material);
+      rs.scale.setScalar(0.85);
+      at(rs, 0.31, 0, -1, 0.02);
       // 코드로 만든 차체는 숨기고 얼굴 화면만 남김
       group.children.forEach((o) => { if (!o.userData.keep && o !== acc) o.visible = false; });
       group.add(holder);
