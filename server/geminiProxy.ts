@@ -34,6 +34,19 @@ export function geminiProxy(apiKey: string): Plugin {
             body: req.method === 'POST' ? await body(req) : undefined,
           });
           res.statusCode = r.status;
+          const type = r.headers.get('content-type') ?? 'application/json';
+          res.setHeader('Content-Type', type);
+          if (type.includes('event-stream') && r.body) {
+            // 음성 스트리밍: 받는 대로 바로 넘겨서 빨리 재생되게
+            res.setHeader('Cache-Control', 'no-cache');
+            const reader = r.body.getReader();
+            for (;;) {
+              const { done, value } = await reader.read();
+              if (done) break;
+              res.write(Buffer.from(value));
+            }
+            return res.end();
+          }
           res.end(Buffer.from(await r.arrayBuffer()));
         } catch (e) {
           res.statusCode = 502;

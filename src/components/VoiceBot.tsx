@@ -4,13 +4,13 @@
 import { Download, ExternalLink, Keyboard, KeyRound, Mic, Play, Square, Volume2, VolumeX } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import type { Mood } from '../game/character';
-import { cleanForSpeech, cuteSpeech, pickKoVoice, playAudioFile, playPcm, sfx, speakWithServer, stopServerVoice, unlockAudio, voiceFor } from '../game/cuteVoice';
+import { cleanForSpeech, cuteSpeech, pcmStreamPlayer, pickKoVoice, playAudioFile, playPcm, sfx, speakWithServer, stopServerVoice, unlockAudio, voiceFor } from '../game/cuteVoice';
 import { CREDIT, MODEL_MB, VOICES, type VoiceId } from '../voice/voiceList';
 // 음성 AI 엔진(onnxruntime)은 크기가 커서 필요할 때만 불러온다
 const engine = () => import('../voice/supertonic');
 import { loadVoicePrefs, saveVoicePrefs, type VoicePrefs } from '../voice/voicePrefs';
 import { buildContext, reply, type BotContext } from '../game/voiceBot';
-import { chatReply, GEMINI_VOICES, geminiSource, geminiSpeech, setUserKey, type Turn } from '../voice/gemini';
+import { chatReply, GEMINI_VOICES, geminiSource, geminiSpeech, geminiSpeechStream, setUserKey, type Turn } from '../voice/gemini';
 
 type Phase = 'idle' | 'listening' | 'thinking' | 'speaking';
 
@@ -65,12 +65,23 @@ export function VoiceBot({ ctx, onLine }: { ctx: BotContext; onLine: (line: stri
   /** Gemini 목소리로 말하기. 실패하면 false */
   const speakGemini = async (text: string, mood: Mood): Promise<boolean> => {
     if (prefsRef.current.engine !== 'gemini' || !gemRef.current || gemRef.current === 'checking') return false;
+    const voice = prefsRef.current.gVoice ?? 'Leda';
+    const say = cleanForSpeech(text);
+    // 스트리밍(받는 대로 재생, 약 3초 만에 시작) → 실패하면 한 번에 받아서 재생
+    let player: ReturnType<typeof pcmStreamPlayer> | null = null;
     try {
-      const wav = await geminiSpeech(cleanForSpeech(text), prefsRef.current.gVoice ?? 'Leda', mood);
-      await playAudioFile(wav, () => setPhase('speaking'));
+      player = pcmStreamPlayer(24000, () => setPhase('speaking'));
+      await geminiSpeechStream(say, voice, mood, (b) => player!.push(b));
+      await player.finish();
       return true;
     } catch {
-      return false;
+      try {
+        const wav = await geminiSpeech(say, voice, mood);
+        await playAudioFile(wav, () => setPhase('speaking'));
+        return true;
+      } catch {
+        return false;
+      }
     }
   };
 

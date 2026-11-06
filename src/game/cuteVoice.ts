@@ -210,3 +210,44 @@ export async function playAudioFile(data: ArrayBuffer, onStart: () => void): Pro
     onStart();
   });
 }
+
+/** 조각으로 들어오는 PCM(16비트, 모노) 음성을 끊김 없이 이어서 재생 */
+export function pcmStreamPlayer(sampleRate: number, onStart: () => void) {
+  const a = ctx();
+  if (!a) throw new Error('오디오를 재생할 수 없어요');
+  current?.stop();
+  let at = 0;
+  let started = false;
+  let last: AudioBufferSourceNode | null = null;
+  let carry: Uint8Array | null = null; // 홀수 바이트 이월
+  return {
+    push(bytes: Uint8Array) {
+      if (carry) { const m = new Uint8Array(carry.length + bytes.length); m.set(carry); m.set(bytes, carry.length); bytes = m; carry = null; }
+      if (bytes.length % 2) { carry = bytes.slice(-1); bytes = bytes.slice(0, -1); }
+      if (!bytes.length) return;
+      const n = bytes.length / 2;
+      const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+      const f = new Float32Array(n);
+      for (let i = 0; i < n; i++) f[i] = view.getInt16(i * 2, true) / 32768;
+      const buf = a.createBuffer(1, n, sampleRate);
+      buf.copyToChannel(f, 0);
+      const src = a.createBufferSource();
+      src.buffer = buf;
+      src.connect(a.destination);
+      at = Math.max(at, a.currentTime + 0.05);
+      src.start(at);
+      at += buf.duration;
+      last = src;
+      current = src;
+      if (!started) { started = true; onStart(); }
+    },
+    /** 다 받은 뒤 재생이 끝날 때까지 기다림 */
+    finish(): Promise<void> {
+      return new Promise((done) => {
+        if (!last) return done();
+        const wait = Math.max(0, at - a.currentTime) * 1000;
+        window.setTimeout(done, wait + 50);
+      });
+    },
+  };
+}

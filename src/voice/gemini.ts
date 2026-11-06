@@ -104,7 +104,8 @@ export async function chatReply(carContext: string, history: Turn[], userText: s
   const system = [
     carContext,
     '규칙:',
-    '- 너는 사용자의 자동차 캐릭터다. 친한 친구처럼 반말 섞인 귀여운 존댓말("~요")로 말한다.',
+    '- 너는 사용자의 자동차 캐릭터다. 자신을 "저"라고 부르고, 사용자는 "주인님" 대신 그냥 다정하게 대한다.',
+    '- 말투: 항상 "~요"로 끝나는 귀엽고 다정한 존댓말. 반말 금지. 문장 끝에 마침표·물음표·느낌표를 붙인다.',
     '- 무조건 짧게: 1~2문장, 40자 안팎. 설명·목록·숫자 나열·이모지 금지. 소리 내어 읽기 좋게.',
     '- 일상 대화가 목적이다. 차 상태는 사용자가 물어보거나 꼭 필요할 때만 한마디로 언급한다.',
     '- 모르는 사실(실시간 뉴스, 길 안내 등)은 지어내지 말고 가볍게 넘긴다.',
@@ -129,6 +130,49 @@ const STYLE: Record<string, string> = {
   tired: 'sleepy and tired, soft, natural Korean conversation',
   sleepy: 'very sleepy, yawning softly, whispering, natural Korean conversation',
 };
+
+/** 사람 같은 목소리, 스트리밍: 음성 조각이 오는 대로 onPcm으로 넘김 (16비트 PCM, 24kHz) */
+export async function geminiSpeechStream(text: string, voice: string, mood: string, onPcm: (bytes: Uint8Array) => void): Promise<void> {
+  const r = await getRoute();
+  if (!r) throw new Error('Gemini 키가 없어요');
+  const res = await fetch(`${r.base}/v1beta/interactions`, {
+    method: 'POST',
+    headers: { ...r.headers, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model: TTS_MODEL,
+      input: [{ type: 'user_input', content: [{ type: 'text', text, annotations: [{ type: 'speech_metadata', style: STYLE[mood] ?? STYLE.calm }] }] }],
+      response_format: { type: 'audio' },
+      generation_config: { speech_config: [{ voice }] },
+      stream: true,
+    }),
+  });
+  if (!res.ok || !res.body) throw new Error(res.status === 429 ? '무료 사용량을 잠시 다 썼어요.' : `목소리 오류 (HTTP ${res.status})`);
+  const reader = res.body.getReader();
+  const dec = new TextDecoder();
+  let buf = '';
+  let got = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buf += dec.decode(value, { stream: true });
+    let i: number;
+    while ((i = buf.indexOf('\n')) >= 0) {
+      const line = buf.slice(0, i).trim();
+      buf = buf.slice(i + 1);
+      if (!line.startsWith('data:')) continue;
+      let ev: any;
+      try { ev = JSON.parse(line.slice(5)); } catch { continue; }
+      if (ev.event_type === 'step.delta' && ev.delta?.type === 'audio' && ev.delta.data) {
+        const bin = atob(ev.delta.data);
+        const out = new Uint8Array(bin.length);
+        for (let k = 0; k < bin.length; k++) out[k] = bin.charCodeAt(k);
+        got += out.length;
+        onPcm(out);
+      }
+    }
+  }
+  if (!got) throw new Error('목소리를 받지 못했어요');
+}
 
 /** 사람 같은 목소리 → WAV(ArrayBuffer) */
 export async function geminiSpeech(text: string, voice: string, mood: string): Promise<ArrayBuffer> {
