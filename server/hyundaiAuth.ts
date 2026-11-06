@@ -17,6 +17,7 @@ import { existsSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { Plugin } from 'vite';
+import { checkCarPath, extractCarIds } from '../api/_lib/oauth';
 
 interface Options {
   base: string;
@@ -33,11 +34,17 @@ interface TokenSet {
   refresh_token?: string;
   token_type?: string;
   expires_at?: number; // epoch ms
+  /** 보안 2단계(개발 서버): 로그인한 브라우저만 가진 비밀 쿠키 값 · 이 계정의 차 ID */
+  owner?: string;
+  carIds?: string[];
 }
+
+const OWNER_COOKIE = 'oca_dev_owner';
+const readOwner = (req: IncomingMessage) => /(?:^|;\s*)oca_dev_owner=([\w-]+)/.exec(req.headers.cookie ?? '')?.[1];
 
 export function hyundaiAuth(opts: Options): Plugin {
   const tokenFile = resolve(opts.root, '.hyundai-token.json'); // .gitignore 처리됨
-  const states = new Set<string>();
+  const states = new Map<string, number>(); // state → 만료 시각 (10분)
   let token: TokenSet | null = null;
   try {
     if (existsSync(tokenFile)) token = JSON.parse(readFileSync(tokenFile, 'utf8'));
@@ -50,7 +57,7 @@ export function hyundaiAuth(opts: Options): Plugin {
 
   const save = (t: TokenSet | null) => {
     token = t;
-    if (t) writeFileSync(tokenFile, JSON.stringify(t, null, 2));
+    if (t) writeFileSync(tokenFile, JSON.stringify(t, null, 2), { mode: 0o600 }); // 소유자만 읽기
     else if (existsSync(tokenFile)) unlinkSync(tokenFile);
   };
 
@@ -86,6 +93,8 @@ export function hyundaiAuth(opts: Options): Plugin {
     return {
       access_token: body.access_token,
       refresh_token: body.refresh_token ?? token?.refresh_token,
+      owner: token?.owner,
+      carIds: token?.carIds,
       token_type: body.token_type ?? 'Bearer',
       expires_at: body.expires_in ? Date.now() + Number(body.expires_in) * 1000 : undefined,
     };
@@ -104,8 +113,14 @@ export function hyundaiAuth(opts: Options): Plugin {
     }
   }
 
+  /** 로그인한 그 브라우저인가? (같은 Wi-Fi의 다른 기기가 개발 서버로 내 차를 보는 것 차단) */
+  const isOwner = (req: IncomingMessage) => !!token?.owner && readOwner(req) === token.owner;
+
   async function proxy(req: IncomingMessage, res: ServerResponse, path: string) {
-    if (!token) return json(res, 401, { errCode: 'LOGIN', errMsg: '현대 계정 로그인이 필요합니다' });
+    if (!token || !isOwner(req)) return json(res, 401, { errCode: 'LOGIN', errMsg: '현대 계정 로그인이 필요합니다' });
+    if (req.method !== 'GET' || req.headers['x-oca-request'] !== '1') return json(res, 403, { errCode: 'CSRF', errMsg: '앱에서 보낸 요청이 아니에요' });
+    const check = checkCarPath(path.split('?')[0], token.carIds ?? []);
+    if (!check.ok) return json(res, check.status, { errCode: check.status === 403 ? 'OWNER' : 'PATH', errMsg: check.reason });
     await refreshIfNeeded();
     const call = () =>
       fetch(new URL(path, opts.base), {
@@ -131,16 +146,17 @@ export function hyundaiAuth(opts: Options): Plugin {
         const url = new URL(req.url ?? '/', 'http://localhost');
         try {
           if (url.pathname === '/auth/status') {
-            return json(res, 200, { configured: configured(), loggedIn: !!token, expiresAt: token?.expires_at ?? null });
+            return json(res, 200, { configured: configured(), loggedIn: isOwner(req), expiresAt: isOwner(req) ? token?.expires_at ?? null : null });
           }
           if (url.pathname === '/auth/logout') {
-            save(null);
+            if (isOwner(req)) save(null);
+            res.setHeader('Set-Cookie', `${OWNER_COOKIE}=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0`);
             return redirect(res, '/');
           }
           if (url.pathname === '/auth/login') {
             if (!configured()) return json(res, 500, { errMsg: '.env.local에 Client ID / Client Secret을 넣고 서버를 다시 켜 주세요' });
             const state = randomUUID();
-            states.add(state);
+            states.set(state, Date.now() + 10 * 60_000);
             const u = new URL(opts.authorizePath, opts.base);
             u.searchParams.set('client_id', opts.clientId);
             u.searchParams.set('redirect_uri', opts.redirectUri);
@@ -154,9 +170,16 @@ export function hyundaiAuth(opts: Options): Plugin {
             const code = url.searchParams.get('code');
             const state = url.searchParams.get('state');
             if (!code) return redirect(res, `/?auth_error=${encodeURIComponent('code가 없습니다')}`);
-            if (state && !states.has(state)) return redirect(res, `/?auth_error=${encodeURIComponent('state 불일치 — 다시 로그인해 주세요')}`);
+            // state는 필수 + 10분 안 + 1회용 (로그인 CSRF 차단)
+            const exp = state ? states.get(state) : undefined;
             if (state) states.delete(state);
-            save(await requestToken({ grant_type: 'authorization_code', code, redirect_uri: opts.redirectUri }));
+            if (!exp || exp < Date.now()) return redirect(res, `/?auth_error=${encodeURIComponent('state 불일치 — 다시 로그인해 주세요')}`);
+            const t = await requestToken({ grant_type: 'authorization_code', code, redirect_uri: opts.redirectUri });
+            const list = await fetch(new URL('/api/v1/car/profile/carlist', opts.base), { headers: { Authorization: `Bearer ${t.access_token}`, Accept: 'application/json' } });
+            t.carIds = extractCarIds(await list.json().catch(() => ({})));
+            t.owner = randomUUID();
+            save(t);
+            res.setHeader('Set-Cookie', `${OWNER_COOKIE}=${t.owner}; Path=/; HttpOnly; SameSite=Strict; Max-Age=${12 * 3600}`);
             console.log('[hyundai] 로그인 성공, 토큰 저장');
             return redirect(res, '/?auth=ok');
           }

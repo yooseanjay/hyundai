@@ -2,7 +2,9 @@
 //
 // 키는 코드·GitHub에 넣지 않는다.
 //  - PC: .env.local의 GEMINI_API_KEY → 개발 서버가 /gemini-proxy 로 대신 호출 (브라우저에 키 노출 없음)
-//  - 휴대폰: 사용자가 앱에 직접 입력한 키 → 이 기기(localStorage)에만 저장하고 Google로 직접 호출
+//  - 휴대폰: 사용자가 앱에 직접 입력한 키 → 이 기기에만 암호화(AES-256-GCM)해 저장하고 Google로 직접 호출
+import { secureStorage } from '../security/secureStorage';
+import { redactText } from '../security/redact';
 const API = 'https://generativelanguage.googleapis.com';
 const KEY_STORE = 'oca.gemini.key';
 const MODEL_STORE = 'oca.gemini.model.v1';
@@ -24,13 +26,13 @@ export const GEMINI_VOICES = {
 } as const;
 
 export function getUserKey() {
-  try { return localStorage.getItem(KEY_STORE) ?? ''; } catch { return ''; }
+  try { return secureStorage.getItem(KEY_STORE) ?? ''; } catch { return ''; }
 }
 export function setUserKey(k: string) {
   try {
-    if (k) localStorage.setItem(KEY_STORE, k.trim());
-    else localStorage.removeItem(KEY_STORE);
-    localStorage.removeItem(MODEL_STORE);
+    if (k) secureStorage.setItem(KEY_STORE, k.trim());
+    else secureStorage.removeItem(KEY_STORE);
+    secureStorage.removeItem(MODEL_STORE);
   } catch { /* 무시 */ }
   route = null;
 }
@@ -88,7 +90,7 @@ async function call(path: string, body?: unknown) {
   });
   const json = await res.json().catch(() => ({}));
   if (!res.ok) {
-    const msg = json?.error?.message ?? `HTTP ${res.status}`;
+    const msg = (json?.error?.message ?? (typeof json?.error === 'string' ? json.error : '')) || `HTTP ${res.status}`;
     throw new Error(res.status === 429 ? '무료 사용량을 잠시 다 썼어요. 조금 뒤에 다시 시도해 주세요.' : res.status === 400 && /API key/i.test(msg) ? 'Gemini 키가 올바르지 않아요.' : msg);
   }
   return json;
@@ -97,7 +99,7 @@ async function call(path: string, body?: unknown) {
 /** 대화용 모델 자동 선택: 무료로 쓸 수 있는 가장 최신 Flash-Lite(빠름) → 없으면 Flash */
 async function chatModel(): Promise<string> {
   try {
-    const saved = localStorage.getItem(MODEL_STORE);
+    const saved = secureStorage.getItem(MODEL_STORE);
     if (saved) return saved;
   } catch { /* 무시 */ }
   const list: { name: string; supportedGenerationMethods?: string[] }[] = (await call('/v1beta/models?pageSize=200')).models ?? [];
@@ -110,7 +112,7 @@ async function chatModel(): Promise<string> {
   const pick = (re: RegExp) => ok.filter((m) => re.test(m.id)).sort((a, b) => ver(b.id) - ver(a.id))[0]?.id;
   const id = pick(/flash-lite/) ?? pick(/flash/) ?? ok[0]?.id;
   if (!id) throw new Error('쓸 수 있는 Gemini 모델이 없어요');
-  try { localStorage.setItem(MODEL_STORE, id); } catch { /* 무시 */ }
+  try { secureStorage.setItem(MODEL_STORE, id); } catch { /* 무시 */ }
   return id;
 }
 
@@ -119,8 +121,9 @@ export interface Turn { role: 'user' | 'model'; text: string }
 /** 무슨 말이든 짧게 대답 (1~2문장, 차 캐릭터 말투) */
 export async function chatReply(carContext: string, history: Turn[], userText: string): Promise<string> {
   const model = await chatModel();
+  // 개인정보 가리기: 차 상태 요약·대화 기록·이번 질문 모두 (전화번호·주민번호·차량번호·정밀 좌표 등)
   const system = [
-    carContext,
+    redactText(carContext),
     '규칙:',
     '- 너는 사용자의 자동차 캐릭터다. 자신을 "저"라고 부르고, 사용자는 "주인님" 대신 그냥 다정하게 대한다.',
     '- 말투: 항상 "~요"로 끝나는 귀엽고 다정한 존댓말. 반말 금지. 문장 끝에 마침표·물음표·느낌표를 붙인다.',
@@ -131,7 +134,7 @@ export async function chatReply(carContext: string, history: Turn[], userText: s
   ].join('\n');
   const json = await call(`/v1beta/models/${model}:generateContent`, {
     systemInstruction: { parts: [{ text: system }] },
-    contents: [...history.slice(-8), { role: 'user', text: userText }].map((t) => ({ role: t.role, parts: [{ text: t.text }] })),
+    contents: [...history.slice(-8), { role: 'user', text: userText }].map((t) => ({ role: t.role, parts: [{ text: redactText(t.text) }] })),
     generationConfig: { temperature: 0.9, maxOutputTokens: 120 },
   });
   const text: string = (json.candidates?.[0]?.content?.parts ?? []).map((p: { text?: string }) => p.text ?? '').join('').trim();

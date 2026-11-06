@@ -3,6 +3,7 @@ import react from '@vitejs/plugin-react';
 import { hyundaiAuth } from './server/hyundaiAuth';
 import { typecastTts } from './server/typecastTts';
 import { geminiProxy } from './server/geminiProxy';
+import { cspString } from './security/policy.mjs';
 
 export default defineConfig(({ mode }) => {
   // '' 접두사: VITE_가 아닌 HYUNDAI_CLIENT_SECRET도 읽는다 (서버에서만 사용, 브라우저로 안 나감)
@@ -12,6 +13,15 @@ export default defineConfig(({ mode }) => {
     base: process.env.BASE_PATH || '/',
     plugins: [
       react(),
+      // 보안 1단계: 정적 배포(GitHub Pages)는 응답 헤더를 못 바꾸므로 같은 CSP를 <meta>로 심음 (빌드에서만)
+      {
+        name: 'csp-meta',
+        apply: 'build',
+        transformIndexHtml: (html: string) =>
+          html.replace('<head>', `<head>
+    <meta http-equiv="Content-Security-Policy" content="${cspString('meta')}" />
+    <meta name="referrer" content="strict-origin-when-cross-origin" />`),
+      },
       hyundaiAuth({
         base: env.VITE_HYUNDAI_API_BASE || 'https://dev.kr-ccapi.hyundai.com',
         clientId: env.VITE_HYUNDAI_CLIENT_ID || '',

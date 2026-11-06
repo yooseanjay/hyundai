@@ -6,7 +6,9 @@ export const config = { runtime: 'edge' };
 
 declare const process: { env: Record<string, string | undefined> };
 
-const ORIGINS = [/^https:\/\/yooseanjay\.github\.io$/, /^https:\/\/our-car-alive[\w-]*\.vercel\.app$/, /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/, /^http:\/\/192\.168\.\d+\.\d+(:\d+)?$/];
+import { guard } from './_lib/http';
+import { redactText } from '../src/security/redact';
+
 export const LIVE_MODEL = 'gemini-3.8-live';
 
 // 앱이 실행하는 도구 (src/voice/actions.ts 의 LIVE_TOOLS 와 같은 내용)
@@ -22,47 +24,25 @@ const LIVE_TOOLS = [{
   ],
 }];
 
-const hits = new Map<string, number[]>();
-function limited(ip: string) {
-  const now = Date.now();
-  const list = (hits.get(ip) ?? []).filter((t) => now - t < 60_000);
-  list.push(now);
-  hits.set(ip, list);
-  if (hits.size > 5000) hits.clear();
-  return list.length > 6; // IP당 1분에 6번 연결
-}
-
 export default async function handler(req: Request): Promise<Response> {
-  const origin = req.headers.get('Origin');
-  const self = new URL(req.url).origin;
-  const allowed = !origin || origin === self || ORIGINS.some((re) => re.test(origin));
-  const cors: Record<string, string> = {
-    'Access-Control-Allow-Origin': allowed && origin ? origin : self,
-    'Access-Control-Allow-Methods': 'POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type',
-    Vary: 'Origin',
-  };
-  const json = (body: unknown, status: number) =>
-    new Response(JSON.stringify(body), { status, headers: { ...cors, 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' } });
-
-  if (req.method === 'OPTIONS') return new Response(null, { status: allowed ? 204 : 403, headers: cors });
-  if (!allowed) return json({ error: '허용되지 않은 사이트' }, 403);
-  if (req.method !== 'POST') return json({ error: 'POST만 허용' }, 405);
+  // 보안 1단계 공통 관문: 출처 허용 목록 · POST만 · IP별 1분 6회 연결 · 본문 4KB
+  const ctx = guard(req, { methods: ['POST'], perMinute: 6, maxBody: 4096 });
+  if (ctx instanceof Response) return ctx;
+  const { json } = ctx;
   const key = process.env.GEMINI_API_KEY ?? '';
   if (!key) return json({ error: '서버에 키가 아직 없어요' }, 503);
-  const ip = (req.headers.get('x-forwarded-for') ?? 'unknown').split(',')[0].trim();
-  if (limited(ip)) return json({ error: '잠시 뒤에 다시 시도해 주세요' }, 429);
 
   // 앱이 보낸 차 상태 요약과 목소리 (길이·형식 제한)
-  let ctx = '';
+  let carCtx = '';
   let voice = 'Leda';
   try {
-    const b = await req.json();
-    ctx = String(b?.context ?? '').slice(0, 1500);
-    if (/^[A-Z][a-z]{2,14}$/.test(String(b?.voice ?? ''))) voice = b.voice;
+    const b = await ctx.readJson<{ context?: unknown; voice?: unknown }>();
+    // 프롬프트 주입·개인정보 방어: 제어 문자 제거, 길이 제한, 개인정보 가리기(서버에서 한 번 더)
+    carCtx = redactText(String(b?.context ?? '').replace(/[\u0000-\u0008\u000b-\u001f\u007f]/g, '').slice(0, 1500));
+    if (/^[A-Z][a-z]{2,14}$/.test(String(b?.voice ?? ''))) voice = String(b.voice);
   } catch { /* 본문 없음 */ }
   const system = [
-    ctx || '너는 사용자의 자동차 캐릭터 "오닉이"다.',
+    carCtx || '너는 사용자의 자동차 캐릭터 "오닉이"다.',
     '규칙: 너는 AI 비서가 아니라 사용자의 자동차 캐릭터다. 자신을 "저"라고 부른다.',
     '항상 "~요"로 끝나는 귀엽고 다정한 한국어 존댓말로, 1~2문장만 짧게 말한다. 목록·긴 설명 금지.',
     '차 상태는 물어보거나 꼭 필요할 때만 한마디 한다. 모르는 사실은 지어내지 않는다.',

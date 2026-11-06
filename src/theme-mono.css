@@ -683,3 +683,24 @@ body { word-break: keep-all; overflow-wrap: anywhere; } /* 한국어: 단어 중
 @keyframes glow-breathe { 50% { text-shadow: var(--glow-strong); } }
 @keyframes glow-breathe-strong { 50% { text-shadow: 0 0 1px #fff, 0 0 14px rgba(255, 255, 255, 0.75), 0 0 34px rgba(186, 214, 255, 0.55), 0 0 70px rgba(120, 168, 255, 0.35); } }
 @media (prefers-reduced-motion: reduce) { .wordmark, .welcome .h1 { animation: none; } }
+
+/* =====================================================================
+   보안: 잠금 화면 · 내 정보 보호 카드
+   ===================================================================== */
+.lock-screen { display: grid; place-items: center; min-height: 100dvh; padding-bottom: 21px; }
+.lock-card { width: 100%; max-width: 340px; display: grid; justify-items: center; gap: 13px; text-align: center; }
+.lock-card .btn { width: 100%; }
+.lock-icon { width: 55px; height: 55px; border-radius: 50%; display: grid; place-items: center; border: 1px solid var(--line-2); box-shadow: 0 0 21px rgba(160, 200, 255, 0.25); }
+.lock-foot { color: var(--fg-3); }
+.pin-input {
+  width: 100%; height: 55px; border-radius: 13px; border: 1px solid var(--line-2); background: var(--card);
+  color: var(--fg); text-align: center; font: 600 var(--fs-4) var(--font-display); letter-spacing: .4em; outline: none;
+}
+.pin-input:focus { border-color: #fff; box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.12), 0 0 21px rgba(160, 200, 255, 0.2); }
+.security-panel { display: grid; gap: 13px; text-align: left; margin-bottom: 13px; }
+.security-panel .label { display: inline-flex; align-items: center; gap: 5px; }
+.sec-list { margin: 0; padding-left: 18px; display: grid; gap: 5px; }
+.sec-list b { color: var(--fg); font-weight: 600; }
+.sec-actions { flex-wrap: wrap; gap: 8px; justify-content: flex-start; }
+.sec-form { display: grid; gap: 8px; }
+.sec-erase { justify-self: start; color: var(--bad); padding-left: 0; }

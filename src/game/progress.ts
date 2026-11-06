@@ -1,4 +1,5 @@
 // 성장 시스템: 경험치, 레벨, 외형 해금, 일기장 저장
+import { secureStorage } from '../security/secureStorage';
 import type { Trip, WarningKey } from '../api/types';
 import type { DiaryEntry } from './diary';
 
@@ -40,7 +41,7 @@ const KEY = 'oca.progress.v1';
 
 export function loadProgress(): Progress {
   try {
-    const raw = localStorage.getItem(KEY);
+    const raw = secureStorage.getItem(KEY);
     if (raw) return JSON.parse(raw);
   } catch {
     /* ignore */
@@ -50,7 +51,7 @@ export function loadProgress(): Progress {
 
 export function saveProgress(p: Progress) {
   try {
-    localStorage.setItem(KEY, JSON.stringify(p));
+    secureStorage.setItem(KEY, JSON.stringify(p));
   } catch {
     /* ignore */
   }

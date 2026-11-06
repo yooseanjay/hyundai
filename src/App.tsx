@@ -20,6 +20,8 @@ const Car3D = lazy(() => import('./components/Car3D'));
 import { ENERGY_TERMS, findModelById } from './data/hyundaiModels';
 import { computeStatus, WARNING_UI, type Mood } from './game/character';
 import { writeDiary, type DiaryEntry } from './game/diary';
+import { secureStorage } from './security';
+import SecurityPanel from './components/SecurityPanel';
 import type { Trip as TripT } from './api/types';
 import {
   levelOf, loadProgress, newlyUnlocked, saveProgress, xpForTrip,
@@ -585,15 +587,18 @@ export default function App() {
           icons={COSMETIC_ICON} tab={studioTab} onTab={setStudioTab}
           preview={<Show3D car={car} look={look} mood="happy" cosmetic={progress.equipped} height={goldH(true)} />}
           footer={
+            <>
+            <SecurityPanel />
             <div className="row-center">
               {simulator && (
                 <button className="btn text" onClick={() => {
                   if (!confirm('시뮬레이터와 성장 기록을 모두 초기화할까요?')) return;
-                  simulator?.reset(); localStorage.removeItem('oca.progress.v1'); localStorage.removeItem('oca.style.v1'); location.reload();
+                  simulator?.reset(); secureStorage.removeItem('oca.progress.v1'); secureStorage.removeItem('oca.style.v1'); secureStorage.flush().then(() => location.reload());
                 }}>시연 데이터 초기화</button>
               )}
               {dataSource.kind === 'hyundai' && <button className="btn text" onClick={logout}>현대 계정 연결 끊기</button>}
             </div>
+            </>
           }
         />
       )}

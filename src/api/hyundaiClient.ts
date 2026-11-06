@@ -31,7 +31,7 @@ export function logout() {
 
 export async function authStatus(): Promise<{ configured: boolean; loggedIn: boolean }> {
   try {
-    const r = await fetch('/auth/status');
+    const r = await fetch('/auth/status', { credentials: 'same-origin', cache: 'no-store' });
     return await r.json();
   } catch {
     return { configured: false, loggedIn: false };
@@ -68,7 +68,8 @@ export class HyundaiApiError extends Error {
 }
 
 async function get<T = any>(path: string): Promise<T> {
-  const res = await fetch(PROXY + path, { headers: { Accept: 'application/json' } });
+  // X-OCA-Request: 다른 사이트가 사용자 몰래 부를 수 없게 하는 표시 (CSRF 방지, 서버가 확인)
+  const res = await fetch(PROXY + path, { headers: { Accept: 'application/json', 'X-OCA-Request': '1' }, credentials: 'same-origin', cache: 'no-store' });
   const body = await res.json().catch(() => ({}));
   if (!res.ok || body?.errCode) {
     throw new HyundaiApiError(String(body?.errCode ?? res.status), body?.errMsg ?? `HTTP ${res.status}`, path);

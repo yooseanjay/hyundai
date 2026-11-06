@@ -1,6 +1,7 @@
 // 공모전 시연용 차량 시뮬레이터.
 // 실제 API 키 승인 전에도 "운전 → 상태 변화 → 일기 → 성장" 루프 전체를 체험할 수 있게 한다.
 // 현대차 전 라인업(src/data/hyundaiModels.ts) 중 아무 차나 골라 시뮬레이션할 수 있다.
+import { secureStorage } from '../security/secureStorage';
 import { findModelById, HYUNDAI_MODELS, type BodyColor } from '../data/hyundaiModels';
 import type { CarProfile, FuelType, Trip, VehicleDataSource, VehicleSnapshot, WarningKey } from './types';
 
@@ -52,7 +53,7 @@ function initial(car: MockCarConfig = DEFAULT_CAR): MockState {
 
 function load(): MockState {
   try {
-    const raw = localStorage.getItem(STORE_KEY);
+    const raw = secureStorage.getItem(STORE_KEY);
     if (raw) return JSON.parse(raw) as MockState;
   } catch {
     /* ignore */
@@ -62,7 +63,7 @@ function load(): MockState {
 
 function save(s: MockState) {
   try {
-    localStorage.setItem(STORE_KEY, JSON.stringify(s));
+    secureStorage.setItem(STORE_KEY, JSON.stringify(s));
   } catch {
     /* ignore */
   }

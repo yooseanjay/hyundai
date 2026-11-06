@@ -1,4 +1,5 @@
 // 캐릭터 꾸미기: 눈 모양 · 얼굴 빛 색 · 볼터치 · 차 색 (기기에 저장)
+import { secureStorage } from '../security/secureStorage';
 import type { BodyColor } from '../data/hyundaiModels';
 
 export type EyeStyle = 'classic' | 'round' | 'sparkle' | 'dot';
@@ -32,14 +33,14 @@ const KEY = 'oca.style.v1';
 
 export function loadStyle(): CharStyle {
   try {
-    const raw = localStorage.getItem(KEY);
+    const raw = secureStorage.getItem(KEY);
     if (raw) return { ...DEFAULT_STYLE, ...JSON.parse(raw) };
   } catch { /* 기본값 */ }
   return DEFAULT_STYLE;
 }
 
 export function saveStyle(s: CharStyle) {
-  try { localStorage.setItem(KEY, JSON.stringify(s)); } catch { /* 무시 */ }
+  try { secureStorage.setItem(KEY, JSON.stringify(s)); } catch { /* 무시 */ }
 }
 
 export const glowHex = (g: GlowColor) => GLOWS.find((x) => x.id === g)?.hex ?? '#fff';

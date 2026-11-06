@@ -4,6 +4,7 @@
 // - 글자 보내기, 또는 마이크 소리를 그대로 보내기(16kHz PCM) → 24kHz PCM 음성 + 자막을 받음
 
 import { pushLevel, rms } from './level';
+import { redactText } from '../security/redact';
 
 const WS = 'wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContentConstrained';
 // 배포 사이트·개발 PC 어디서든 쓸 토큰 서버 (공개 주소, 비밀 아님)
@@ -24,7 +25,7 @@ async function tokenFrom(base: string, context: string, voice: string) {
   const r = await fetch(`${base}/api/live-token`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ context, voice }),
+    body: JSON.stringify({ context: redactText(context), voice }), // 차 상태 요약에서 개인정보를 가린 뒤 전송
   });
   const j = await r.json().catch(() => ({}));
   if (!r.ok || !j.token) throw Object.assign(new Error(j.error ?? `토큰 실패 (HTTP ${r.status})`), { status: r.status });
@@ -118,7 +119,7 @@ export class LiveSession {
   /** 글자로 말 걸기 */
   sendText(text: string) {
     if (!this.ready || !this.ws) throw new Error('연결 안 됨');
-    this.ws.send(JSON.stringify({ clientContent: { turns: [{ role: 'user', parts: [{ text }] }], turnComplete: true } }));
+    this.ws.send(JSON.stringify({ clientContent: { turns: [{ role: 'user', parts: [{ text: redactText(text) }] }], turnComplete: true } }));
   }
 
   get micOn() { return !!this.mic; }

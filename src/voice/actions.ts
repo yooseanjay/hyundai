@@ -4,6 +4,7 @@
 //  - get_weather: 현재 위치(또는 주차 위치) 날씨 + 운전 팁
 //  - check_maintenance: 소모품 남은 거리
 //  - weekly_report: 최근 7일 운전 요약
+import { secureStorage } from '../security/secureStorage';
 import type { CarProfile, Trip, VehicleSnapshot } from '../api/types';
 import { recommendTrips, type TripIdea } from './gemini';
 
@@ -30,7 +31,7 @@ async function position(ctx: ActionCtx) {
   });
   let name = '현재 위치';
   try {
-    const j = await (await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${p.lat}&longitude=${p.lng}&localityLanguage=ko`)).json();
+    const j = await (await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${p.lat.toFixed(2)}&longitude=${p.lng.toFixed(2)}&localityLanguage=ko`)).json();
     name = [...new Set([j.principalSubdivision, j.city || j.locality].filter(Boolean))].join(' ') || name;
   } catch { /* 이름 없이 */ }
   lastPos = { ...p, name };
@@ -55,7 +56,7 @@ function tipFor(text: string, temp: number, rain: number, wind: number, ev: bool
 
 export async function getWeather(ctx: ActionCtx): Promise<ActionResult> {
   const p = await position(ctx);
-  const j = await (await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${p.lat}&longitude=${p.lng}&current=temperature_2m,weather_code,wind_speed_10m&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max&timezone=Asia%2FSeoul&forecast_days=1`)).json();
+  const j = await (await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${p.lat.toFixed(2)}&longitude=${p.lng.toFixed(2)}&current=temperature_2m,weather_code,wind_speed_10m&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max&timezone=Asia%2FSeoul&forecast_days=1`)).json();
   const text = wmoText(j.current.weather_code);
   const temp = Math.round(j.current.temperature_2m);
   const rain = j.daily.precipitation_probability_max[0] ?? 0;
@@ -112,18 +113,18 @@ export const PARTS: Part[] = [
 const PARTS_KEY = 'oca.parts.v1';
 export function loadParts(odo: number): Record<string, number> {
   try {
-    const v = JSON.parse(localStorage.getItem(PARTS_KEY) ?? '');
+    const v = JSON.parse(secureStorage.getItem(PARTS_KEY) ?? '');
     if (v && typeof v === 'object') return v;
   } catch { /* 처음 */ }
   const seed: Record<string, number> = {};
   PARTS.forEach((p, i) => { seed[p.id] = Math.max(0, odo - Math.round(p.every * [0.92, 0.55, 0.8, 0.35, 0.2, 0.45][i])); });
-  try { localStorage.setItem(PARTS_KEY, JSON.stringify(seed)); } catch { /* 무시 */ }
+  try { secureStorage.setItem(PARTS_KEY, JSON.stringify(seed)); } catch { /* 무시 */ }
   return seed;
 }
 export function markReplaced(id: string, odo: number) {
   const v = loadParts(odo);
   v[id] = odo;
-  try { localStorage.setItem(PARTS_KEY, JSON.stringify(v)); } catch { /* 무시 */ }
+  try { secureStorage.setItem(PARTS_KEY, JSON.stringify(v)); } catch { /* 무시 */ }
 }
 export function partsStatus(ctx: Pick<ActionCtx, 'car' | 'snap'>) {
   const odo = ctx.snap.odometerKm;
