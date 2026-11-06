@@ -16,6 +16,7 @@ import { chatReply, GEMINI_VOICES, geminiSource, geminiSpeech, geminiSpeechStrea
 import { LiveSession } from '../voice/live';
 import { detectTool, runTool, summaryOf, type ActionCard } from '../voice/actions';
 import { ActionCardView } from './ActionCardView';
+import { VoiceOrb } from './VoiceOrb';
 
 type Phase = 'idle' | 'listening' | 'thinking' | 'speaking';
 
@@ -162,7 +163,7 @@ export function VoiceBot({ ctx, onLine, variant = 'screen', mood: faceMood }: {
 
   const finish = () => {
     setPhase('idle');
-    if (dock) { window.clearTimeout(closeTimer.current); closeTimer.current = window.setTimeout(() => { if (!live.current?.micOn && !cardRef.current) setOpen(false); }, 7000); }
+    if (dock) { window.clearTimeout(closeTimer.current); closeTimer.current = window.setTimeout(() => { if (!live.current?.micOn && !cardRef.current) setOpen(false); }, 12000); }
     window.clearTimeout(resetTimer.current);
     resetTimer.current = window.setTimeout(() => onLine(null), 6000); // 잠시 뒤 평소 대사로
   };
@@ -461,36 +462,34 @@ export function VoiceBot({ ctx, onLine, variant = 'screen', mood: faceMood }: {
     return (
       <>
         {open && createPortal(
-          <div className={`smoke-layer phase-${phase}`} onClick={stop} role="dialog" aria-label={`${name}와 대화`}>
-            <div className="smoke-stage" onClick={(e) => e.stopPropagation()}>
-              <div className="smoke-cloud" key={cloud} aria-live="polite">
-                <span className="puff p1" /><span className="puff p2" /><span className="puff p3" />
-                <p>{cloud}</p>
-              </div>
-              {card && <div className="smoke-card"><ActionCardView card={card} /></div>}
-              <div className="smoke-trail" aria-hidden>
-                {Array.from({ length: 14 }, (_, i) => <span key={i} style={{ ['--i' as string]: i }} />)}
-              </div>
-              <div className="smoke-car"><CarCharacter mood={faceMood ?? 'happy'} cosmetic={ctx.progress.equipped} color={ctx.car.bodyColor} size={190} /></div>
-              {(heard || lastMe) && <p className="smoke-you">“{heard || lastMe}”</p>}
+          <div className={`orb-layer phase-${phase}`} onClick={stop} role="dialog" aria-label={`${name}와 대화`}>
+            <div className="orb-stage" onClick={(e) => e.stopPropagation()}>
+              <span className="orb-name"><i className="dot live" />{name} · {phase === 'listening' || active ? '듣고 있어요' : phase === 'thinking' ? '생각 중' : phase === 'speaking' ? '말하는 중' : 'AI'}</span>
+              <p className="orb-text" key={cloud} aria-live="polite">{cloud}</p>
+              {(heard || lastMe) && <p className="orb-you">“{heard || lastMe}”</p>}
+              {card && <div className="orb-card"><ActionCardView card={card} /></div>}
+              <div className="orb-spacer" />
               {!active && phase === 'idle' && (
-                <div className="chip-row smoke-chips">
+                <div className="chip-row orb-chips">
                   {DOCK_SUGGESTIONS.map((q) => <button key={q} className="chip sm" onClick={() => answer(q)}>{q}</button>)}
                 </div>
               )}
-              <p className="cap smoke-hint">{active ? '말을 멈추면 대답해요 · 마이크를 다시 누르면 끝' : '바깥을 누르면 닫혀요'}</p>
+              <button className="orb-big" onClick={() => void listen()} disabled={busy && !liveMic} aria-label={active ? '듣기 멈추기' : '말하기'}>
+                <VoiceOrb size={168} phase={phase} active={active} />
+              </button>
+              <p className="cap orb-hint">{active ? '말을 멈추면 대답해요 · 구를 누르면 끝' : '구를 눌러 말하기 · 바깥을 누르면 닫혀요'}</p>
             </div>
           </div>,
           document.body,
         )}
         <button
-          className={`dock-mic ${active ? 'on' : ''} ${phase === 'speaking' ? 'speaking' : ''}`}
+          className={`dock-orb ${active ? 'on' : ''} ${phase === 'speaking' ? 'speaking' : ''}`}
           onClick={() => void listen()}
           disabled={busy && !liveMic}
           aria-label={active ? '듣기 멈추기' : `${name}에게 말 걸기`}
         >
-          <span className="ring r1" aria-hidden /><span className="ring r2" aria-hidden />
-          {active ? <Square size={18} fill="currentColor" /> : <Mic size={24} />}
+          <VoiceOrb size={50} phase={phase} active={active} />
+          {active ? <Square size={14} fill="currentColor" className="dock-icon" /> : <Mic size={20} className="dock-icon" />}
         </button>
       </>
     );

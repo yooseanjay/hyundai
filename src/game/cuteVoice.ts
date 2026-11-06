@@ -1,3 +1,4 @@
+import { pushLevel, rms } from '../voice/level';
 // 캐릭터 목소리 · 효과음 (브라우저 내장 기능만 사용 → 무료)
 //  1) 음성: 한국어 음성 중 가장 자연스러운 것(Neural)을 고르고, 음높이를 살짝만 올려 아이 목소리처럼
 //  2) 말투: 문장 끝을 귀엽게 늘이고 기분에 맞는 의성어를 붙임 (화면 글자는 그대로, 읽을 때만)
@@ -236,6 +237,8 @@ export function pcmStreamPlayer(sampleRate: number, onStart: () => void) {
       src.connect(a.destination);
       at = Math.max(at, a.currentTime + 0.05);
       src.start(at);
+      const lv = rms(f) * 4;
+      window.setTimeout(() => pushLevel(lv), Math.max(0, at - a.currentTime) * 1000);
       at += buf.duration;
       last = src;
       current = src;

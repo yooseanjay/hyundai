@@ -8,12 +8,18 @@ import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment
 import type { BodyColor } from '../data/hyundaiModels';
 import type { Mood } from '../game/character';
 import type { CosmeticId } from '../game/progress';
-import { buildCar, WHEEL_R, type CarRig } from '../three/carModel';
+import type { CharStyle } from '../game/style';
+import { buildCar, type CarRig } from '../three/carModel';
+import { shapeOf } from '../three/shapes';
 
 interface Props {
   mood: Mood;
   cosmetic: CosmeticId;
   color?: BodyColor;
+  /** 차종 3D 모양 id (hyundaiModels shape) */
+  shape?: string;
+  /** 얼굴 꾸미기 */
+  style?: CharStyle;
   mode?: 'show' | 'drive';
   /** 주행 속도 (km/h) — drive 모드 */
   speedKmh?: number;
@@ -62,9 +68,12 @@ function glowTexture() {
   return new THREE.CanvasTexture(cv);
 }
 
-export default function Car3D({ mood, cosmetic, color, mode = 'show', speedKmh = 0, braking = false, talking = false, height }: Props) {
+export default function Car3D({ mood, cosmetic, color, shape, style, mode = 'show', speedKmh = 0, braking = false, talking = false, height }: Props) {
   const host = useRef<HTMLDivElement>(null);
   const rig = useRef<CarRig | null>(null);
+  const sceneRef = useRef<THREE.Scene | null>(null);
+  const look = useRef({ mood, cosmetic, color, style });
+  look.current = { mood, cosmetic, color, style };
   const live = useRef({ speed: speedKmh, braking, talking });
   live.current = { speed: speedKmh, braking, talking };
   const [failed, setFailed] = useState(false);
@@ -128,12 +137,8 @@ export default function Car3D({ mood, cosmetic, color, mode = 'show', speedKmh =
     scene.add(rim);
 
     // 차
-    const car = buildCar();
-    rig.current = car;
-    car.setColor(color);
-    car.setMood(mood, cosmetic);
-    car.setCosmetic(cosmetic, import.meta.env.BASE_URL);
-    scene.add(car.group);
+    sceneRef.current = scene;
+    mountCar(scene, rig, shape, look.current);
 
     // 바닥 그림자 받는 면
     const shadowFloor = new THREE.Mesh(new THREE.PlaneGeometry(30, 30), new THREE.ShadowMaterial({ opacity: 0.55 }));
@@ -221,7 +226,9 @@ export default function Car3D({ mood, cosmetic, color, mode = 'show', speedKmh =
       // 바퀴 · 도로: 실제 속도(m/s) × 화면 배율
       const v = mode === 'drive' ? (speed / 3.6) * VISUAL : 0;
       travelled += v * dt;
-      car.wheels.forEach((w) => { w.rotation.z -= (v / WHEEL_R) * dt; });
+      const car = rig.current;
+      if (!car) return;
+      car.wheels.forEach((w) => { w.rotation.z -= (v / car.wheelR) * dt; });
       if (roadTex) roadTex.offset.x = (travelled / 8) % 1;
       posts.forEach((p) => {
         p.position.x -= v * dt;
@@ -252,7 +259,8 @@ export default function Car3D({ mood, cosmetic, color, mode = 'show', speedKmh =
       io.disconnect();
       window.clearTimeout(resume);
       controls.dispose();
-      car.dispose();
+      rig.current?.dispose();
+      sceneRef.current = null;
       extra.forEach((d) => d.dispose());
       posts.forEach((p) => scene.remove(p));
       renderer.dispose();
@@ -263,6 +271,16 @@ export default function Car3D({ mood, cosmetic, color, mode = 'show', speedKmh =
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode]);
 
+  // 차종이 바뀌면 차만 새로 만들어 끼움 (장면·카메라는 그대로)
+  const firstShape = useRef(true);
+  useEffect(() => {
+    if (firstShape.current) { firstShape.current = false; return; }
+    const scene = sceneRef.current;
+    if (!scene) return;
+    if (rig.current) { scene.remove(rig.current.group); rig.current.dispose(); }
+    mountCar(scene, rig, shape, look.current);
+  }, [shape]);
+  useEffect(() => { if (style) rig.current?.setStyle(style); }, [style]);
   useEffect(() => { rig.current?.setMood(mood, cosmetic); }, [mood, cosmetic]);
   useEffect(() => { rig.current?.setColor(color); }, [color]);
   useEffect(() => { rig.current?.setCosmetic(cosmetic, import.meta.env.BASE_URL); }, [cosmetic]);
@@ -274,4 +292,17 @@ export default function Car3D({ mood, cosmetic, color, mode = 'show', speedKmh =
       {mode === 'show' && hint && <span className="rotate-hint">드래그해서 360° 돌려보기</span>}
     </div>
   );
+}
+
+function mountCar(scene: THREE.Scene, rig: { current: CarRig | null }, shape: string | undefined, l: { mood: Mood; cosmetic: CosmeticId; color?: BodyColor; style?: CharStyle }) {
+  const car = buildCar(shape);
+  // 작은 차는 조금 크게, 큰 차는 조금 작게 (화면에 비슷한 크기로)
+  const k = Math.min(1.12, Math.max(0.86, 2.3 / shapeOf(shape).L));
+  car.group.scale.setScalar(k);
+  if (l.style) car.setStyle(l.style);
+  car.setColor(l.color);
+  car.setMood(l.mood, l.cosmetic);
+  car.setCosmetic(l.cosmetic, import.meta.env.BASE_URL);
+  scene.add(car.group);
+  rig.current = car;
 }

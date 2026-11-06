@@ -7,7 +7,8 @@ import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } fro
 import { dataSource, simulator, WARNING_LABELS, type CarProfile, type Trip, type VehicleSnapshot, type WarningKey } from './api';
 import { logout, startLogin } from './api/hyundaiClient';
 import { CarCharacter } from './components/CarCharacter';
-import { CarSheet } from './components/CarSheet';
+import { Studio, type StudioTab } from './components/Studio';
+import { colorOf, loadStyle, saveStyle, type CharStyle } from './game/style';
 import { VehicleStatus, type LiveDrive } from './components/VehicleStatus';
 import { markReplaced, partsStatus, quickWeather } from './voice/actions';
 import { gpsSupported, startGpsTrip, type GpsUpdate } from './game/gpsTrip';
@@ -15,7 +16,7 @@ import { VoiceBot } from './components/VoiceBot';
 
 // 3D(three.js)는 용량이 커서 필요할 때 불러온다. 불러오는 동안은 사진 캐릭터
 const Car3D = lazy(() => import('./components/Car3D'));
-import { ENERGY_TERMS } from './data/hyundaiModels';
+import { ENERGY_TERMS, findModelById } from './data/hyundaiModels';
 import { computeStatus, WARNING_UI, type Mood } from './game/character';
 import { writeDiary, type DiaryEntry } from './game/diary';
 import type { Trip as TripT } from './api/types';
@@ -24,15 +25,15 @@ import {
   XP_FOR_CHARGE, XP_FOR_FIX, XP_PER_LEVEL, type CosmeticId, type Progress,
 } from './game/progress';
 
-type Tab = 'home' | 'drive' | 'diary' | 'closet';
+type Tab = 'home' | 'drive' | 'studio' | 'diary';
 type View = Tab | 'talk';
 type Style = 'calm' | 'normal' | 'sporty';
 
 const STYLE_LABEL: Record<Style, string> = { calm: '차분하게', normal: '보통', sporty: '신나게' };
 const STYLE_DESC: Record<Style, string> = { calm: '차분한 주행', normal: '보통 주행', sporty: '신나는 주행' };
 const AVG_SPEED: Record<Style, number> = { calm: 38, normal: 52, sporty: 74 };
-// 하단: 🎙️ 마이크 · 홈 · 운전 · 기록(일기장 + 옷장). 여행·날씨·주변 찾기는 음성으로
-const TABS: [Tab, LucideIcon, string][] = [['home', House, '홈'], ['drive', CarFront, '운전'], ['diary', BookOpen, '기록']];
+// 하단: 음성(빛나는 구) · 홈 · 운전 · 꾸미기 · 일기. 여행·날씨·주변 찾기는 음성으로
+const TABS: [Tab, LucideIcon, string][] = [['home', House, '홈'], ['drive', CarFront, '운전'], ['studio', Sparkles, '꾸미기'], ['diary', BookOpen, '일기']];
 const COSMETIC_ICON: Record<CosmeticId, LucideIcon | null> = { none: null, sunglasses: Glasses, flower: Flower2, wrench: Award, scarf: Ribbon, cap: HardHat, crown: Crown };
 const WARNING_TITLE: Record<WarningKey, string> = {
   tirePressure: '타이어 공기압이 낮아요', engineOil: '엔진오일을 갈 때예요', brakeOil: '브레이크액을 확인해요',
@@ -53,7 +54,9 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [openDiary, setOpenDiary] = useState<{ d: DiaryEntry; fresh: boolean } | null>(null);
-  const [carSheet, setCarSheet] = useState(false);
+  const [look, setLookState] = useState<CharStyle>(loadStyle);
+  const setLook = (patch: Partial<CharStyle>) => setLookState((prev) => { const n = { ...prev, ...patch }; saveStyle(n); return n; });
+  const [studioTab, setStudioTab] = useState<StudioTab>('model');
   const [bot, setBot] = useState<{ line: string; mood?: Mood; speaking?: boolean } | null>(null);
   const [partsTick, setPartsTick] = useState(0);
   const [showStatus, setShowStatus] = useState(false);
@@ -293,13 +296,9 @@ export default function App() {
   const kmNow = Math.round(live.km * 10) / 10;
   const etaMin = Math.round(((distance - live.km) / Math.max(20, live.speed || AVG_SPEED[style])) * 60);
   const owned = COSMETICS.filter((c) => c.unlocked(progress)).length;
-  const tab: Tab = view === 'talk' ? 'home' : view === 'closet' ? 'diary' : view;
-  const RecordSwitch = (
-    <div className="seg" role="tablist" aria-label="기록">
-      <button role="tab" aria-selected={view === 'diary'} className={view === 'diary' ? 'on' : ''} onClick={() => setView('diary')}>일기장</button>
-      <button role="tab" aria-selected={view === 'closet'} className={view === 'closet' ? 'on' : ''} onClick={() => setView('closet')}>옷장 · {owned}/{COSMETICS.length}</button>
-    </div>
-  );
+  const tab: Tab = view === 'talk' ? 'home' : view;
+  const carColor = colorOf(look, car.bodyColor);
+  const carShape = findModelById(car.modelId ?? '')?.shape;
   const energyTerm = ENERGY_TERMS[car.fuelType];
   void partsTick; // 교체 완료 후 다시 계산
   const dueParts = partsStatus({ car, snap }).filter((p) => p.pct >= 90);
@@ -334,13 +333,13 @@ export default function App() {
               <div className="hero-id">
                 <span className="eyebrow-ai">AI MOBILITY</span>
                 <h1 className="hero-name">{car.nickname}</h1>
-                <button className="model-link" onClick={() => simulator && setCarSheet(true)} disabled={!simulator || driving} aria-label="내 차 바꾸기">
-                  {car.model} · {snap.odometerKm.toLocaleString()}km{simulator && <ChevronRight size={12} />}
+                <button className="model-link" onClick={() => { setStudioTab('model'); setView('studio'); }} disabled={driving} aria-label="차종과 모습 바꾸기">
+                  {car.model} · {snap.odometerKm.toLocaleString()}km<ChevronRight size={12} />
                 </button>
               </div>
               <span className="ready"><i className="dot good pulse" />{driving ? '주행 중' : dataSource.kind === 'hyundai' ? '차량 연결됨' : '출발 준비 완료'}</span>
             </div>
-            <Show3D car={car} mood={bot?.mood ?? st.mood} cosmetic={progress.equipped} height={210} />
+            <Show3D car={car} look={look} mood={bot?.mood ?? st.mood} cosmetic={progress.equipped} height={210} />
             <div className="hero-range">
               <div className="range-num"><b>{snap.dteKm}</b><span>km</span></div>
               <div className="range-meta">
@@ -362,7 +361,7 @@ export default function App() {
             <ul className="ai-list">
               {briefing.map((b, i) => <li key={i} className={b.tone}><i />{b.text}</li>)}
             </ul>
-            <span className="ai-hint"><Mic size={12} /> 아래 마이크로 무엇이든 물어보세요</span>
+            <span className="ai-hint"><Mic size={12} /> 아래 파란 구를 누르고 무엇이든 물어보세요</span>
           </div>
 
           {/* Premium Minimal: 선으로만 나눈 상태 */}
@@ -430,7 +429,7 @@ export default function App() {
             <h1 className="h1">{car.nickname}와 대화</h1>
             <span className="cap conn"><i className="dot good" />{dataSource.kind === 'hyundai' ? '차량 연결됨' : '데모 차량 연결됨'}</span>
           </div>
-          <Show3D car={car} mood={bot?.mood ?? st.mood} cosmetic={progress.equipped} talking={!!bot?.speaking} height={190} />
+          <Show3D car={car} look={look} mood={bot?.mood ?? st.mood} cosmetic={progress.equipped} talking={!!bot?.speaking} height={190} />
           <VoiceBot ctx={{ car, snap, status: st, trips, progress }} onLine={(line, mood, speaking) => setBot(line ? { line, mood, speaking } : null)} />
         </section>
       )}
@@ -442,9 +441,9 @@ export default function App() {
             <h1 className="h1">{!driving ? '함께 달려볼까요?' : source === 'gps' ? (live.speed > 3 ? '실제로 달리는 중' : '잠시 멈췄어요') : driveProgress >= 100 ? '도착했어요!' : '신나게 달리는 중'}</h1>
             <Route size={20} className="muted" />
           </div>
-          <Suspense fallback={<div className="highway"><CarCharacter mood={st.mood} cosmetic={progress.equipped} color={car.bodyColor} size={232} /></div>}>
+          <Suspense fallback={<div className="highway"><CarCharacter mood={st.mood} cosmetic={progress.equipped} color={carColor} size={232} /></div>}>
             <div className="drive3d">
-              <Car3D mode="drive" mood={driving ? (live.braking ? 'sick' : 'excited') : st.mood} cosmetic={progress.equipped} color={car.bodyColor}
+              <Car3D mode="drive" mood={driving ? (live.braking ? 'sick' : 'excited') : st.mood} cosmetic={progress.equipped} color={carColor} shape={carShape} style={look}
                 speedKmh={driving ? live.speed : 0} braking={live.braking} height={230} />
               {driving && (
                 <div className="hud">
@@ -528,10 +527,9 @@ export default function App() {
         <section className="screen">
           <div className="title-row">
             <h1 className="h1">{car.nickname}의 기록</h1>
-            <CarCharacter mood="happy" cosmetic="none" color={car.bodyColor} size={56} />
+            <CarCharacter mood="happy" cosmetic="none" color={carColor} size={56} />
           </div>
-          {RecordSwitch}
-          <div className="grid3">
+                    <div className="grid3">
             <div className="tile-stat"><span className="cap">총 주행</span><b className="num">{snap.odometerKm.toLocaleString()}<small>km</small></b></div>
             <div className="tile-stat"><span className="cap">일기 수</span><b className="num">{progress.diaries.length}<small>편</small></b></div>
             <div className="tile-stat"><span className="cap">정비 횟수</span><b className="num">{progress.fixes}<small>회</small></b></div>
@@ -570,40 +568,27 @@ export default function App() {
         </section>
       )}
 
-      {/* ---------- 꾸미기 ---------- */}
-      {view === 'closet' && (
-        <section className="screen">
-          <div className="title-row"><h1 className="h1">{car.nickname}의 기록</h1><span className="cap">나만의 작은 취향</span></div>
-          {RecordSwitch}
-          <Show3D car={car} mood="happy" cosmetic={progress.equipped} height={190} />
-          {Level}
-          <div className="card-head"><b className="h3">스타일 컬렉션</b><span className="cap">{owned} / {COSMETICS.length} 보유</span></div>
-          <div className="closet-grid">
-            {COSMETICS.map((c) => {
-              const open = c.unlocked(progress);
-              const on = progress.equipped === c.id;
-              const Icon = COSMETIC_ICON[c.id];
-              return (
-                <button key={c.id} disabled={!open} className={`closet-item ${on ? 'on' : ''}`} onClick={() => updateProgress((p) => ({ ...p, equipped: c.id }))}>
-                  {on && <CircleCheck size={14} className="check" />}
-                  <span className="art">{Icon ? <Icon size={30} strokeWidth={1.4} /> : <CarCharacter mood="happy" cosmetic="none" color={car.bodyColor} size={72} />}</span>
-                  <b className="label">{c.name}</b>
-                  <span className="cap">{on ? '착용 중' : open ? `${c.condition} · 보유` : <><LockKeyhole size={10} /> {c.condition.replace(' 달성', '')}에 열려요</>}</span>
-                </button>
-              );
-            })}
-          </div>
-          <p className="cap center">함께 달리고 돌봐줄수록, 새로운 모습이 열려요.</p>
-          <div className="row-center">
-            {simulator && (
-              <button className="btn text" onClick={() => {
-                if (!confirm('시뮬레이터와 성장 기록을 모두 초기화할까요?')) return;
-                simulator?.reset(); localStorage.removeItem('oca.progress.v1'); location.reload();
-              }}>시연 데이터 초기화</button>
-            )}
-            {dataSource.kind === 'hyundai' && <button className="btn text" onClick={logout}>현대 계정 연결 끊기</button>}
-          </div>
-        </section>
+      {/* ---------- 꾸미기 스튜디오 ---------- */}
+      {view === 'studio' && (
+        <Studio
+          car={car} progress={progress} look={look} onLook={setLook}
+          onEquip={(id) => updateProgress((p) => ({ ...p, equipped: id }))}
+          config={simulator?.config}
+          onConfig={simulator ? (c) => { simulator?.setCar(c); refresh(); } : undefined}
+          icons={COSMETIC_ICON} tab={studioTab} onTab={setStudioTab}
+          preview={<Show3D car={car} look={look} mood="happy" cosmetic={progress.equipped} height={250} />}
+          footer={
+            <div className="row-center">
+              {simulator && (
+                <button className="btn text" onClick={() => {
+                  if (!confirm('시뮬레이터와 성장 기록을 모두 초기화할까요?')) return;
+                  simulator?.reset(); localStorage.removeItem('oca.progress.v1'); localStorage.removeItem('oca.style.v1'); location.reload();
+                }}>시연 데이터 초기화</button>
+              )}
+              {dataSource.kind === 'hyundai' && <button className="btn text" onClick={logout}>현대 계정 연결 끊기</button>}
+            </div>
+          }
+        />
       )}
 
       {/* ---------- 하단 탭바 ---------- */}
@@ -632,7 +617,7 @@ export default function App() {
               <span className="handle" />
               <div className="card-head"><b className="h2">오늘의 일기</b><button className="icon-btn plain" onClick={() => setOpenDiary(null)} aria-label="닫기"><X size={20} /></button></div>
               <div className="keepsake">
-                <div className="peek"><CarCharacter mood="happy" cosmetic={progress.equipped} color={car.bodyColor} size={210} /></div>
+                <div className="peek"><CarCharacter mood="happy" cosmetic={progress.equipped} color={carColor} size={210} /></div>
                 <article className="paper">
                   <div className="card-head"><span className="cap">{t.getFullYear()}.{pad(t.getMonth() + 1)}.{pad(t.getDate())} · {weekday(t)}</span><Sun size={16} /></div>
                   <h3 className="paper-title">{car.nickname}의 일기 — {d.title}</h3>
@@ -651,13 +636,6 @@ export default function App() {
         );
       })()}
 
-      {carSheet && simulator && (
-        <CarSheet
-          initial={simulator.config}
-          onClose={() => setCarSheet(false)}
-          onSave={(c) => { simulator?.setCar(c); setCarSheet(false); refresh(); showToast(`${c.nickname}(으)로 바꿨어요`); }}
-        />
-      )}
 
       {toast && <div className="toast">{toast}</div>}
     </main>
@@ -674,10 +652,11 @@ function Brand({ live }: { live?: boolean }) {
 }
 
 /** 3D 쇼룸 (불러오는 동안 사진 캐릭터) */
-function Show3D({ car, mood, cosmetic, talking, height = 200 }: { car: CarProfile; mood: Mood; cosmetic: CosmeticId; talking?: boolean; height?: number }) {
+function Show3D({ car, look, mood, cosmetic, talking, height = 200 }: { car: CarProfile; look: CharStyle; mood: Mood; cosmetic: CosmeticId; talking?: boolean; height?: number }) {
+  const color = colorOf(look, car.bodyColor);
   return (
-    <Suspense fallback={<Showroom><CarCharacter mood={mood} cosmetic={cosmetic} color={car.bodyColor} size={268} /></Showroom>}>
-      <Car3D mode="show" mood={mood} cosmetic={cosmetic} color={car.bodyColor} talking={talking} height={height} />
+    <Suspense fallback={<Showroom><CarCharacter mood={mood} cosmetic={cosmetic} color={color} size={268} /></Showroom>}>
+      <Car3D mode="show" mood={mood} cosmetic={cosmetic} color={color} shape={findModelById(car.modelId ?? '')?.shape} style={look} talking={talking} height={height} />
     </Suspense>
   );
 }

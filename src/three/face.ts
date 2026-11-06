@@ -1,19 +1,22 @@
 // 번호판 화면 얼굴 (3D 텍스처용 캔버스 그리기). 기분 7종 + 깜빡임 + 선글라스
 import type { Mood } from '../game/character';
 import type { CosmeticId } from '../game/progress';
+import { DEFAULT_STYLE, glowHex, type CharStyle } from '../game/style';
 
-export function drawFace(cv: HTMLCanvasElement, mood: Mood, cosmetic: CosmeticId, blink = false) {
+export function drawFace(cv: HTMLCanvasElement, mood: Mood, cosmetic: CosmeticId, blink = false, style: CharStyle = DEFAULT_STYLE) {
+  const C = glowHex(style.glow);
+  const BG = '#050608';
   const g = cv.getContext('2d')!;
   const W = cv.width;
   const H = cv.height;
-  g.fillStyle = '#050608';
+  g.fillStyle = BG;
   g.fillRect(0, 0, W, H);
-  g.strokeStyle = '#fff';
-  g.fillStyle = '#fff';
+  g.strokeStyle = C;
+  g.fillStyle = C;
   g.lineWidth = 14;
   g.lineCap = 'round';
   g.lineJoin = 'round';
-  g.shadowColor = 'rgba(255,255,255,0.9)';
+  g.shadowColor = C;
   g.shadowBlur = 16;
 
   const EL = W * 0.3;
@@ -39,6 +42,21 @@ export function drawFace(cv: HTMLCanvasElement, mood: Mood, cosmetic: CosmeticId
     g.lineWidth = 14;
   } else if (blink && ['happy', 'calm', 'hungry', 'excited'].includes(mood)) {
     closedEyes();
+  } else if ((mood === 'happy' || mood === 'calm') && style.eye !== 'classic') {
+    // 꾸미기에서 고른 눈 모양 (기분이 좋을 때)
+    const dotAt = (x: number, y: number, r: number) => { g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fill(); };
+    [EL, ER].forEach((x) => {
+      g.fillStyle = C;
+      if (style.eye === 'dot') { g.beginPath(); g.ellipse(x, EY + 4, 15, 19, 0, 0, Math.PI * 2); g.fill(); return; }
+      const r = style.eye === 'sparkle' ? 38 : 31;
+      dotAt(x, EY + 2, r);
+      g.save();
+      g.shadowBlur = 0;
+      g.fillStyle = BG;
+      dotAt(x + r * 0.32, EY - r * 0.3, r * 0.3);
+      if (style.eye === 'sparkle') dotAt(x - r * 0.35, EY + r * 0.38, r * 0.14);
+      g.restore();
+    });
   } else {
     switch (mood) {
       case 'happy':
@@ -83,6 +101,14 @@ export function drawFace(cv: HTMLCanvasElement, mood: Mood, cosmetic: CosmeticId
     }
   }
 
+  if (style.blush && mood !== 'sick') {
+    g.save();
+    g.shadowBlur = 0;
+    g.fillStyle = 'rgba(255,120,170,0.6)';
+    [EL - 46, ER + 46].forEach((x) => { g.beginPath(); g.ellipse(x, EY + 46, 26, 12, 0, 0, Math.PI * 2); g.fill(); });
+    g.restore();
+  }
+  g.fillStyle = C;
   // 입
   switch (mood) {
     case 'happy':

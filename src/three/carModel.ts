@@ -1,25 +1,23 @@
-// 아이오닉 5 느낌의 3D 자동차를 코드로 만든다 (외부 모델 파일 없음).
-// 앞(+x) · 위(+y) · 오른쪽(+z). 길이 약 4.6, 폭 1.9, 높이 1.6 (미터 단위 느낌)
+// 현대차 차종별 3D 자동차를 코드로 만든다 (외부 모델 파일 없음).
+// 앞(+x) · 위(+y) · 오른쪽(+z). 차종 치수는 shapes.ts
 import * as THREE from 'three';
-import type { BodyColor } from '../data/hyundaiModels';
+import { BODY_COLORS, type BodyColor } from '../data/hyundaiModels';
 import type { Mood } from '../game/character';
 import type { CosmeticId } from '../game/progress';
+import { DEFAULT_STYLE, type CharStyle } from '../game/style';
 import { drawFace } from './face';
+import { shapeOf, type CarShape } from './shapes';
 
-const WHEEL_R = 0.38;
-const WHEEL_X = 1.45; // 축간거리 2.9
-const HALF_W = 0.93;
-
-/** 흑백 디자인: 차체는 무채색 (유채색 선택은 실버) */
-const PAINT: Partial<Record<BodyColor, string>> = { white: '#ececec', gray: '#6c7076', black: '#1b1c1f', beige: '#d6d1c6' };
-const paintOf = (c?: BodyColor) => PAINT[c ?? 'silver'] ?? '#c4c8ce';
+const paintOf = (c?: BodyColor) => BODY_COLORS.find((b) => b.id === c)?.hex ?? '#c4c8ce';
 
 export interface CarRig {
   group: THREE.Group;
   wheels: THREE.Object3D[];
+  wheelR: number;
   setMood(m: Mood, cosmetic: CosmeticId): void;
   setBlink(closed: boolean): void;
   setColor(c?: BodyColor): void;
+  setStyle(s: CharStyle): void;
   setCosmetic(c: CosmeticId, base: string): void;
   dispose(): void;
 }
@@ -37,10 +35,16 @@ function extrude(shape: THREE.Shape, depth: number, bevel = 0.05) {
   return g;
 }
 
-export function buildCar(): CarRig {
+export function buildCar(shapeId?: string): CarRig {
+  const S: CarShape = shapeOf(shapeId);
+  const { L, W, wr, wb, bottom, noseTop, roofY, roofFX, roofBX, deckX } = S;
+  const [cowlX, cowlY] = S.cowl;
+  const F = L + 0.06; // 차체 모서리 둥글림(bevel)만큼 앞뒤가 튀어나옴
   const group = new THREE.Group();
   const disposables: { dispose(): void }[] = [];
   const keep = <T extends { dispose(): void }>(x: T) => (disposables.push(x), x);
+  const add = (m: THREE.Object3D, x = 0, y = 0, z = 0) => { m.position.set(x, y, z); group.add(m); return m; };
+  const box = (w: number, h: number, d: number, mat: THREE.Material) => new THREE.Mesh(keep(new THREE.BoxGeometry(w, h, d)), mat);
 
   const paint = keep(new THREE.MeshPhysicalMaterial({ color: paintOf(), metalness: 0.45, roughness: 0.26, clearcoat: 1, clearcoatRoughness: 0.08, envMapIntensity: 1.6 }));
   const glass = keep(new THREE.MeshPhysicalMaterial({ color: '#0b0d10', metalness: 0.2, roughness: 0.05, clearcoat: 1 }));
@@ -49,71 +53,82 @@ export function buildCar(): CarRig {
   const rim = keep(new THREE.MeshStandardMaterial({ color: '#8d9198', metalness: 0.9, roughness: 0.3 }));
   const led = keep(new THREE.MeshStandardMaterial({ color: '#ffffff', emissive: '#ffffff', emissiveIntensity: 2.2 }));
   const tail = keep(new THREE.MeshStandardMaterial({ color: '#ff3b3b', emissive: '#ff2a2a', emissiveIntensity: 1.6 }));
+  const nRed = keep(new THREE.MeshStandardMaterial({ color: '#e0202a', emissive: '#a0141a', emissiveIntensity: 0.6 }));
+  const metal = keep(new THREE.MeshStandardMaterial({ color: '#9a9ea5', metalness: 0.8, roughness: 0.35 }));
 
   // ---- 차체 (옆모습을 밀어낸 덩어리) ----
-  const body = new THREE.Mesh(
-    keep(extrude(sideShape([
-      [-2.22, 0.32], [2.18, 0.32], [2.3, 0.5], [2.3, 0.84], [2.16, 0.94], [1.05, 1.04], [-1.9, 1.06], [-2.24, 1.0], [-2.28, 0.8], [-2.28, 0.46],
-    ]), HALF_W * 2 - 0.1, 0.06)),
-    paint,
-  );
-  group.add(body);
+  const outline: [number, number][] = [
+    [-L + 0.08, bottom], [L - 0.14, bottom], [L, bottom + 0.18], [L, noseTop - 0.1], [L - 0.14, noseTop],
+    [cowlX, cowlY], [deckX, S.beltRear],
+  ];
+  if (deckX > -L + 0.16) outline.push([-L + 0.12, S.tailTop]);
+  outline.push([-L, S.tailTop - 0.2], [-L, bottom + 0.12]);
+  add(new THREE.Mesh(keep(extrude(sideShape(outline), W * 2 - 0.1, 0.06)), paint));
 
-  // ---- 유리 캐빈 ----
-  const cabin = new THREE.Mesh(
-    keep(extrude(sideShape([[1.0, 1.02], [0.12, 1.5], [-1.62, 1.5], [-2.12, 1.08]]), 1.6, 0.05)),
-    glass,
-  );
-  group.add(cabin);
-  // 지붕 (차체색 얇은 판) + C필러 (아이오닉 특유의 각진 기둥)
-  const roof = new THREE.Mesh(keep(new THREE.BoxGeometry(1.72, 0.05, 1.56)), paint);
-  roof.position.set(-0.75, 1.55, 0);
-  group.add(roof);
+  // ---- 유리 캐빈 + 지붕 ----
+  const deckY = S.beltRear + 0.02;
+  add(new THREE.Mesh(keep(extrude(sideShape([[cowlX - 0.05, cowlY - 0.02], [roofFX, roofY], [roofBX, roofY], [deckX, deckY]]), W * 2 - 0.26, 0.05)), glass));
+  add(box(roofFX - roofBX + 0.08, 0.05, W * 2 - 0.3, paint), (roofFX + roofBX) / 2, roofY + 0.05, 0);
   for (const z of [-1, 1]) {
-    const c = new THREE.Mesh(keep(extrude(sideShape([[-1.25, 1.05], [-1.62, 1.5], [-1.9, 1.5], [-2.16, 1.06]]), 0.04, 0.01)), paint);
-    c.position.z = z * 0.86;
-    group.add(c);
-    const a = new THREE.Mesh(keep(new THREE.BoxGeometry(0.06, 0.62, 0.05)), black);
-    a.position.set(0.55, 1.27, z * 0.86);
-    a.rotation.z = Math.atan2(0.88, 0.48);
-    group.add(a);
+    // A필러
+    const a = box(0.06, Math.hypot(roofFX - cowlX, roofY - cowlY), 0.05, black);
+    add(a, (cowlX + roofFX) / 2, (cowlY + roofY) / 2, z * (W - 0.07));
+    a.rotation.z = Math.atan2(cowlX - roofFX, roofY - cowlY);
     // 사이드미러
-    const m = new THREE.Mesh(keep(new THREE.BoxGeometry(0.2, 0.1, 0.16)), paint);
-    m.position.set(0.95, 1.1, z * 1.0);
-    group.add(m);
+    add(box(0.2, 0.1, 0.16, paint), cowlX - 0.1, cowlY + 0.08, z * (W + 0.07));
+  }
+
+  // ---- 짐칸 (ST1 박스 · 포터 적재함) ----
+  if (S.cargo) {
+    const len = S.cargo.from + L;
+    const cx = (S.cargo.from - L) / 2;
+    if (S.cargo.open) {
+      add(box(len, 0.08, W * 2, metal), cx, S.tailTop, 0);
+      for (const z of [-1, 1]) add(box(len, S.cargo.top - S.tailTop, 0.04, metal), cx, (S.cargo.top + S.tailTop) / 2, z * (W - 0.02));
+      add(box(0.04, S.cargo.top - S.tailTop, W * 2, metal), -L + 0.02, (S.cargo.top + S.tailTop) / 2, 0);
+      add(box(0.06, S.cargo.top - S.tailTop + 0.2, W * 2, black), S.cargo.from, (S.cargo.top + S.tailTop) / 2 + 0.1, 0);
+    } else {
+      add(box(len, S.cargo.top - bottom - 0.05, W * 2 - 0.04, paint), cx, (S.cargo.top + bottom + 0.05) / 2, 0);
+      for (const z of [-1, 1]) add(box(len - 0.3, 0.03, 0.01, black), cx, S.cargo.top - 0.35, z * (W - 0.01));
+    }
   }
 
   // ---- 바퀴 아치 · 하단 검은 클래딩 ----
-  for (const x of [WHEEL_X, -WHEEL_X]) for (const z of [-1, 1]) {
-    const arch = new THREE.Mesh(keep(new THREE.RingGeometry(WHEEL_R + 0.05, WHEEL_R + 0.15, 24, 1, 0, Math.PI)), black);
-    arch.position.set(x, WHEEL_R + 0.02, z * (HALF_W + 0.012));
+  for (const x of [wb, -wb]) for (const z of [-1, 1]) {
+    const arch = new THREE.Mesh(keep(new THREE.RingGeometry(wr + 0.05, wr + 0.15, 24, 1, 0, Math.PI)), black);
+    add(arch, x, wr + 0.02, z * (W + 0.012));
     if (z < 0) arch.rotation.y = Math.PI;
-    group.add(arch);
   }
-  for (const z of [-1, 1]) {
-    const sill = new THREE.Mesh(keep(new THREE.BoxGeometry(1.9, 0.12, 0.04)), black);
-    sill.position.set(0, 0.38, z * (HALF_W + 0.01));
-    group.add(sill);
-  }
+  for (const z of [-1, 1]) add(box(wb * 2 - wr * 2 - 0.2, 0.12, 0.04, S.sport ? nRed : black), 0, bottom + 0.06, z * (W + 0.01));
 
-  // ---- 앞: 검은 띠 + 픽셀 라이트 + 얼굴 화면 ----
-  const band = new THREE.Mesh(keep(new THREE.BoxGeometry(0.04, 0.11, 1.5)), black);
-  band.position.set(2.31, 0.8, 0);
-  group.add(band);
-  const pix = keep(new THREE.BoxGeometry(0.02, 0.045, 0.045));
-  for (const side of [-1, 1]) {
-    for (let i = 0; i < 4; i++) for (let j = 0; j < 2; j++) {
-      const p = new THREE.Mesh(pix, led);
-      p.position.set(2.33, 0.77 + j * 0.06, side * (0.56 + i * 0.06));
-      group.add(p);
-      const t = new THREE.Mesh(pix, tail);
-      t.position.set(-2.3, 0.86 + j * 0.06, side * (0.52 + i * 0.07));
-      group.add(t);
+  // ---- 앞: 검은 띠 + 라이트 + 얼굴 화면 ----
+  const lampY = noseTop - 0.15;
+  add(box(0.04, 0.11, W * 1.6, black), F + 0.01, lampY, 0);
+  if (S.lamp === 'pixel') {
+    const pix = keep(new THREE.BoxGeometry(0.02, 0.045, 0.045));
+    for (const side of [-1, 1]) for (let i = 0; i < 4; i++) for (let j = 0; j < 2; j++) {
+      add(new THREE.Mesh(pix, led), F + 0.03, lampY - 0.03 + j * 0.06, side * (W * 0.6 + i * 0.06));
+      add(new THREE.Mesh(pix, tail), -F - 0.02, S.tailTop - 0.14 + j * 0.06, side * (W * 0.56 + i * 0.07));
+    }
+  } else {
+    // 현대 최신 디자인: 앞뒤를 가로지르는 한 줄 라이트
+    add(box(0.02, 0.03, W * 1.75, led), F + 0.03, noseTop - 0.07, 0);
+    add(box(0.02, 0.035, W * 1.8, tail), -F - 0.02, S.tailTop - 0.1, 0);
+    if (S.lamp === 'round') {
+      const disc = keep(new THREE.CylinderGeometry(0.075, 0.075, 0.02, 24));
+      for (const side of [-1, 1]) {
+        const d = new THREE.Mesh(disc, led);
+        d.rotation.z = Math.PI / 2;
+        add(d, F + 0.03, lampY - 0.02, side * W * 0.68);
+      }
     }
   }
-  const lower = new THREE.Mesh(keep(new THREE.BoxGeometry(0.06, 0.18, 1.3)), black);
-  lower.position.set(2.27, 0.42, 0);
-  group.add(lower);
+  add(box(0.06, 0.18, W * 1.4, black), F + 0.01, bottom + 0.1, 0);
+  if (S.sport) {
+    add(box(0.08, 0.025, W * 1.6, nRed), F, bottom - 0.02, 0); // 빨간 립
+    const spoilerOnRoof = deckX < -L + 0.3;
+    add(box(0.3, 0.035, W * 1.7, black), spoilerOnRoof ? roofBX - 0.08 : -L + 0.16, spoilerOnRoof ? roofY + 0.04 : S.tailTop + 0.1, 0);
+  }
 
   const faceCanvas = document.createElement('canvas');
   faceCanvas.width = 512;
@@ -121,23 +136,19 @@ export function buildCar(): CarRig {
   const faceTex = keep(new THREE.CanvasTexture(faceCanvas));
   faceTex.colorSpace = THREE.SRGBColorSpace;
   faceTex.anisotropy = 4;
-  const frame = new THREE.Mesh(keep(new THREE.BoxGeometry(0.05, 0.25, 0.6)), black);
-  frame.position.set(2.31, 0.6, 0);
-  group.add(frame);
-  const screen = new THREE.Mesh(
-    keep(new THREE.PlaneGeometry(0.54, 0.21)),
-    keep(new THREE.MeshBasicMaterial({ map: faceTex, toneMapped: false })),
-  );
-  screen.position.set(2.338, 0.6, 0);
+  const faceY = bottom + (noseTop - bottom) * 0.45;
+  const faceW = Math.min(0.8, W * 0.8); // 귀엽게 큰 얼굴 화면
+  add(box(0.05, faceW * 0.42, faceW * 1.1, black), F + 0.01, faceY, 0);
+  const screen = new THREE.Mesh(keep(new THREE.PlaneGeometry(faceW, faceW * 0.39)), keep(new THREE.MeshBasicMaterial({ map: faceTex, toneMapped: false })));
   screen.rotation.y = Math.PI / 2;
-  group.add(screen);
+  add(screen, F + 0.04, faceY, 0);
 
   // ---- 바퀴 (터빈 모양 휠) ----
   const wheels: THREE.Object3D[] = [];
-  const tireG = keep(new THREE.CylinderGeometry(WHEEL_R, WHEEL_R, 0.26, 36));
-  const rimG = keep(new THREE.CylinderGeometry(0.27, 0.27, 0.27, 36));
-  const spokeG = keep(new THREE.BoxGeometry(0.05, 0.25, 0.02));
-  for (const x of [WHEEL_X, -WHEEL_X]) for (const z of [-1, 1]) {
+  const tireG = keep(new THREE.CylinderGeometry(wr, wr, 0.26, 36));
+  const rimG = keep(new THREE.CylinderGeometry(wr * 0.71, wr * 0.71, 0.27, 36));
+  const spokeG = keep(new THREE.BoxGeometry(0.05, wr * 0.66, 0.02));
+  for (const x of [wb, -wb]) for (const z of [-1, 1]) {
     const w = new THREE.Group();
     const tire = new THREE.Mesh(tireG, rubber);
     tire.rotation.x = Math.PI / 2;
@@ -147,11 +158,16 @@ export function buildCar(): CarRig {
     for (let k = 0; k < 10; k++) {
       const s = new THREE.Mesh(spokeG, rim);
       const a = (k / 10) * Math.PI * 2;
-      s.position.set(Math.cos(a) * 0.13, Math.sin(a) * 0.13, z * 0.14);
-      s.rotation.z = a + 0.5; // 비틀린 터빈 날개
+      s.position.set(Math.cos(a) * wr * 0.34, Math.sin(a) * wr * 0.34, z * 0.14);
+      s.rotation.z = a + 0.5;
       w.add(s);
     }
-    w.position.set(x, WHEEL_R, z * (HALF_W - 0.1));
+    if (S.sport) {
+      const cal = new THREE.Mesh(keep(new THREE.BoxGeometry(0.1, 0.06, 0.02)), nRed);
+      cal.position.set(wr * 0.45, 0, z * 0.12);
+      w.add(cal);
+    }
+    w.position.set(x, wr, z * (W - 0.1));
     group.add(w);
     wheels.push(w);
   }
@@ -162,6 +178,7 @@ export function buildCar(): CarRig {
   // ---- 꾸미기 (지붕 위 스프라이트) ----
   let acc: THREE.Sprite | null = null;
   let accTex: THREE.Texture | null = null;
+  let accReq = 0;
   const clearAcc = () => {
     if (acc) group.remove(acc);
     acc?.material.dispose();
@@ -172,47 +189,43 @@ export function buildCar(): CarRig {
 
   let mood: Mood = 'happy';
   let cosmetic: CosmeticId = 'none';
+  let style: CharStyle = DEFAULT_STYLE;
   const redraw = (closed = false) => {
-    drawFace(faceCanvas, mood, cosmetic, closed);
+    drawFace(faceCanvas, mood, cosmetic, closed, style);
     faceTex.needsUpdate = true;
   };
+  const roofCX = (roofFX + roofBX) / 2;
+  const topY = S.cargo && !S.cargo.open ? Math.max(roofY, S.cargo.top) : roofY;
 
   return {
     group,
     wheels,
-    setMood(m, c) {
-      mood = m;
-      cosmetic = c;
-      redraw();
-    },
+    wheelR: wr,
+    setMood(m, c) { mood = m; cosmetic = c; redraw(); },
     setBlink(closed) { redraw(closed); },
     setColor(c) { paint.color.set(paintOf(c)); },
+    setStyle(s) { style = s; redraw(); },
     setCosmetic(c, base) {
       clearAcc();
-      const file: Partial<Record<CosmeticId, [string, number, number, number]>> = {
-        // [이미지, x, y, 크기]
-        crown: ['acc-crown.png', -0.55, 1.86, 0.55],
-        cap: ['acc-cap.png', -0.55, 1.84, 0.7],
-        scarf: ['acc-ribbon.png', -0.4, 1.76, 0.5],
-        flower: ['acc-flower.png', 0.2, 1.68, 0.35],
-        wrench: ['acc-medal.png', -0.2, 0.8, 0.32],
+      const req = ++accReq;
+      const file: Partial<Record<CosmeticId, [string, number, number, number, number]>> = {
+        // [이미지, x, y, z, 크기]
+        crown: ['acc-crown.png', roofCX, topY + 0.31, 0, 0.55],
+        cap: ['acc-cap.png', roofCX, topY + 0.29, 0, 0.7],
+        scarf: ['acc-ribbon.png', roofCX + 0.35, topY + 0.21, 0, 0.5],
+        flower: ['acc-flower.png', roofFX + 0.08, roofY + 0.13, 0, 0.35],
+        wrench: ['acc-medal.png', -0.2, S.beltRear - 0.26, W + 0.05, 0.32],
       };
       const f = file[c];
       if (!f) return;
       const img = new Image();
       img.onload = () => {
-        // 흑백 디자인에 맞게 회색조로
-        const cv = document.createElement('canvas');
-        cv.width = img.width;
-        cv.height = img.height;
-        const g = cv.getContext('2d')!;
-        g.filter = 'grayscale(1) brightness(1.1)';
-        g.drawImage(img, 0, 0);
-        accTex = new THREE.CanvasTexture(cv);
+        if (req !== accReq) return;
+        accTex = new THREE.CanvasTexture(img);
         accTex.colorSpace = THREE.SRGBColorSpace;
         acc = new THREE.Sprite(new THREE.SpriteMaterial({ map: accTex, transparent: true }));
-        acc.position.set(f[1], f[2], c === 'wrench' ? HALF_W + 0.05 : 0);
-        acc.scale.set(f[3], f[3] * (img.height / img.width), 1);
+        acc.position.set(f[1], f[2], f[3]);
+        acc.scale.set(f[4], f[4] * (img.height / img.width), 1);
         group.add(acc);
       };
       img.src = `${base}character/${f[0]}`;
@@ -223,5 +236,3 @@ export function buildCar(): CarRig {
     },
   };
 }
-
-export { WHEEL_R };

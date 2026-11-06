@@ -3,6 +3,8 @@
 // - 캐릭터 설정·목소리는 토큰에 고정됨
 // - 글자 보내기, 또는 마이크 소리를 그대로 보내기(16kHz PCM) → 24kHz PCM 음성 + 자막을 받음
 
+import { pushLevel, rms } from './level';
+
 const WS = 'wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContentConstrained';
 // 배포 사이트·개발 PC 어디서든 쓸 토큰 서버 (공개 주소, 비밀 아님)
 const REMOTE = (import.meta.env.VITE_GEMINI_SERVER as string | undefined) || 'https://our-car-alive.vercel.app';
@@ -134,6 +136,7 @@ export class LiveSession {
     proc.onaudioprocess = (e) => {
       if (ws.readyState !== WebSocket.OPEN) return;
       const input = e.inputBuffer.getChannelData(0);
+      pushLevel(rms(input) * 6);
       // 16kHz로 줄이고 16비트 정수로
       const n = Math.floor(input.length / ratio);
       const pcm = new Int16Array(n);
