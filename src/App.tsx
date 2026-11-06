@@ -1,6 +1,6 @@
 // 화면 구성: Figma "우리 차가 살아있다면" 흑백 디자인 (홈 · AI 음성봇 · 운전 · 오늘의 일기 · 일기장 · 꾸미기)
 import {
-  ArrowUpRight, Award, BookOpen, CalendarDays, CarFront, ChevronLeft, ChevronRight, CircleCheck, Compass, Crown,
+  ArrowUpRight, Award, BookOpen, CalendarDays, CarFront, ChevronLeft, ChevronRight, CircleCheck, Crown,
   Flower2, Glasses, HardHat, House, LockKeyhole, MapPin, Mic, Ribbon, Route, Sparkles, Sun, X, type LucideIcon,
 } from 'lucide-react';
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -8,8 +8,8 @@ import { dataSource, simulator, WARNING_LABELS, type CarProfile, type Trip, type
 import { logout, startLogin } from './api/hyundaiClient';
 import { CarCharacter } from './components/CarCharacter';
 import { CarSheet } from './components/CarSheet';
-import { TripScreen } from './components/TripScreen';
 import { VehicleStatus, type LiveDrive } from './components/VehicleStatus';
+import { markReplaced, partsStatus } from './voice/actions';
 import { gpsSupported, startGpsTrip, type GpsUpdate } from './game/gpsTrip';
 import { VoiceBot } from './components/VoiceBot';
 
@@ -24,14 +24,15 @@ import {
   XP_FOR_CHARGE, XP_FOR_FIX, XP_PER_LEVEL, type CosmeticId, type Progress,
 } from './game/progress';
 
-type Tab = 'home' | 'drive' | 'trip' | 'diary' | 'closet';
+type Tab = 'home' | 'drive' | 'diary' | 'closet';
 type View = Tab | 'talk';
 type Style = 'calm' | 'normal' | 'sporty';
 
 const STYLE_LABEL: Record<Style, string> = { calm: '차분하게', normal: '보통', sporty: '신나게' };
 const STYLE_DESC: Record<Style, string> = { calm: '차분한 주행', normal: '보통 주행', sporty: '신나는 주행' };
 const AVG_SPEED: Record<Style, number> = { calm: 38, normal: 52, sporty: 74 };
-const TABS: [Tab, LucideIcon, string][] = [['home', House, '홈'], ['drive', CarFront, '운전'], ['trip', Compass, '여행'], ['diary', BookOpen, '일기장'], ['closet', Sparkles, '꾸미기']];
+// 하단: 🎙️ 마이크 · 홈 · 운전 · 기록(일기장 + 옷장). 여행·날씨·주변 찾기는 음성으로
+const TABS: [Tab, LucideIcon, string][] = [['home', House, '홈'], ['drive', CarFront, '운전'], ['diary', BookOpen, '기록']];
 const COSMETIC_ICON: Record<CosmeticId, LucideIcon | null> = { none: null, sunglasses: Glasses, flower: Flower2, wrench: Award, scarf: Ribbon, cap: HardHat, crown: Crown };
 const WARNING_TITLE: Record<WarningKey, string> = {
   tirePressure: '타이어 공기압이 낮아요', engineOil: '엔진오일을 갈 때예요', brakeOil: '브레이크액을 확인해요',
@@ -54,6 +55,7 @@ export default function App() {
   const [openDiary, setOpenDiary] = useState<{ d: DiaryEntry; fresh: boolean } | null>(null);
   const [carSheet, setCarSheet] = useState(false);
   const [bot, setBot] = useState<{ line: string; mood?: Mood; speaking?: boolean } | null>(null);
+  const [partsTick, setPartsTick] = useState(0);
   const [month, setMonth] = useState(() => { const d = new Date(); return { y: d.getFullYear(), m: d.getMonth() }; });
 
   const [driving, setDriving] = useState(false);
@@ -281,8 +283,16 @@ export default function App() {
   const kmNow = Math.round(live.km * 10) / 10;
   const etaMin = Math.round(((distance - live.km) / Math.max(20, live.speed || AVG_SPEED[style])) * 60);
   const owned = COSMETICS.filter((c) => c.unlocked(progress)).length;
-  const tab: Tab = view === 'talk' ? 'home' : view;
+  const tab: Tab = view === 'talk' ? 'home' : view === 'closet' ? 'diary' : view;
+  const RecordSwitch = (
+    <div className="seg" role="tablist" aria-label="기록">
+      <button role="tab" aria-selected={view === 'diary'} className={view === 'diary' ? 'on' : ''} onClick={() => setView('diary')}>일기장</button>
+      <button role="tab" aria-selected={view === 'closet'} className={view === 'closet' ? 'on' : ''} onClick={() => setView('closet')}>옷장 · {owned}/{COSMETICS.length}</button>
+    </div>
+  );
   const energyTerm = ENERGY_TERMS[car.fuelType];
+  void partsTick; // 교체 완료 후 다시 계산
+  const dueParts = partsStatus({ car, snap }).filter((p) => p.pct >= 90);
 
   const Level = (
     <div className="level">
@@ -316,7 +326,7 @@ export default function App() {
           </div>
           <div className="card">
             <div className="card-head"><b className="h3">돌봐주세요</b><span className="cap">돌보면 +{st.activeWarnings[0] ? XP_FOR_FIX[st.activeWarnings[0]] : XP_FOR_CHARGE} XP</span></div>
-            {st.activeWarnings.length === 0 && st.energy >= 50 && (
+            {st.activeWarnings.length === 0 && st.energy >= 50 && dueParts.length === 0 && (
               <div className="care-row"><i className="dot good" /><div className="grow"><b className="label">아픈 곳이 없어요</b><span className="cap">오늘도 챙겨줘서 고마워요</span></div></div>
             )}
             {st.activeWarnings.map((k) => (
@@ -326,6 +336,13 @@ export default function App() {
                 {simulator ? (
                   <button className="btn outline sm" onClick={() => { simulator?.fix(k); refresh(snap); }}>정비 완료</button>
                 ) : <span className="cap">정비 후 새로고침</span>}
+              </div>
+            ))}
+            {dueParts.map((p) => (
+              <div key={p.id} className="care-row">
+                <i className="dot warn" />
+                <div className="grow"><b className="label">{p.name} 교체할 때예요</b><span className="cap">{p.left ? `${p.left.toLocaleString()}km 남았어요` : '권장 거리를 지났어요'}</span></div>
+                <button className="btn outline sm" onClick={() => { markReplaced(p.id, snap.odometerKm); setPartsTick((n) => n + 1); updateProgress((pr) => ({ ...pr, xp: pr.xp + 15, fixes: pr.fixes + 1 })); showToast(`${p.name} 교체 완료 · +15 XP`); }}>교체 완료</button>
               </div>
             ))}
             {st.energy < 50 && (
@@ -451,19 +468,14 @@ export default function App() {
         </section>
       )}
 
-      {/* ---------- 여행 ---------- */}
-      {view === 'trip' && (
-        <TripScreen car={car} snap={snap} trips={trips}
-          onXp={(xp, msg) => { updateProgress((p) => ({ ...p, xp: p.xp + xp, fixes: p.fixes + 1 })); showToast(msg); }} />
-      )}
-
       {/* ---------- 일기장 목록 ---------- */}
       {view === 'diary' && (
         <section className="screen">
           <div className="title-row">
-            <h1 className="h1">우리의 일기장</h1>
+            <h1 className="h1">{car.nickname}의 기록</h1>
             <CarCharacter mood="happy" cosmetic="none" color={car.bodyColor} size={56} />
           </div>
+          {RecordSwitch}
           <div className="grid3">
             <div className="tile-stat"><span className="cap">총 주행</span><b className="num">{snap.odometerKm.toLocaleString()}<small>km</small></b></div>
             <div className="tile-stat"><span className="cap">일기 수</span><b className="num">{progress.diaries.length}<small>편</small></b></div>
@@ -506,7 +518,8 @@ export default function App() {
       {/* ---------- 꾸미기 ---------- */}
       {view === 'closet' && (
         <section className="screen">
-          <div className="title-row"><h1 className="h1">{car.nickname}의 옷장</h1><span className="cap">나만의 작은 취향</span></div>
+          <div className="title-row"><h1 className="h1">{car.nickname}의 기록</h1><span className="cap">나만의 작은 취향</span></div>
+          {RecordSwitch}
           <Show3D car={car} mood="happy" cosmetic={progress.equipped} height={190} />
           {Level}
           <div className="card-head"><b className="h3">스타일 컬렉션</b><span className="cap">{owned} / {COSMETICS.length} 보유</span></div>

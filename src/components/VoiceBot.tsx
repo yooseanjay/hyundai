@@ -14,6 +14,8 @@ import { loadVoicePrefs, saveVoicePrefs, type VoicePrefs } from '../voice/voiceP
 import { buildContext, reply, type BotContext } from '../game/voiceBot';
 import { chatReply, GEMINI_VOICES, geminiSource, geminiSpeech, geminiSpeechStream, setUserKey, type Turn } from '../voice/gemini';
 import { LiveSession } from '../voice/live';
+import { detectTool, runTool, summaryOf, type ActionCard } from '../voice/actions';
+import { ActionCardView } from './ActionCardView';
 
 type Phase = 'idle' | 'listening' | 'thinking' | 'speaking';
 
@@ -26,7 +28,8 @@ const canMic = !!SR || (typeof window !== 'undefined' && window.isSecureContext 
 /** 기분별 말하기 속도 (음성 AI) */
 const AI_SPEED: Record<Mood, number> = { excited: 1.15, happy: 1.08, calm: 1.03, hungry: 0.95, sick: 0.93, tired: 0.9, sleepy: 0.88 };
 
-const SUGGESTIONS = ['기분 어때?', '얼마나 갈 수 있어?', '어디 아파?', '어디 주차했어?', '오늘 얼마나 달렸어?', '레벨 몇이야?'];
+const SUGGESTIONS = ['여행지 추천해줘', '근처 충전소', '오늘 날씨 어때?', '소모품 언제 갈아?', '이번 주 운전 어땠어?', '기분 어때?', '얼마나 갈 수 있어?'];
+const DOCK_SUGGESTIONS = ['바다 드라이브 추천해줘', '근처 충전소', '오늘 날씨 어때?', '이번 주 운전 어땠어?'];
 
 export function VoiceBot({ ctx, onLine, variant = 'screen', mood: faceMood }: {
   ctx: BotContext;
@@ -37,6 +40,9 @@ export function VoiceBot({ ctx, onLine, variant = 'screen', mood: faceMood }: {
 }) {
   const dock = variant === 'dock';
   const [open, setOpen] = useState(false); // dock: 연기 말풍선 열림
+  const [card, setCard] = useState<ActionCard | null>(null); // 음성 도구 결과
+  const cardRef = useRef(card);
+  cardRef.current = card;
   const [phase, setPhase] = useState<Phase>('idle');
   const [heard, setHeard] = useState('');
   const [typing, setTyping] = useState(!canMic);
@@ -156,7 +162,7 @@ export function VoiceBot({ ctx, onLine, variant = 'screen', mood: faceMood }: {
 
   const finish = () => {
     setPhase('idle');
-    if (dock) { window.clearTimeout(closeTimer.current); closeTimer.current = window.setTimeout(() => { if (!live.current?.micOn) setOpen(false); }, 7000); }
+    if (dock) { window.clearTimeout(closeTimer.current); closeTimer.current = window.setTimeout(() => { if (!live.current?.micOn && !cardRef.current) setOpen(false); }, 7000); }
     window.clearTimeout(resetTimer.current);
     resetTimer.current = window.setTimeout(() => onLine(null), 6000); // 잠시 뒤 평소 대사로
   };
@@ -187,10 +193,21 @@ export function VoiceBot({ ctx, onLine, variant = 'screen', mood: faceMood }: {
     };
 
     void (async () => {
-      // 1) 대답 내용: Gemini(무슨 말이든) → 실패하면 규칙 기반 대답
+      // 1) 대답 내용: 앱 기능(여행지·주변·날씨·소모품·리포트) → Gemini(무슨 말이든) → 규칙 기반 대답
       let text = rule.text;
       let fromAi = false;
-      if (gemRef.current && gemRef.current !== 'checking') {
+      const tool = detectTool(question);
+      setCard(null);
+      if (tool) {
+        try {
+          const c = ctxRef.current;
+          const r = await runTool(tool.name, tool.args, { car: c.car, snap: c.snap, trips: c.trips });
+          setCard(r.card);
+          text = summaryOf(r.card);
+          fromAi = true;
+        } catch { /* 일반 대답으로 */ }
+      }
+      if (!fromAi && gemRef.current && gemRef.current !== 'checking') {
         try {
           text = await Promise.race([
             chatReply(buildContext(ctxRef.current), history.current, question),
@@ -277,7 +294,7 @@ export function VoiceBot({ ctx, onLine, variant = 'screen', mood: faceMood }: {
     },
     onUserText(d: string) {
       const t = turn.current;
-      if (!t.userId) t.userId = msgId.current++;
+      if (!t.userId) { t.userId = msgId.current++; setCard(null); }
       t.user += d;
       upsert(t.userId, 'me', t.user.trim());
       setHeard(t.user.trim());
@@ -295,6 +312,13 @@ export function VoiceBot({ ctx, onLine, variant = 'screen', mood: faceMood }: {
     onInterrupted() {
       stopServerVoice(); // 말 끊으면 바로 멈춤
       turn.current.player = null;
+    },
+    async onToolCall(toolName: string, args: Record<string, unknown>) {
+      setPhase('thinking');
+      const c = ctxRef.current;
+      const r = await runTool(toolName, args, { car: c.car, snap: c.snap, trips: c.trips });
+      setCard(r.card);
+      return r.data;
     },
     onClose() {
       live.current = null;
@@ -357,6 +381,7 @@ export function VoiceBot({ ctx, onLine, variant = 'screen', mood: faceMood }: {
           stopServerVoice();
           if (canSpeak) speechSynthesis.cancel();
           turn.current = { ...fresh(), q: question };
+          setCard(null);
           ss.sendText(question);
           setHeard(question);
           upsert(msgId.current++, 'me', question);
@@ -430,6 +455,7 @@ export function VoiceBot({ ctx, onLine, variant = 'screen', mood: faceMood }: {
       if (canSpeak) speechSynthesis.cancel();
       setPhase('idle');
       setOpen(false);
+      setCard(null);
       onLine(null);
     };
     return (
@@ -441,6 +467,7 @@ export function VoiceBot({ ctx, onLine, variant = 'screen', mood: faceMood }: {
                 <span className="puff p1" /><span className="puff p2" /><span className="puff p3" />
                 <p>{cloud}</p>
               </div>
+              {card && <div className="smoke-card"><ActionCardView card={card} /></div>}
               <div className="smoke-trail" aria-hidden>
                 {Array.from({ length: 14 }, (_, i) => <span key={i} style={{ ['--i' as string]: i }} />)}
               </div>
@@ -448,7 +475,7 @@ export function VoiceBot({ ctx, onLine, variant = 'screen', mood: faceMood }: {
               {(heard || lastMe) && <p className="smoke-you">“{heard || lastMe}”</p>}
               {!active && phase === 'idle' && (
                 <div className="chip-row smoke-chips">
-                  {SUGGESTIONS.slice(0, 4).map((q) => <button key={q} className="chip sm" onClick={() => answer(q)}>{q}</button>)}
+                  {DOCK_SUGGESTIONS.map((q) => <button key={q} className="chip sm" onClick={() => answer(q)}>{q}</button>)}
                 </div>
               )}
               <p className="cap smoke-hint">{active ? '말을 멈추면 대답해요 · 마이크를 다시 누르면 끝' : '바깥을 누르면 닫혀요'}</p>
@@ -492,6 +519,8 @@ export function VoiceBot({ ctx, onLine, variant = 'screen', mood: faceMood }: {
           ),
         )}
       </div>
+
+      {card && <ActionCardView card={card} />}
 
       {typing && (
         <form className="talk-form" onSubmit={(e) => { e.preventDefault(); answer(text); setText(''); }}>

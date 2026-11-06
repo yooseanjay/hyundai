@@ -14,6 +14,8 @@ export interface LiveHandlers {
   onTurnComplete(): void;
   onInterrupted(): void; // 사용자가 말을 끊음
   onClose(reason: string): void;
+  /** AI가 앱 기능(도구)을 부름 → 결과를 돌려주면 그걸 보고 말함 */
+  onToolCall(name: string, args: Record<string, unknown>): Promise<Record<string, unknown>>;
 }
 
 async function tokenFrom(base: string, context: string, voice: string) {
@@ -74,6 +76,19 @@ export class LiveSession {
           window.clearTimeout(timer);
           this.ready = true;
           ok();
+          return;
+        }
+        if (m.toolCall?.functionCalls?.length) {
+          const responses = await Promise.all(
+            m.toolCall.functionCalls.map(async (c: { id: string; name: string; args?: Record<string, unknown> }) => {
+              try {
+                return { id: c.id, name: c.name, response: { result: await this.h.onToolCall(c.name, c.args ?? {}) } };
+              } catch (e) {
+                return { id: c.id, name: c.name, response: { error: (e as Error).message } };
+              }
+            }),
+          );
+          if (this.ws?.readyState === WebSocket.OPEN) this.ws.send(JSON.stringify({ toolResponse: { functionResponses: responses } }));
           return;
         }
         const sc = m.serverContent;

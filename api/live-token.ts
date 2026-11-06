@@ -9,6 +9,19 @@ declare const process: { env: Record<string, string | undefined> };
 const ORIGINS = [/^https:\/\/yooseanjay\.github\.io$/, /^https:\/\/our-car-alive[\w-]*\.vercel\.app$/, /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/, /^http:\/\/192\.168\.\d+\.\d+(:\d+)?$/];
 export const LIVE_MODEL = 'gemini-3.8-live';
 
+// 앱이 실행하는 도구 (src/voice/actions.ts 의 LIVE_TOOLS 와 같은 내용)
+const LIVE_TOOLS = [{
+  functionDeclarations: [
+    { name: 'recommend_places', description: '사용자가 여행지·드라이브 코스·갈 만한 곳 추천을 원할 때. 현재 위치와 주행 가능 거리 안에서 실제 장소 3곳을 찾아 화면에 지도 버튼과 함께 보여 준다.',
+      parameters: { type: 'OBJECT', properties: { mood: { type: 'STRING', description: '바다, 산, 카페, 맛집, 야경, 공원, 드라이브 중 하나' }, hours: { type: 'STRING', description: '1시간, 반나절, 하루 중 하나' } } } },
+    { name: 'find_nearby', description: '주변 충전소·주유소·세차장·주차장·카페·정비소를 찾아 달라고 할 때. 화면에 지도 검색 버튼을 띄운다.',
+      parameters: { type: 'OBJECT', properties: { kind: { type: 'STRING', description: 'charger, gas, wash, parking, cafe, repair 중 하나' } }, required: ['kind'] } },
+    { name: 'get_weather', description: '날씨나 오늘 운전하기 괜찮은지 물을 때.', parameters: { type: 'OBJECT', properties: {} } },
+    { name: 'check_maintenance', description: '소모품(엔진오일, 타이어, 와이퍼, 필터, 브레이크액) 교체 시기를 물을 때.', parameters: { type: 'OBJECT', properties: {} } },
+    { name: 'weekly_report', description: '이번 주 운전 기록, 운전 습관, 급정거 등을 물을 때.', parameters: { type: 'OBJECT', properties: {} } },
+  ],
+}];
+
 const hits = new Map<string, number[]>();
 function limited(ip: string) {
   const now = Date.now();
@@ -53,6 +66,7 @@ export default async function handler(req: Request): Promise<Response> {
     '규칙: 너는 AI 비서가 아니라 사용자의 자동차 캐릭터다. 자신을 "저"라고 부른다.',
     '항상 "~요"로 끝나는 귀엽고 다정한 한국어 존댓말로, 1~2문장만 짧게 말한다. 목록·긴 설명 금지.',
     '차 상태는 물어보거나 꼭 필요할 때만 한마디 한다. 모르는 사실은 지어내지 않는다.',
+    '여행지 추천, 주변 충전소·주유소·세차장·주차장·카페·정비소 찾기, 날씨, 소모품 교체 시기, 이번 주 운전 기록은 반드시 도구를 불러서 답한다. 도구 결과는 1~2문장으로 요약하고 "화면에 띄워 드렸어요"처럼 안내한다.',
   ].join('\n');
 
   const now = Date.now();
@@ -67,6 +81,7 @@ export default async function handler(req: Request): Promise<Response> {
         model: `models/${LIVE_MODEL}`,
         generationConfig: { responseModalities: ['AUDIO'], speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: voice } } } },
         systemInstruction: { parts: [{ text: system }] },
+        tools: LIVE_TOOLS,
         outputAudioTranscription: {},
         inputAudioTranscription: {},
       },
