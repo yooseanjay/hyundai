@@ -652,3 +652,34 @@ body { word-break: keep-all; overflow-wrap: anywhere; } /* 한국어: 단어 중
 .sheet-backdrop { z-index: 35; }
 .model-card .new { font-size: var(--fs-1); }
 .model-card:has(.new) b { padding-right: 55px; }
+
+
+/* =====================================================================
+   글자 · 빛
+   제목·숫자: Sora(영문·숫자) + SUIT(한글) / 본문: Pretendard
+   중요한 글자(큰 제목, 숫자, 워드마크, 켜진 탭)는 은은한 빛으로
+   ===================================================================== */
+:root {
+  --font-display: 'Sora', 'SUIT Variable', 'SUIT', 'Pretendard Variable', Pretendard, system-ui, sans-serif;
+  --glow: 0 0 1px rgba(255, 255, 255, 0.7), 0 0 8px rgba(255, 255, 255, 0.42), 0 0 21px rgba(176, 208, 255, 0.3), 0 0 44px rgba(120, 168, 255, 0.18);
+  --glow-strong: 0 0 1px #fff, 0 0 10px rgba(255, 255, 255, 0.6), 0 0 26px rgba(186, 214, 255, 0.45), 0 0 55px rgba(120, 168, 255, 0.28);
+  --glow-soft: 0 0 6px rgba(255, 255, 255, 0.28), 0 0 18px rgba(150, 190, 255, 0.16);
+}
+.h1, .h2, .hero-name, .eyebrow-ai, .paper-title, .wordmark, .num, .big, .range-num b, .metric b, .ai-head b, .t-title, .t-display, .t-number {
+  font-family: var(--font-display);
+}
+.h1, .paper-title, .hero-name { font-weight: 700; letter-spacing: -0.035em; }
+.hero-name { text-shadow: var(--glow-strong); }
+.eyebrow-ai { text-shadow: 0 0 8px var(--ai), 0 0 21px var(--ai); }
+.ai-line { text-shadow: var(--glow-soft); }
+.h1, .h2, .paper-title, .num, .big, .range-num b, .metric b { text-shadow: var(--glow); }
+.h3, .label, .card-head b, .ai-head b { text-shadow: var(--glow-soft); }
+.wordmark { font-weight: 600; text-shadow: var(--glow); animation: glow-breathe 4.8s ease-in-out infinite; }
+.range-num b { text-shadow: var(--glow-strong); }
+.welcome .h1 { text-shadow: var(--glow-strong); animation: glow-breathe-strong 4.8s ease-in-out infinite; }
+.tabbar button.on { text-shadow: var(--glow); }
+.tabbar button.on svg { filter: drop-shadow(0 0 4px rgba(255, 255, 255, 0.55)) drop-shadow(0 0 12px rgba(150, 190, 255, 0.35)); }
+.btn.primary { box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.4), 0 0 18px rgba(255, 255, 255, 0.22), 0 0 44px rgba(140, 180, 255, 0.16); }
+@keyframes glow-breathe { 50% { text-shadow: var(--glow-strong); } }
+@keyframes glow-breathe-strong { 50% { text-shadow: 0 0 1px #fff, 0 0 14px rgba(255, 255, 255, 0.75), 0 0 34px rgba(186, 214, 255, 0.55), 0 0 70px rgba(120, 168, 255, 0.35); } }
+@media (prefers-reduced-motion: reduce) { .wordmark, .welcome .h1 { animation: none; } }
