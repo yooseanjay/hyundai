@@ -47,7 +47,8 @@ export default async function handler(req: Request): Promise<Response> {
       uses: 1,
       expireTime: new Date(now + 30 * 60_000).toISOString(),
       newSessionExpireTime: new Date(now + 60_000).toISOString(),
-      liveConnectConstraints: { model: `models/${LIVE_MODEL}`, config: { responseModalities: ['AUDIO'] } },
+      // 이 토큰으로는 정해진 모델로만 연결 가능 (목소리·말투 설정은 앱에서)
+      bidiGenerateContentSetup: { model: `models/${LIVE_MODEL}` },
     }),
   });
   const data = await r.json().catch(() => ({}));
