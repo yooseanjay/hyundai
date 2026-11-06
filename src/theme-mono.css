@@ -648,3 +648,7 @@ body { font-size: var(--fs-2); line-height: var(--lh); }
 .model-card:has(.new) b { padding-right: 47px; }
 .model-card .new { top: var(--sp-2); right: var(--sp-2); font-size: 10.5px; padding: 3px 5px; }
 body { word-break: keep-all; overflow-wrap: anywhere; } /* 한국어: 단어 중간에서 끊지 않기 */
+/* 바텀시트는 탭바(30)보다 위, 음성 화면(40)보다 아래 */
+.sheet-backdrop { z-index: 35; }
+.model-card .new { font-size: var(--fs-1); }
+.model-card:has(.new) b { padding-right: 55px; }

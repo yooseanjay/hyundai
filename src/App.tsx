@@ -1,7 +1,7 @@
 // 화면 구성: Figma "우리 차가 살아있다면" 흑백 디자인 (홈 · AI 음성봇 · 운전 · 오늘의 일기 · 일기장 · 꾸미기)
 import {
-  ArrowUpRight, Award, BookOpen, CalendarDays, CarFront, ChevronLeft, ChevronRight, CircleCheck, Crown,
-  Flower2, Gauge as GaugeIcon, Glasses, HardHat, House, LockKeyhole, MapPin, Mic, Ribbon, Route, Sparkles, Sun, X, type LucideIcon,
+  ArrowUpRight, Award, BookOpen, CalendarDays, CarFront, ChevronLeft, ChevronRight, Crown,
+  Flower2, Gauge as GaugeIcon, Glasses, HardHat, House, MapPin, Mic, Ribbon, Route, Sparkles, Sun, X, type LucideIcon,
 } from 'lucide-react';
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { dataSource, simulator, WARNING_LABELS, type CarProfile, type Trip, type VehicleSnapshot, type WarningKey } from './api';
@@ -22,7 +22,7 @@ import { computeStatus, WARNING_UI, type Mood } from './game/character';
 import { writeDiary, type DiaryEntry } from './game/diary';
 import type { Trip as TripT } from './api/types';
 import {
-  COSMETICS, levelOf, loadProgress, newlyUnlocked, saveProgress, xpForTrip,
+  levelOf, loadProgress, newlyUnlocked, saveProgress, xpForTrip,
   XP_FOR_CHARGE, XP_FOR_FIX, XP_PER_LEVEL, type CosmeticId, type Progress,
 } from './game/progress';
 
@@ -48,6 +48,13 @@ const isToday = (iso: string) => new Date(iso).toDateString() === new Date().toD
 
 export default function App() {
   const [view, setView] = useState<View>('home');
+  // 화면 폭이 바뀌면(회전 등) 황금 직사각형 무대 높이도 다시 계산
+  const [, setVw] = useState(() => window.innerWidth);
+  useEffect(() => {
+    const onResize = () => setVw(window.innerWidth);
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
   const [car, setCar] = useState<CarProfile | null>(null);
   const [snap, setSnap] = useState<VehicleSnapshot | null>(null);
   const [trips, setTrips] = useState<Trip[]>([]);
@@ -296,7 +303,6 @@ export default function App() {
   const xpInLevel = progress.xp % XP_PER_LEVEL;
   const kmNow = Math.round(live.km * 10) / 10;
   const etaMin = Math.round(((distance - live.km) / Math.max(20, live.speed || AVG_SPEED[style])) * 60);
-  const owned = COSMETICS.filter((c) => c.unlocked(progress)).length;
   const tab: Tab = view === 'talk' ? 'home' : view;
   const carColor = colorOf(look, car.bodyColor);
   const carShape = findModelById(car.modelId ?? '')?.shape;
@@ -685,15 +691,6 @@ function Metric({ label, value, bad }: { label: string; value: number; bad?: boo
       <span className="cap">{label}</span>
       <b>{value}</b>
       <div className="metric-bar"><div style={{ width: `${value}%` }} /></div>
-    </div>
-  );
-}
-
-function Gauge({ label, value, bad }: { label: string; value: number; bad?: boolean }) {
-  return (
-    <div className={`gauge ${bad ? 'bad' : ''}`}>
-      <div className="card-head"><span className="cap">{label}</span><b className="num">{value}</b></div>
-      <div className="bar thin"><div style={{ width: `${value}%` }} /></div>
     </div>
   );
 }

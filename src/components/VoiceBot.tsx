@@ -1,13 +1,11 @@
 // AI 음성봇: 마이크로 말 걸면 캐릭터가 차 상태를 보고 목소리로 대답한다.
 // 브라우저 내장 음성 인식(Web Speech API) + 음성 합성(speechSynthesis) 사용 → 무료, 별도 키 불필요.
 // 음성 인식이 안 되는 브라우저(예: Firefox)나 조용한 곳에서는 글자로 물어볼 수 있다.
-import { Download, ExternalLink, Keyboard, KeyRound, Mic, Play, Square, Volume2, VolumeX } from 'lucide-react';
+import { ExternalLink, Keyboard, KeyRound, Mic, Play, Square, Volume2, VolumeX } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { CarCharacter } from './CarCharacter';
 import type { Mood } from '../game/character';
 import { cleanForSpeech, cuteSpeech, pcmStreamPlayer, pickKoVoice, playAudioFile, playPcm, sfx, speakWithServer, stopServerVoice, unlockAudio, voiceFor } from '../game/cuteVoice';
-import { CREDIT, MODEL_MB, VOICES, type VoiceId } from '../voice/voiceList';
 // 음성 AI 엔진(onnxruntime)은 크기가 커서 필요할 때만 불러온다
 const engine = () => import('../voice/supertonic');
 import { loadVoicePrefs, saveVoicePrefs, type VoicePrefs } from '../voice/voicePrefs';
@@ -32,7 +30,7 @@ const AI_SPEED: Record<Mood, number> = { excited: 1.15, happy: 1.08, calm: 1.03,
 const SUGGESTIONS = ['여행지 추천해줘', '근처 충전소', '오늘 날씨 어때?', '소모품 언제 갈아?', '이번 주 운전 어땠어?', '기분 어때?', '얼마나 갈 수 있어?'];
 const DOCK_SUGGESTIONS = ['바다 드라이브 추천해줘', '근처 충전소', '오늘 날씨 어때?', '이번 주 운전 어땠어?'];
 
-export function VoiceBot({ ctx, onLine, variant = 'screen', mood: faceMood }: {
+export function VoiceBot({ ctx, onLine, variant = 'screen' }: {
   ctx: BotContext;
   onLine: (line: string | null, mood?: Mood, speaking?: boolean) => void;
   /** screen: 대화 화면(기록·설정) / dock: 하단 마이크 + 파란 연기 말풍선 */
@@ -134,22 +132,6 @@ export function VoiceBot({ ctx, onLine, variant = 'screen', mood: faceMood }: {
     } catch {
       return false;
     }
-  };
-
-  const preview = async (v: VoiceId) => {
-    unlockAudio();
-    setPhase('thinking');
-    const name = ctxRef.current.car.nickname;
-    const ok = await (async () => {
-      try {
-        const e = await (await engine()).loadSupertonic();
-        const wav = await e.synthesize(`안녕하세요! 저는 ${name}예요. 오늘도 같이 달려요!`, v, { speed: 1.08 });
-        await playPcm(wav, e.sampleRate, () => setPhase('speaking'));
-        return true;
-      } catch { return false; }
-    })();
-    setPhase('idle');
-    if (!ok) setAi({ state: 'error', msg: '미리 듣기에 실패했어요' });
   };
 
   useEffect(() => {
