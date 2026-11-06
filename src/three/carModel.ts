@@ -37,8 +37,8 @@ function extrude(shape: THREE.Shape, depth: number, bevel = 0.05) {
   return g;
 }
 
-/** 사진→3D 모델은 유리 너머 실내(좌석)가 밝게 비침 → 창문 아래선 위의 세운 면(유리)을 까만 유리로 칠함.
- *  지붕·보닛처럼 위를 보는 면은 그대로 둠 */
+/** 사진→3D 모델은 유리 너머 실내(좌석)가 밝게 비침 → 창문 칸만 까만 유리로 칠함.
+ *  흰 차체·필러·지붕·보닛은 원래 질감 그대로 둠 */
 function blackGlass(mat: THREE.MeshStandardMaterial, toCar: THREE.Matrix4, belt: number) {
   mat.onBeforeCompile = (sh) => {
     sh.uniforms.uBelt = { value: belt };
@@ -57,10 +57,13 @@ uniform float uBelt;
 varying vec3 vObjPos;
 varying vec3 vObjN;`)
       .replace('#include <color_fragment>', `#include <color_fragment>
-float isGlass = step(uBelt, vObjPos.y) * step(normalize(vObjN).y, 0.97);
+// 창문 칸: 벨트라인 위 · 지붕처럼 눕지 않은 면 · 원래 질감이 흰 차체보다 어두운 곳(유리 너머 좌석)만
+vec3 texCol = diffuseColor.rgb / max(diffuse, vec3(0.001));
+float texLum = dot(texCol, vec3(0.2126, 0.7152, 0.0722));
+float isGlass = step(uBelt, vObjPos.y) * step(normalize(vObjN).y, 0.97) * (1.0 - smoothstep(0.6, 0.78, texLum));
 diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.02, 0.022, 0.026), isGlass);`)
       .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
-roughnessFactor = mix(roughnessFactor, 0.06, isGlass);`);
+roughnessFactor = mix(roughnessFactor, 0.55, isGlass);`);
   };
   mat.customProgramCacheKey = () => `glass-${belt.toFixed(4)}`;
   mat.needsUpdate = true;
