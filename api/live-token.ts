@@ -1,6 +1,7 @@
 // Vercel 서버 함수: Gemini Live API용 1회용 임시 토큰 발급
 // - 실제 키(GEMINI_API_KEY)는 서버에만 있고, 브라우저에는 짧게 쓰고 버리는 토큰만 전달
-// - 토큰은 1회 사용 · 1분 안에 연결 시작 · 30분 뒤 만료 · 모델과 음성 응답 방식이 고정됨
+// - 토큰은 1회 사용 · 1분 안에 연결 시작 · 30분 뒤 만료
+// - 모델 · 목소리 · 캐릭터 설정(시스템 지시)이 토큰에 고정됨 → 다른 용도로 못 씀
 export const config = { runtime: 'edge' };
 
 declare const process: { env: Record<string, string | undefined> };
@@ -39,6 +40,21 @@ export default async function handler(req: Request): Promise<Response> {
   const ip = (req.headers.get('x-forwarded-for') ?? 'unknown').split(',')[0].trim();
   if (limited(ip)) return json({ error: '잠시 뒤에 다시 시도해 주세요' }, 429);
 
+  // 앱이 보낸 차 상태 요약과 목소리 (길이·형식 제한)
+  let ctx = '';
+  let voice = 'Leda';
+  try {
+    const b = await req.json();
+    ctx = String(b?.context ?? '').slice(0, 1500);
+    if (/^[A-Z][a-z]{2,14}$/.test(String(b?.voice ?? ''))) voice = b.voice;
+  } catch { /* 본문 없음 */ }
+  const system = [
+    ctx || '너는 사용자의 자동차 캐릭터 "오닉이"다.',
+    '규칙: 너는 AI 비서가 아니라 사용자의 자동차 캐릭터다. 자신을 "저"라고 부른다.',
+    '항상 "~요"로 끝나는 귀엽고 다정한 한국어 존댓말로, 1~2문장만 짧게 말한다. 목록·긴 설명 금지.',
+    '차 상태는 물어보거나 꼭 필요할 때만 한마디 한다. 모르는 사실은 지어내지 않는다.',
+  ].join('\n');
+
   const now = Date.now();
   const r = await fetch('https://generativelanguage.googleapis.com/v1alpha/auth_tokens', {
     method: 'POST',
@@ -47,8 +63,13 @@ export default async function handler(req: Request): Promise<Response> {
       uses: 1,
       expireTime: new Date(now + 30 * 60_000).toISOString(),
       newSessionExpireTime: new Date(now + 60_000).toISOString(),
-      // 이 토큰으로는 정해진 모델로만 연결 가능 (목소리·말투 설정은 앱에서)
-      bidiGenerateContentSetup: { model: `models/${LIVE_MODEL}` },
+      bidiGenerateContentSetup: {
+        model: `models/${LIVE_MODEL}`,
+        generationConfig: { responseModalities: ['AUDIO'], speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: voice } } } },
+        systemInstruction: { parts: [{ text: system }] },
+        outputAudioTranscription: {},
+        inputAudioTranscription: {},
+      },
     }),
   });
   const data = await r.json().catch(() => ({}));
