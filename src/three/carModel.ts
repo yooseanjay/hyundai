@@ -5,7 +5,6 @@ import { BODY_COLORS, type BodyColor } from '../data/hyundaiModels';
 import type { Mood } from '../game/character';
 import type { CosmeticId } from '../game/progress';
 import { DEFAULT_STYLE, type CharStyle } from '../game/style';
-import { drawEmblem } from './emblem';
 import { drawFace } from './face';
 import { shapeOf, type CarShape } from './shapes';
 
@@ -157,27 +156,6 @@ export function buildCar(shapeId?: string): CarRig {
   rearScreen.scale.setScalar(0.8);
   add(rearScreen, rearX, rearFaceY, 0);
 
-  // ---- 현대 엠블럼 (크롬, 앞·뒤) ----
-  const emblemCv = document.createElement('canvas');
-  emblemCv.width = 512;
-  emblemCv.height = 273; // 24 : 12.8
-  drawEmblem(emblemCv);
-  const emblemTex = keep(new THREE.CanvasTexture(emblemCv));
-  emblemTex.colorSpace = THREE.SRGBColorSpace;
-  emblemTex.anisotropy = 8;
-  const emblemMat = keep(new THREE.MeshBasicMaterial({ map: emblemTex, transparent: true, toneMapped: false, depthWrite: false }));
-  const emblemGeo = keep(new THREE.PlaneGeometry(0.24, 0.128));
-  const emblem = (front: boolean) => {
-    const m = new THREE.Mesh(emblemGeo, emblemMat);
-    m.rotation.y = front ? Math.PI / 2 : -Math.PI / 2;
-    m.renderOrder = 2;
-    return m;
-  };
-  add(emblem(true), F + 0.04, lampY, 0);
-  const rearPlateTop = rearFaceY + faceW * 0.42 * 0.4;
-  add(emblem(false), rearX - 0.005, (rearPlateTop + S.tailTop - 0.12) / 2, 0);
-
-
   // ---- 바퀴 (터빈 모양 휠) ----
   const wheels: THREE.Object3D[] = [];
   const tireG = keep(new THREE.CylinderGeometry(wr, wr, 0.26, 36));
@@ -322,8 +300,6 @@ export function buildCar(shapeId?: string): CarRig {
         if (!(obj as THREE.Sprite).isSprite) obj.rotation.y = dir > 0 ? Math.PI / 2 : -Math.PI / 2;
         holder.add(obj);
       };
-      at(emblem(true), 0.535, 0, 1, 0.02);
-      at(emblem(false), 0.6, 0, -1, 0.02);
       const rs = new THREE.Mesh(screen.geometry, screen.material);
       rs.scale.setScalar(0.85);
       at(rs, 0.31, 0, -1, 0.02);
