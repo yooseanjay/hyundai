@@ -175,3 +175,21 @@ export function stopServerVoice() {
     /* 이미 멈춤 */
   }
 }
+
+/** 음성 AI가 만든 파형(Float32)을 재생. 끝나면 resolve */
+export async function playPcm(wav: Float32Array, sampleRate: number, onStart: () => void): Promise<void> {
+  const a = ctx();
+  if (!a) throw new Error('오디오를 재생할 수 없어요');
+  const buf = a.createBuffer(1, wav.length, sampleRate);
+  buf.copyToChannel(wav, 0);
+  current?.stop();
+  const src = a.createBufferSource();
+  src.buffer = buf;
+  src.connect(a.destination);
+  current = src;
+  await new Promise<void>((done) => {
+    src.onended = () => done();
+    src.start();
+    onStart();
+  });
+}

@@ -72,3 +72,8 @@ src/
 - [ ] 일기를 LLM으로 생성(백엔드에서 호출)
 - [ ] 운행 종료 감지 → 푸시 알림 "오늘의 일기가 도착했어요"
 - [ ] 차종별 캐릭터 외형, PWA 설치 지원
+
+## 오픈소스 음성 AI
+- **Supertonic 2** (Supertone Inc.) — 한국어 남성 5종 · 여성 5종 목소리. 모델 가중치 [OpenRAIL-M](https://huggingface.co/supertone-oss-archive/supertonic-2) 라이선스, 추론 예제 코드 MIT.
+- 모델은 저장소에 포함하지 않고 Hugging Face에서 고정 버전(`7edbcd0`)으로 직접 내려받아 브라우저 안에서 실행합니다 (서버·요금 없음, 처음 한 번 약 267MB).
+- 실행: [ONNX Runtime Web](https://github.com/microsoft/onnxruntime) (MIT)
