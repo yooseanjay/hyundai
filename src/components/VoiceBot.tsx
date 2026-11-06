@@ -288,7 +288,7 @@ export function VoiceBot({ ctx, onLine }: { ctx: BotContext; onLine: (line: stri
       </div>
 
       <div className="card voice-card">
-        <div className="card-head"><b className="label">대화 AI</b><span className="cap">{gem === 'server' ? 'Gemini 연결됨 (PC 서버)' : gem === 'device' ? 'Gemini 연결됨 (이 기기 키)' : gem === 'checking' ? '확인 중…' : '기본 대답 모드'}</span></div>
+        <div className="card-head"><b className="label">대화 AI</b><span className="cap">{gem === 'server' ? 'Gemini 연결됨 (서버)' : gem === 'device' ? 'Gemini 연결됨 (이 기기 키)' : gem === 'checking' ? '확인 중…' : '기본 대답 모드'}</span></div>
         {gem === null ? (
           <>
             <p className="cap">무료 Gemini 키를 넣으면 무슨 말이든 알아듣고 짧게 대답해요. 사람 같은 목소리도 함께 쓸 수 있어요.</p>

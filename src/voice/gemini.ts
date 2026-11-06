@@ -35,19 +35,37 @@ export function setUserKey(k: string) {
   route = null;
 }
 
-type Route = { base: string; headers: Record<string, string> } | null;
+/** url(path): Gemini 경로(/v1beta/...)를 실제 호출 주소로 바꿈 */
+type Route = { kind: 'server' | 'device'; url: (path: string) => string; headers: Record<string, string> } | null;
 let route: Route | Promise<Route> | null = null;
 
-/** 호출 경로: PC 서버 중계(키 숨김) → 없으면 사용자가 입력한 키 */
+// GitHub Pages 등 다른 주소에서 쓸 Vercel 서버 주소 (공개 주소라 비밀 아님)
+const REMOTE = (import.meta.env.VITE_GEMINI_SERVER as string | undefined) ?? '';
+
+async function enabled(statusUrl: string) {
+  try {
+    const r = await fetch(statusUrl);
+    return r.ok && !!(await r.json()).enabled;
+  } catch {
+    return false;
+  }
+}
+
+/** 호출 경로: PC 서버 중계 → Vercel 서버(같은 주소 또는 REMOTE) → 이 기기에 입력한 키 (키가 브라우저에 없는 순서) */
 async function getRoute(): Promise<Route> {
   if (route) return route;
   route = (async (): Promise<Route> => {
-    try {
-      const r = await fetch(`${import.meta.env.BASE_URL}gemini-proxy/status`);
-      if (r.ok && (await r.json()).enabled) return { base: `${import.meta.env.BASE_URL}gemini-proxy`, headers: {} };
-    } catch { /* 배포 사이트에는 서버가 없음 */ }
+    const base = import.meta.env.BASE_URL;
+    if (import.meta.env.DEV && (await enabled(`${base}gemini-proxy/status`))) {
+      return { kind: 'server', url: (p) => `${base}gemini-proxy${p}`, headers: {} };
+    }
+    for (const host of [`${location.origin}`, REMOTE].filter(Boolean)) {
+      if (await enabled(`${host}/api/gemini?p=status`)) {
+        return { kind: 'server', url: (p) => `${host}/api/gemini?p=${encodeURIComponent(p)}`, headers: {} };
+      }
+    }
     const k = getUserKey();
-    return k ? { base: API, headers: { 'x-goog-api-key': k } } : null;
+    return k ? { kind: 'device', url: (p) => API + p, headers: { 'x-goog-api-key': k } } : null;
   })();
   return route;
 }
@@ -57,13 +75,13 @@ export async function geminiReady() {
 }
 export async function geminiSource(): Promise<'server' | 'device' | null> {
   const r = await getRoute();
-  return r ? (r.base === API ? 'device' : 'server') : null;
+  return r ? r.kind : null;
 }
 
 async function call(path: string, body?: unknown) {
   const r = await getRoute();
   if (!r) throw new Error('Gemini 키가 없어요');
-  const res = await fetch(`${r.base}${path}`, {
+  const res = await fetch(r.url(path), {
     method: body ? 'POST' : 'GET',
     headers: { ...r.headers, ...(body ? { 'Content-Type': 'application/json' } : {}) },
     body: body ? JSON.stringify(body) : undefined,
@@ -135,7 +153,7 @@ const STYLE: Record<string, string> = {
 export async function geminiSpeechStream(text: string, voice: string, mood: string, onPcm: (bytes: Uint8Array) => void): Promise<void> {
   const r = await getRoute();
   if (!r) throw new Error('Gemini 키가 없어요');
-  const res = await fetch(`${r.base}/v1beta/interactions`, {
+  const res = await fetch(r.url('/v1beta/interactions'), {
     method: 'POST',
     headers: { ...r.headers, 'Content-Type': 'application/json' },
     body: JSON.stringify({
