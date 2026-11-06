@@ -265,3 +265,62 @@ a { color: inherit; text-decoration: none; }
 
 /* styles.css의 예전 노란 그림자·광택 제거 */
 .btn.primary, .btn.primary:active { box-shadow: none; }
+
+/* ===================== 3D 차량 ===================== */
+.car3d-view { position: relative; width: 100%; touch-action: none; cursor: grab; }
+.car3d-view:active { cursor: grabbing; }
+.car3d-view canvas { display: block; outline: none; }
+.rotate-hint { position: absolute; left: 50%; bottom: 4px; transform: translateX(-50%); font-size: 11px; color: var(--fg-2);
+  padding: 4px 10px; border: 1px solid var(--line); border-radius: 999px; background: rgba(0,0,0,.6); pointer-events: none; white-space: nowrap;
+  animation: hintFade 4s ease 2s forwards; }
+@keyframes hintFade { to { opacity: 0; } }
+.car3d-fallback { display: grid; place-items: center; color: var(--fg-2); font-size: 13px; }
+
+/* 주행 3D + 속도 HUD */
+.drive3d { position: relative; border-radius: 20px; overflow: hidden; border: 1px solid var(--line); background: #000; }
+.hud { position: absolute; left: 14px; top: 10px; display: flex; align-items: baseline; gap: 4px; pointer-events: none; text-shadow: 0 2px 8px #000; }
+.hud b { font-size: 34px; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: -0.03em; }
+.hud span { font-size: 12px; color: var(--fg-2); }
+.hud em { font-style: normal; margin-left: 10px; font-size: 12px; font-weight: 700; color: #fff; background: var(--bad); padding: 2px 8px; border-radius: 999px; animation: pulse .4s ease-in-out infinite; }
+
+/* ===================== 차량 상태 계기판 ===================== */
+.vstatus { display: grid; gap: 12px; }
+.speedo { position: relative; display: grid; justify-items: center; }
+.speedo svg { width: 220px; height: 128px; }
+.speedo path { fill: none; stroke-width: 6; stroke-linecap: round; }
+.speedo .track { stroke: rgba(255,255,255,.12); }
+.speedo .fill { stroke: #fff; transition: stroke-dasharray .12s linear; }
+.speedo line { stroke: rgba(255,255,255,.4); stroke-width: 2; }
+.speedo-num { position: absolute; top: 52px; display: grid; justify-items: center; }
+.speedo-num b { font-size: 44px; line-height: 44px; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: -0.03em; }
+.speedo-num span { font-size: 11px; color: var(--fg-2); }
+.speedo-sub { display: flex; align-items: center; font-size: 12px; color: var(--fg-2); margin-top: -2px; }
+.speedo-sub .alert { color: var(--bad); font-weight: 600; }
+
+.vs-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.vs-cell { background: var(--card-2); border: 1px solid var(--line); border-radius: 14px; padding: 10px; display: grid; gap: 6px; align-content: start; }
+.vs-cell .cap { display: inline-flex; align-items: center; gap: 3px; font-size: 11px; white-space: nowrap; }
+.vs-cell .num { font-size: 20px; }
+.num.warn { color: var(--warn); }
+.bar.bad > div { background: var(--bad); }
+
+.vs-tires { display: grid; gap: 8px; }
+.vs-title { display: inline-flex; align-items: center; gap: 4px; }
+.tire-map { position: relative; height: 128px; }
+.tire-car { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 52px; height: 110px; }
+.tire-car rect { fill: none; stroke: rgba(255,255,255,.35); stroke-width: 2; }
+.tire { position: absolute; width: 40%; display: grid; gap: 1px; padding: 6px 10px; border-radius: 12px; border: 1px solid var(--line); background: var(--card-2); }
+.tire b { font-size: 17px; font-variant-numeric: tabular-nums; }
+.tire small { font-size: 10px; color: var(--fg-2); }
+.tire.bad { border-color: var(--bad); }
+.tire.bad b { color: var(--bad); }
+.tire.t0 { left: 0; top: 0; }
+.tire.t1 { right: 0; top: 0; text-align: right; }
+.tire.t2 { left: 0; bottom: 0; }
+.tire.t3 { right: 0; bottom: 0; text-align: right; }
+
+.vs-warn { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--fg-2); padding: 10px 12px; border-radius: 12px; border: 1px solid var(--line); }
+.vs-warn.has { color: #fff; border-color: rgba(255, 90, 95, .5); }
+.vs-warn.has svg { color: var(--bad); }
+.vstatus.compact .tire-map { height: 116px; }
+.car3d-view.mode-show { -webkit-mask-image: linear-gradient(#000 78%, transparent); mask-image: linear-gradient(#000 78%, transparent); }

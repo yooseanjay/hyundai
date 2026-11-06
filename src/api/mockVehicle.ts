@@ -113,9 +113,10 @@ export class MockVehicleSource implements VehicleDataSource {
   }
 
   /** 주행 한 번을 시뮬레이션하고 결과 Trip을 돌려준다. */
-  simulateTrip(opts: { distanceKm: number; style: 'calm' | 'normal' | 'sporty' }): Trip {
+  simulateTrip(opts: { distanceKm: number; style: 'calm' | 'normal' | 'sporty'; avgSpeedKmh?: number; maxSpeedKmh?: number; hardBrakes?: number }): Trip {
     const { distanceKm, style } = opts;
-    const avg = style === 'calm' ? 38 : style === 'normal' ? 52 : 74;
+    // 주행 화면에서 실제로 측정한 값이 있으면 그대로 사용
+    const avg = opts.avgSpeedKmh ? Math.round(opts.avgSpeedKmh) : style === 'calm' ? 38 : style === 'normal' ? 52 : 74;
     const durationMin = Math.max(5, Math.round((distanceKm / avg) * 60));
     const ended = new Date();
     const started = new Date(ended.getTime() - durationMin * 60000);
@@ -125,8 +126,8 @@ export class MockVehicleSource implements VehicleDataSource {
       distanceKm,
       durationMin,
       avgSpeedKmh: avg,
-      maxSpeedKmh: Math.round(avg * (style === 'sporty' ? 1.9 : 1.4)),
-      hardBrakes: style === 'sporty' ? 3 + Math.floor(Math.random() * 4) : style === 'normal' ? Math.floor(Math.random() * 2) : 0,
+      maxSpeedKmh: opts.maxSpeedKmh ? Math.round(opts.maxSpeedKmh) : Math.round(avg * (style === 'sporty' ? 1.9 : 1.4)),
+      hardBrakes: opts.hardBrakes ?? (style === 'sporty' ? 3 + Math.floor(Math.random() * 4) : style === 'normal' ? Math.floor(Math.random() * 2) : 0),
     };
 
     const s = this.state.snapshot;

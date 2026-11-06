@@ -3,12 +3,16 @@ import {
   ArrowUpRight, Award, BookOpen, CalendarDays, CarFront, ChevronLeft, ChevronRight, CircleCheck, Crown,
   Flower2, Glasses, HardHat, House, LockKeyhole, MapPin, Mic, Ribbon, Route, Sparkles, Sun, X, type LucideIcon,
 } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { dataSource, simulator, WARNING_LABELS, type CarProfile, type Trip, type VehicleSnapshot, type WarningKey } from './api';
 import { logout, startLogin } from './api/hyundaiClient';
 import { CarCharacter } from './components/CarCharacter';
 import { CarSheet } from './components/CarSheet';
+import { VehicleStatus, type LiveDrive } from './components/VehicleStatus';
 import { VoiceBot } from './components/VoiceBot';
+
+// 3D(three.js)는 용량이 커서 필요할 때 불러온다. 불러오는 동안은 사진 캐릭터
+const Car3D = lazy(() => import('./components/Car3D'));
 import { ENERGY_TERMS } from './data/hyundaiModels';
 import { computeStatus, WARNING_UI, type Mood } from './game/character';
 import { writeDiary, type DiaryEntry } from './game/diary';
@@ -51,6 +55,8 @@ export default function App() {
 
   const [driving, setDriving] = useState(false);
   const [driveProgress, setDriveProgress] = useState(0);
+  const [live, setLive] = useState<LiveDrive & { braking: boolean }>({ speed: 0, km: 0, hardBrakes: 0, maxSpeed: 0, braking: false });
+  const sim = useRef({ t: 0, speed: 0, km: 0, hardBrakes: 0, maxSpeed: 0, sum: 0, n: 0, brakeUntil: 0 });
   const [style, setStyle] = useState<Style>('calm');
   const [distance, setDistance] = useState(30);
   const timer = useRef<number | null>(null);
@@ -121,17 +127,39 @@ export default function App() {
 
   useEffect(() => { window.scrollTo({ top: 0 }); }, [view]);
 
+  /** 주행 시뮬레이션: 0.1초마다 속도·거리 계산 (화면 1초 = 실제 1.5분, 90배속) */
+  const TIME_SCALE = 90;
   const startDrive = () => {
     setDriving(true);
     setDriveProgress(0);
+    sim.current = { t: 0, speed: 0, km: 0, hardBrakes: 0, maxSpeed: 0, sum: 0, n: 0, brakeUntil: 0 };
+    const base = { calm: 52, normal: 72, sporty: 98 }[style];
+    const swing = { calm: 6, normal: 12, sporty: 22 }[style];
     timer.current = window.setInterval(() => {
-      setDriveProgress((p) => {
-        if (p >= 100) {
-          if (timer.current) window.clearInterval(timer.current);
-          return 100;
-        }
-        return p + 2;
-      });
+      const m = sim.current;
+      m.t += 0.1;
+      const remain = distance - m.km;
+      // 목표 속도: 스타일 기본 + 흐름(오르락내리락), 도착 직전에는 감속
+      let target = base + Math.sin(m.t * 0.7) * swing + Math.sin(m.t * 2.3) * swing * 0.3;
+      if (remain < 0.8) target = Math.max(8, target * (remain / 0.8));
+      // 신나게 달리면 가끔 급정거
+      if (style === 'sporty' && m.speed > 60 && m.t > m.brakeUntil + 2 && Math.random() < 0.025) {
+        m.speed *= 0.45;
+        m.hardBrakes += 1;
+        m.brakeUntil = m.t + 0.8;
+      }
+      const accel = m.t < m.brakeUntil ? 0 : style === 'sporty' ? 0.12 : 0.07;
+      m.speed = Math.max(0, m.speed + (target - m.speed) * accel);
+      m.km = Math.min(distance, m.km + (m.speed / 3600) * 0.1 * TIME_SCALE);
+      m.maxSpeed = Math.max(m.maxSpeed, m.speed);
+      m.sum += m.speed;
+      m.n += 1;
+      if (m.km >= distance) {
+        m.speed = 0;
+        if (timer.current) window.clearInterval(timer.current);
+      }
+      setLive({ speed: m.speed, km: m.km, hardBrakes: m.hardBrakes, maxSpeed: m.maxSpeed, braking: m.t < m.brakeUntil });
+      setDriveProgress(Math.round((m.km / distance) * 100));
     }, 100);
   };
 
@@ -139,11 +167,13 @@ export default function App() {
     if (!simulator || !snap || !car) return;
     if (timer.current) window.clearInterval(timer.current);
     const before = snap;
-    const km = Math.max(1, Math.round((distance * Math.max(driveProgress, 5)) / 100));
-    const trip = simulator.simulateTrip({ distanceKm: km, style });
+    const m = sim.current;
+    const km = Math.max(1, Math.round(m.km));
+    const trip = simulator.simulateTrip({ distanceKm: km, style, avgSpeedKmh: m.n ? m.sum / m.n : undefined, maxSpeedKmh: m.maxSpeed || undefined, hardBrakes: m.hardBrakes });
     const after = await refresh();
     setDriving(false);
     setDriveProgress(0);
+    setLive({ speed: 0, km: 0, hardBrakes: 0, maxSpeed: 0, braking: false });
     if (!after) return;
     const newWarnings = (Object.keys(after.warnings) as WarningKey[]).filter((k) => after.warnings[k] && !before.warnings[k]);
     const xp = xpForTrip(trip);
@@ -193,8 +223,8 @@ export default function App() {
   const st = computeStatus(snap, trips, driving);
   const level = levelOf(progress.xp);
   const xpInLevel = progress.xp % XP_PER_LEVEL;
-  const kmNow = Math.round((distance * driveProgress) / 100);
-  const etaMin = Math.round(((distance - kmNow) / AVG_SPEED[style]) * 60);
+  const kmNow = Math.round(live.km * 10) / 10;
+  const etaMin = Math.round(((distance - live.km) / Math.max(20, live.speed || AVG_SPEED[style])) * 60);
   const owned = COSMETICS.filter((c) => c.unlocked(progress)).length;
   const tab: Tab = view === 'talk' ? 'home' : view;
   const energyTerm = ENERGY_TERMS[car.fuelType];
@@ -221,7 +251,7 @@ export default function App() {
           </div>
           {Level}
           <div>
-            <Showroom><CarCharacter mood={bot?.mood ?? st.mood} cosmetic={progress.equipped} color={car.bodyColor} size={268} /></Showroom>
+            <Show3D car={car} mood={bot?.mood ?? st.mood} cosmetic={progress.equipped} />
             <p className="speech" key={st.line}>{st.line.replace(/\s*[\p{Extended_Pictographic}‍️]+/gu, '')}</p>
           </div>
           <div className="grid3">
@@ -251,6 +281,10 @@ export default function App() {
               </div>
             )}
           </div>
+          <div className="card">
+            <div className="card-head"><b className="h3">차량 상태</b><span className="cap">마지막 수신 {hhmm(new Date(snap.updatedAt))}</span></div>
+            <VehicleStatus car={car} snap={snap} compact />
+          </div>
           {snap.parking && (
             <a className="card row-card" href={`https://map.kakao.com/link/map/${encodeURIComponent(car.nickname)},${snap.parking.lat},${snap.parking.lng}`} target="_blank" rel="noreferrer">
               <MapPin size={20} />
@@ -269,7 +303,7 @@ export default function App() {
             <h1 className="h1">{car.nickname}와 대화</h1>
             <span className="cap conn"><i className="dot good" />{dataSource.kind === 'hyundai' ? '차량 연결됨' : '데모 차량 연결됨'}</span>
           </div>
-          <Showroom talking={!!bot?.speaking}><CarCharacter mood={bot?.mood ?? st.mood} cosmetic={progress.equipped} color={car.bodyColor} size={268} /></Showroom>
+          <Show3D car={car} mood={bot?.mood ?? st.mood} cosmetic={progress.equipped} talking={!!bot?.speaking} height={190} />
           <VoiceBot ctx={{ car, snap, status: st, trips, progress }} onLine={(line, mood, speaking) => setBot(line ? { line, mood, speaking } : null)} />
         </section>
       )}
@@ -281,13 +315,18 @@ export default function App() {
             <h1 className="h1">{driving ? (driveProgress >= 100 ? '도착했어요!' : '신나게 달리는 중') : '함께 달려볼까요?'}</h1>
             <Route size={20} className="muted" />
           </div>
-          <div className={`highway ${driving && driveProgress < 100 ? 'moving' : ''}`}>
-            <svg className="hw-lines" viewBox="0 0 353 146" preserveAspectRatio="none" aria-hidden>
-              <path d="M0 146 L120 40 M353 146 L233 40" />
-              <path className="center" d="M176.5 146 L176.5 52" />
-            </svg>
-            <CarCharacter mood={driving ? 'excited' : st.mood} cosmetic={progress.equipped} color={car.bodyColor} driving={driving} size={232} />
-          </div>
+          <Suspense fallback={<div className="highway"><CarCharacter mood={st.mood} cosmetic={progress.equipped} color={car.bodyColor} size={232} /></div>}>
+            <div className="drive3d">
+              <Car3D mode="drive" mood={driving ? (live.braking ? 'sick' : 'excited') : st.mood} cosmetic={progress.equipped} color={car.bodyColor}
+                speedKmh={driving ? live.speed : 0} braking={live.braking} height={230} />
+              {driving && (
+                <div className="hud">
+                  <b>{Math.round(live.speed)}</b><span>km/h</span>
+                  {live.braking && <em>급정거!</em>}
+                </div>
+              )}
+            </div>
+          </Suspense>
           {!simulator ? (
             <div className="card">
               <p className="body">실제 차량 모드에서는 운전을 마치고 앱을 열면 운행 정보로 일기가 자동으로 써져요.</p>
@@ -306,14 +345,27 @@ export default function App() {
                 style={{ ['--p' as string]: `${((distance - 5) / 145) * 100}%` }} onChange={(e) => setDistance(Number(e.target.value))} aria-label="목표 거리" />
               <button className="btn primary block" onClick={startDrive}>시동 걸기</button>
             </div>
-          ) : (
+          ) : null}
+          {simulator && !driving && (
+            <div className="card">
+              <div className="card-head"><b className="label">출발 전 차량 점검</b><span className="cap">{st.activeWarnings.length ? '확인이 필요해요' : '출발해도 좋아요'}</span></div>
+              <VehicleStatus car={car} snap={snap} compact />
+            </div>
+          )}
+          {simulator && driving ? (
+            <>
             <div className="card">
               <div className="card-head"><span className="label run"><i className="dot good pulse" />주행 중</span><span className="cap">{driveProgress >= 100 ? '도착' : `${hhmm(new Date(Date.now() + etaMin * 60000))} 도착`}</span></div>
               <div className="card-head"><b className="big">{kmNow} / {distance} km</b><span className="cap">{STYLE_DESC[style]}</span></div>
               <div className="bar"><div style={{ width: `${driveProgress}%` }} /></div>
               <button className="btn primary block" onClick={getOff}>하차하고 오늘의 일기 보기</button>
             </div>
-          )}
+            <div className="card">
+              <div className="card-head"><b className="label">실시간 차량 상태</b><span className="cap">{STYLE_DESC[style]}</span></div>
+              <VehicleStatus car={car} snap={snap} live={live} />
+            </div>
+            </>
+          ) : null}
         </section>
       )}
 
@@ -367,7 +419,7 @@ export default function App() {
       {view === 'closet' && (
         <section className="screen">
           <div className="title-row"><h1 className="h1">{car.nickname}의 옷장</h1><span className="cap">나만의 작은 취향</span></div>
-          <Showroom small><CarCharacter mood="happy" cosmetic={progress.equipped} color={car.bodyColor} size={238} /></Showroom>
+          <Show3D car={car} mood="happy" cosmetic={progress.equipped} height={190} />
           {Level}
           <div className="card-head"><b className="h3">스타일 컬렉션</b><span className="cap">{owned} / {COSMETICS.length} 보유</span></div>
           <div className="closet-grid">
@@ -457,6 +509,15 @@ function Brand({ live }: { live?: boolean }) {
       <div className="brand-bar"><span className="wordmark">HYUNDAI</span><span className="cap">현대자동차 Open API</span></div>
       <p className="cap">우리 차가 살아있다면{live === false && <em className="badge">DEMO</em>}</p>
     </header>
+  );
+}
+
+/** 3D 쇼룸 (불러오는 동안 사진 캐릭터) */
+function Show3D({ car, mood, cosmetic, talking, height = 200 }: { car: CarProfile; mood: Mood; cosmetic: CosmeticId; talking?: boolean; height?: number }) {
+  return (
+    <Suspense fallback={<Showroom><CarCharacter mood={mood} cosmetic={cosmetic} color={car.bodyColor} size={268} /></Showroom>}>
+      <Car3D mode="show" mood={mood} cosmetic={cosmetic} color={car.bodyColor} talking={talking} height={height} />
+    </Suspense>
   );
 }
 
