@@ -37,38 +37,6 @@ function extrude(shape: THREE.Shape, depth: number, bevel = 0.05) {
   return g;
 }
 
-/** 사진→3D 모델은 유리 너머 실내(좌석)가 밝게 비침 → 창문 칸만 까만 유리로 칠함.
- *  흰 차체·필러·지붕·보닛은 원래 질감 그대로 둠 */
-function blackGlass(mat: THREE.MeshStandardMaterial, toCar: THREE.Matrix4, belt: number) {
-  mat.onBeforeCompile = (sh) => {
-    sh.uniforms.uBelt = { value: belt };
-    sh.uniforms.uToCar = { value: toCar };
-    sh.vertexShader = sh.vertexShader
-      .replace('#include <common>', `#include <common>
-uniform mat4 uToCar;
-varying vec3 vObjPos;
-varying vec3 vObjN;`)
-      .replace('#include <begin_vertex>', `#include <begin_vertex>
-vObjPos = (uToCar * vec4(position, 1.0)).xyz;
-vObjN = mat3(uToCar) * normal;`);
-    sh.fragmentShader = sh.fragmentShader
-      .replace('#include <common>', `#include <common>
-uniform float uBelt;
-varying vec3 vObjPos;
-varying vec3 vObjN;`)
-      .replace('#include <color_fragment>', `#include <color_fragment>
-// 창문 칸: 벨트라인 위 · 지붕처럼 눕지 않은 면 · 원래 질감이 흰 차체보다 어두운 곳(유리 너머 좌석)만
-vec3 texCol = diffuseColor.rgb / max(diffuse, vec3(0.001));
-float texLum = dot(texCol, vec3(0.2126, 0.7152, 0.0722));
-float isGlass = step(uBelt, vObjPos.y) * step(normalize(vObjN).y, 0.97) * (1.0 - smoothstep(0.6, 0.78, texLum));
-diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.02, 0.022, 0.026), isGlass);`)
-      .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
-roughnessFactor = mix(roughnessFactor, 0.55, isGlass);`);
-  };
-  mat.customProgramCacheKey = () => `glass-${belt.toFixed(4)}`;
-  mat.needsUpdate = true;
-}
-
 export function buildCar(shapeId?: string): CarRig {
   const S: CarShape = shapeOf(shapeId);
   const { L, W, wr, wb, bottom, noseTop, roofY, roofFX, roofBX, deckX } = S;
@@ -301,7 +269,6 @@ export function buildCar(shapeId?: string): CarRig {
       const c = box3.getCenter(new THREE.Vector3());
       root.position.set(root.position.x - c.x, root.position.y - box3.min.y, root.position.z - c.z);
       root.updateMatrixWorld(true);
-      const beltY = S.glbBeltY ? new THREE.Box3().setFromObject(root).max.y * S.glbBeltY : 0;
       root.traverse((o) => {
         const m = o as THREE.Mesh;
         if (!m.isMesh) return;
@@ -314,7 +281,6 @@ export function buildCar(shapeId?: string): CarRig {
           sm.metalness = 0.35;
           sm.roughness = Math.min(sm.roughness, 0.45);
           sm.envMapIntensity = 1.3;
-          if (beltY) blackGlass(sm, m.matrixWorld.clone(), beltY);
           modelMats.push(sm);
           disposables.push(sm);
           if (sm.map) disposables.push(sm.map);
