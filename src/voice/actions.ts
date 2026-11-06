@@ -208,3 +208,12 @@ export function summaryOf(card: ActionCard): string {
     case 'report': return card.n ? `이번 주 ${card.n}번, ${card.km}km 함께 달렸고 급정거는 ${card.brakes}번이었어요.` : '이번 주에는 아직 함께 달린 기록이 없어요.';
   }
 }
+
+/** 홈 브리핑용 날씨: 위치 권한 없이 주차 위치 기준 */
+export async function quickWeather(lat: number, lng: number, ev: boolean) {
+  const j = await (await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&current=temperature_2m,weather_code,wind_speed_10m&daily=precipitation_probability_max&timezone=Asia%2FSeoul&forecast_days=1`)).json();
+  const text = wmoText(j.current.weather_code);
+  const temp = Math.round(j.current.temperature_2m);
+  const rain = j.daily.precipitation_probability_max[0] ?? 0;
+  return { text, temp, rain, tip: tipFor(text, temp, rain, Math.round(j.current.wind_speed_10m), ev) };
+}

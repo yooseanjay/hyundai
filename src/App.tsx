@@ -1,7 +1,7 @@
 // 화면 구성: Figma "우리 차가 살아있다면" 흑백 디자인 (홈 · AI 음성봇 · 운전 · 오늘의 일기 · 일기장 · 꾸미기)
 import {
   ArrowUpRight, Award, BookOpen, CalendarDays, CarFront, ChevronLeft, ChevronRight, CircleCheck, Crown,
-  Flower2, Glasses, HardHat, House, LockKeyhole, MapPin, Mic, Ribbon, Route, Sparkles, Sun, X, type LucideIcon,
+  Flower2, Gauge as GaugeIcon, Glasses, HardHat, House, LockKeyhole, MapPin, Mic, Ribbon, Route, Sparkles, Sun, X, type LucideIcon,
 } from 'lucide-react';
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { dataSource, simulator, WARNING_LABELS, type CarProfile, type Trip, type VehicleSnapshot, type WarningKey } from './api';
@@ -9,7 +9,7 @@ import { logout, startLogin } from './api/hyundaiClient';
 import { CarCharacter } from './components/CarCharacter';
 import { CarSheet } from './components/CarSheet';
 import { VehicleStatus, type LiveDrive } from './components/VehicleStatus';
-import { markReplaced, partsStatus } from './voice/actions';
+import { markReplaced, partsStatus, quickWeather } from './voice/actions';
 import { gpsSupported, startGpsTrip, type GpsUpdate } from './game/gpsTrip';
 import { VoiceBot } from './components/VoiceBot';
 
@@ -56,6 +56,8 @@ export default function App() {
   const [carSheet, setCarSheet] = useState(false);
   const [bot, setBot] = useState<{ line: string; mood?: Mood; speaking?: boolean } | null>(null);
   const [partsTick, setPartsTick] = useState(0);
+  const [showStatus, setShowStatus] = useState(false);
+  const [wx, setWx] = useState<{ text: string; temp: number; rain: number; tip: string } | null>(null);
   const [month, setMonth] = useState(() => { const d = new Date(); return { y: d.getFullYear(), m: d.getMonth() }; });
 
   const [driving, setDriving] = useState(false);
@@ -138,6 +140,14 @@ export default function App() {
   }, [refresh]);
 
   useEffect(() => { window.scrollTo({ top: 0 }); }, [view]);
+  const wxKey = snap?.parking ? `${snap.parking.lat.toFixed(2)},${snap.parking.lng.toFixed(2)}` : '';
+  useEffect(() => {
+    if (!snap || !car) return;
+    const lat = snap.parking?.lat ?? 37.5665;
+    const lng = snap.parking?.lng ?? 126.978;
+    quickWeather(lat, lng, car.fuelType === 'ev').then(setWx).catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [wxKey, !!car]);
 
   /** 주행 시뮬레이션: 0.1초마다 속도·거리 계산 (화면 1초 = 실제 1.5분, 90배속) */
   const TIME_SCALE = 90;
@@ -293,6 +303,16 @@ export default function App() {
   const energyTerm = ENERGY_TERMS[car.fuelType];
   void partsTick; // 교체 완료 후 다시 계산
   const dueParts = partsStatus({ car, snap }).filter((p) => p.pct >= 90);
+  const energyName = car.fuelType === 'ev' ? '배터리' : car.fuelType === 'hydrogen' ? '수소' : '연료';
+  const careCount = st.activeWarnings.length + dueParts.length + (st.energy < 50 ? 1 : 0);
+  // AI 브리핑: 지금 꼭 알아야 할 것만 3줄 (경고 → 날씨 → 에너지/소모품 → 좋은 소식)
+  const briefing: { tone: 'bad' | 'warn' | 'good' | 'info'; text: string }[] = [];
+  if (st.activeWarnings.length) briefing.push({ tone: 'bad', text: `${st.activeWarnings.map((k) => WARNING_LABELS[k]).join(', ')} 점검이 필요해요` });
+  if (wx) briefing.push({ tone: wx.rain >= 60 || wx.temp <= 0 ? 'warn' : 'info', text: `지금 ${wx.text} ${wx.temp}°${wx.rain >= 60 ? ` · 오늘 강수 확률 ${wx.rain}%` : ''}. ${wx.tip}` });
+  if (st.energy < 30) briefing.push({ tone: 'warn', text: `${energyName}가 ${st.energy}%예요. 출발 전 ${energyTerm.refill.replace('하기', '')}을 권해요` });
+  else briefing.push({ tone: 'good', text: `오늘 약 ${snap.dteKm}km까지 문제없이 달릴 수 있어요` });
+  if (dueParts.length) briefing.push({ tone: 'warn', text: `${dueParts[0].name} 교체 시기가 다가왔어요` });
+  briefing.splice(3);
 
   const Level = (
     <div className="level">
@@ -305,66 +325,101 @@ export default function App() {
     <main className={`app view-${view}`}>
       <Brand live={dataSource.kind === 'hyundai'} />
 
-      {/* ---------- 홈 ---------- */}
+      {/* ---------- 홈: Future Mobility · Premium Minimal · AI Mobility ---------- */}
       {view === 'home' && (
-        <section className="screen">
-          <div className="title-row">
-            <h1 className="h1">{car.nickname}</h1>
-            <button className="chip" onClick={() => simulator && setCarSheet(true)} disabled={!simulator || driving} aria-label="내 차 바꾸기">
-              {car.model} · {snap.odometerKm.toLocaleString()}km
-            </button>
+        <section className="screen home-x">
+          {/* Future Mobility: 쇼룸 히어로 + 주행 가능 거리 + 연결 상태 */}
+          <div className="hero">
+            <div className="hero-top">
+              <div className="hero-id">
+                <span className="eyebrow-ai">AI MOBILITY</span>
+                <h1 className="hero-name">{car.nickname}</h1>
+                <button className="model-link" onClick={() => simulator && setCarSheet(true)} disabled={!simulator || driving} aria-label="내 차 바꾸기">
+                  {car.model} · {snap.odometerKm.toLocaleString()}km{simulator && <ChevronRight size={12} />}
+                </button>
+              </div>
+              <span className="ready"><i className="dot good pulse" />{driving ? '주행 중' : dataSource.kind === 'hyundai' ? '차량 연결됨' : '출발 준비 완료'}</span>
+            </div>
+            <Show3D car={car} mood={bot?.mood ?? st.mood} cosmetic={progress.equipped} height={210} />
+            <div className="hero-range">
+              <div className="range-num"><b>{snap.dteKm}</b><span>km</span></div>
+              <div className="range-meta">
+                <span className="cap">주행 가능 거리</span>
+                <span className="cap">{energyName} {st.energy}%</span>
+              </div>
+              <div className="range-bar"><div style={{ width: `${st.energy}%` }} /></div>
+            </div>
+          </div>
+
+          {/* AI Mobility: 오닉이가 먼저 알려 주는 오늘의 브리핑 */}
+          <div className="ai-brief">
+            <div className="ai-head">
+              <span className="ai-badge">AI</span>
+              <b>{car.nickname} 브리핑</b>
+              <span className="cap">{hhmm(new Date())}</span>
+            </div>
+            <p className="ai-line" key={st.line}>{st.line.replace(/\s*[\p{Extended_Pictographic}\u200d\ufe0f]+/gu, '')}</p>
+            <ul className="ai-list">
+              {briefing.map((b, i) => <li key={i} className={b.tone}><i />{b.text}</li>)}
+            </ul>
+            <span className="ai-hint"><Mic size={12} /> 아래 마이크로 무엇이든 물어보세요</span>
+          </div>
+
+          {/* Premium Minimal: 선으로만 나눈 상태 */}
+          <div className="metrics">
+            <Metric label="에너지" value={st.energy} bad={st.energy < 20} />
+            <Metric label="건강" value={st.health} bad={st.health < 100} />
+            <Metric label="피로도" value={st.fatigue} bad={st.fatigue > 70} />
           </div>
           {Level}
-          <div>
-            <Show3D car={car} mood={bot?.mood ?? st.mood} cosmetic={progress.equipped} />
-            <p className="speech" key={st.line}>{st.line.replace(/\s*[\p{Extended_Pictographic}‍️]+/gu, '')}</p>
-          </div>
-          <div className="grid3">
-            <Gauge label="에너지" value={st.energy} bad={st.energy < 20} />
-            <Gauge label="건강" value={st.health} bad={st.health < 100} />
-            <Gauge label="피로도" value={st.fatigue} bad={st.fatigue > 70} />
-          </div>
-          <div className="card">
-            <div className="card-head"><b className="h3">돌봐주세요</b><span className="cap">돌보면 +{st.activeWarnings[0] ? XP_FOR_FIX[st.activeWarnings[0]] : XP_FOR_CHARGE} XP</span></div>
-            {st.activeWarnings.length === 0 && st.energy >= 50 && dueParts.length === 0 && (
-              <div className="care-row"><i className="dot good" /><div className="grow"><b className="label">아픈 곳이 없어요</b><span className="cap">오늘도 챙겨줘서 고마워요</span></div></div>
-            )}
-            {st.activeWarnings.map((k) => (
-              <div key={k} className="care-row">
-                <i className="dot bad" />
-                <div className="grow"><b className="label">{WARNING_TITLE[k]}</b><span className="cap">{simulator ? '보충 후 완료를 눌러주세요' : WARNING_UI[k].hint}</span></div>
-                {simulator ? (
-                  <button className="btn outline sm" onClick={() => { simulator?.fix(k); refresh(snap); }}>정비 완료</button>
-                ) : <span className="cap">정비 후 새로고침</span>}
-              </div>
-            ))}
-            {dueParts.map((p) => (
-              <div key={p.id} className="care-row">
-                <i className="dot warn" />
-                <div className="grow"><b className="label">{p.name} 교체할 때예요</b><span className="cap">{p.left ? `${p.left.toLocaleString()}km 남았어요` : '권장 거리를 지났어요'}</span></div>
-                <button className="btn outline sm" onClick={() => { markReplaced(p.id, snap.odometerKm); setPartsTick((n) => n + 1); updateProgress((pr) => ({ ...pr, xp: pr.xp + 15, fixes: pr.fixes + 1 })); showToast(`${p.name} 교체 완료 · +15 XP`); }}>교체 완료</button>
-              </div>
-            ))}
-            {st.energy < 50 && (
-              <div className="care-row">
-                <i className={`dot ${st.energy < 20 ? 'bad' : 'warn'}`} />
-                <div className="grow"><b className="label">{car.fuelType === 'ev' ? '배터리' : car.fuelType === 'hydrogen' ? '수소' : '연료'}가 {st.energy}% 남았어요</b><span className="cap">약 {snap.dteKm}km 더 갈 수 있어요</span></div>
-                {simulator && <button className="btn outline sm" onClick={() => { simulator?.refill(); refresh(snap); }}>{energyTerm.refill.replace('하기', '')}</button>}
-              </div>
-            )}
-          </div>
-          <div className="card">
-            <div className="card-head"><b className="h3">차량 상태</b><span className="cap">마지막 수신 {hhmm(new Date(snap.updatedAt))}</span></div>
-            <VehicleStatus car={car} snap={snap} compact />
-          </div>
-          {snap.parking && (
-            <a className="card row-card" href={`https://map.kakao.com/link/map/${encodeURIComponent(car.nickname)},${snap.parking.lat},${snap.parking.lng}`} target="_blank" rel="noreferrer">
-              <MapPin size={20} />
-              <div className="grow"><span className="cap">마지막 주차 위치 · 오늘 {hhmm(new Date(snap.updatedAt))}</span><b className="label">{snap.parking.label}</b></div>
-              <ChevronRight size={16} className="muted" />
-            </a>
+
+          {careCount > 0 && (
+            <div className="list">
+              <div className="list-title"><b className="label">돌봐주세요</b><span className="cap">{careCount}건 · 돌보면 경험치</span></div>
+              {st.activeWarnings.map((k) => (
+                <div key={k} className="list-row">
+                  <i className="dot bad" />
+                  <div className="grow"><b className="label">{WARNING_TITLE[k]}</b><span className="cap">{WARNING_UI[k].hint}</span></div>
+                  {simulator ? <button className="btn outline sm" onClick={() => { simulator?.fix(k); refresh(snap); }}>정비 완료</button> : <span className="cap">정비 후 새로고침</span>}
+                </div>
+              ))}
+              {dueParts.map((p) => (
+                <div key={p.id} className="list-row">
+                  <i className="dot warn" />
+                  <div className="grow"><b className="label">{p.name} 교체할 때예요</b><span className="cap">{p.left ? `${p.left.toLocaleString()}km 남음` : '권장 거리 지남'}</span></div>
+                  <button className="btn outline sm" onClick={() => { markReplaced(p.id, snap.odometerKm); setPartsTick((n) => n + 1); updateProgress((pr) => ({ ...pr, xp: pr.xp + 15, fixes: pr.fixes + 1 })); showToast(`${p.name} 교체 완료 · +15 XP`); }}>교체 완료</button>
+                </div>
+              ))}
+              {st.energy < 50 && (
+                <div className="list-row">
+                  <i className={`dot ${st.energy < 20 ? 'bad' : 'warn'}`} />
+                  <div className="grow"><b className="label">{energyName} {st.energy}% 남았어요</b><span className="cap">약 {snap.dteKm}km 더 갈 수 있어요</span></div>
+                  {simulator && <button className="btn outline sm" onClick={() => { simulator?.refill(); refresh(snap); }}>{energyTerm.refill.replace('하기', '')}</button>}
+                </div>
+              )}
+            </div>
           )}
-          <button className="link-row" onClick={() => setView('talk')}><Mic size={16} />{car.nickname}와 이야기하기<ArrowUpRight size={14} /></button>
+
+          <div className="list">
+            <button className="list-row link" onClick={() => setShowStatus((v) => !v)} aria-expanded={showStatus}>
+              <GaugeIcon size={18} strokeWidth={1.6} />
+              <div className="grow"><b className="label">차량 상태</b><span className="cap">타이어 · 온도 · 경고등 · 마지막 수신 {hhmm(new Date(snap.updatedAt))}</span></div>
+              <ChevronRight size={16} className={`muted chev ${showStatus ? 'open' : ''}`} />
+            </button>
+            {showStatus && <div className="list-expand"><VehicleStatus car={car} snap={snap} compact /></div>}
+            {snap.parking && (
+              <a className="list-row link" href={`https://map.kakao.com/link/map/${encodeURIComponent(car.nickname)},${snap.parking.lat},${snap.parking.lng}`} target="_blank" rel="noreferrer">
+                <MapPin size={18} strokeWidth={1.6} />
+                <div className="grow"><b className="label">{snap.parking.label}</b><span className="cap">마지막 주차 위치</span></div>
+                <ArrowUpRight size={16} className="muted" />
+              </a>
+            )}
+            <button className="list-row link" onClick={() => setView('talk')}>
+              <Mic size={18} strokeWidth={1.6} />
+              <div className="grow"><b className="label">대화 기록 · 목소리</b><span className="cap">{car.nickname}와 나눈 이야기, 여자·남자 목소리</span></div>
+              <ChevronRight size={16} className="muted" />
+            </button>
+          </div>
         </section>
       )}
 
@@ -633,6 +688,16 @@ function Showroom({ children, talking, small }: { children: React.ReactNode; tal
       <span className="spot" aria-hidden />
       <span className="floor" aria-hidden />
       {children}
+    </div>
+  );
+}
+
+function Metric({ label, value, bad }: { label: string; value: number; bad?: boolean }) {
+  return (
+    <div className={`metric ${bad ? 'bad' : ''}`}>
+      <span className="cap">{label}</span>
+      <b>{value}</b>
+      <div className="metric-bar"><div style={{ width: `${value}%` }} /></div>
     </div>
   );
 }
