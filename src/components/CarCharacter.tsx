@@ -1,7 +1,7 @@
 import type { Mood } from '../game/character';
 import type { CosmeticId } from '../game/progress';
 import type { BodyColor } from '../data/hyundaiModels';
-import screen from '../data/screen.json';
+import plate from '../data/ioniq5-screen.json';
 
 // 배포 주소가 하위 경로(/our-car-alive/)여도 이미지가 열리도록
 const ASSET = import.meta.env.BASE_URL;
@@ -14,15 +14,16 @@ interface Props {
   size?: number;
 }
 
-// 스크린 얼굴 좌표계 (screen.json 비율과 맞춤)
+// 번호판 화면 얼굴 좌표계 (Figma 디자인의 아이오닉 5 이미지, ioniq5-screen.json 비율)
 const VW = 400;
-const VH = Math.round((VW * (screen.screen.height * screen.height)) / (screen.screen.width * screen.width));
-const EL = 104; // 왼쪽 눈 x
-const ER = VW - 104; // 오른쪽 눈 x
-const EY = VH * 0.46;
-const MY = VH * 0.78;
+// 화면 픽셀 비율 = (w × 이미지가로) / (h × 이미지세로) = (w × aspect) / h
+const VH = Math.round((VW * plate.h) / (plate.w * plate.aspect));
+const EL = 112; // 왼쪽 눈 x
+const ER = VW - 112; // 오른쪽 눈 x
+const EY = VH * 0.42;
+const MY = VH * 0.8;
 
-const GLOW = '#e9fbff';
+const GLOW = '#ffffff';
 
 function RingEye({ x, look = 0 }: { x: number; look?: number }) {
   return (
@@ -152,20 +153,26 @@ const ROOF_ITEMS: Partial<Record<CosmeticId, string>> = {
   flower: `${ASSET}character/acc-flower.png`,
 };
 
-export function CarCharacter({ mood, cosmetic, driving, color = 'yellow', size = 280 }: Props) {
-  const s = screen.screen;
+/** 흑백 디자인: 사진 차의 밝기만 바꿔 무채색으로 표현 (유채색을 고르면 실버로 표시) */
+const COLOR_FILTER: Partial<Record<BodyColor, string>> = {
+  white: 'brightness(1.12) saturate(0.4)',
+  gray: 'brightness(0.72) saturate(0.4)',
+  black: 'brightness(0.4) contrast(1.15) saturate(0.3)',
+  beige: 'brightness(1.05) saturate(0.5)',
+};
+
+export function CarCharacter({ mood, cosmetic, driving, color = 'silver', size = 280 }: Props) {
   const roof = ROOF_ITEMS[cosmetic];
   return (
     <div
-      className={`car3d mood-${mood} ${driving ? 'is-driving' : ''}`}
-      style={{ width: size, aspectRatio: `${screen.width} / ${screen.height}` }}
+      className={`car3d car-photo mood-${mood} ${driving ? 'is-driving' : ''}`}
+      style={{ width: size, aspectRatio: `${plate.aspect}` }}
       role="img"
       aria-label={`차 캐릭터 (${mood})`}
     >
-      <div className="car3d-shadow" />
       <div className="car3d-body">
-        <img src={`${ASSET}character/body-${color}.png`} alt="" draggable={false} />
-        <div className="car3d-screen" style={{ left: `${s.left}%`, top: `${s.top}%`, width: `${s.width}%`, height: `${s.height}%` }}>
+        <img src={`${ASSET}character/ioniq5.png`} alt="" draggable={false} style={{ filter: COLOR_FILTER[color] ?? 'none' }} />
+        <div className="car3d-screen" style={{ left: `${plate.x * 100}%`, top: `${plate.y * 100}%`, width: `${plate.w * 100}%`, height: `${plate.h * 100}%` }}>
           <Face mood={mood} cosmetic={cosmetic} />
         </div>
         {roof && <img className={`car3d-roof acc-${cosmetic}`} src={roof} alt="" draggable={false} />}

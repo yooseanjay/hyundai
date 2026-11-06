@@ -1,6 +1,7 @@
 // AI 음성봇: 마이크로 말 걸면 캐릭터가 차 상태를 보고 목소리로 대답한다.
 // 브라우저 내장 음성 인식(Web Speech API) + 음성 합성(speechSynthesis) 사용 → 무료, 별도 키 불필요.
 // 음성 인식이 안 되는 브라우저(예: Firefox)나 조용한 곳에서는 글자로 물어볼 수 있다.
+import { Keyboard, Mic, Square, Volume2, VolumeX } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import type { Mood } from '../game/character';
 import { cuteSpeech, pickKoVoice, sfx, speakWithServer, stopServerVoice, unlockAudio, voiceFor } from '../game/cuteVoice';
@@ -20,6 +21,9 @@ export function VoiceBot({ ctx, onLine }: { ctx: BotContext; onLine: (line: stri
   const [typing, setTyping] = useState(!SR);
   const [text, setText] = useState('');
   const [muted, setMuted] = useState(false);
+  const [msgs, setMsgs] = useState<{ who: 'me' | 'bot'; text: string }[]>([]);
+  const listRef = useRef<HTMLDivElement>(null);
+  useEffect(() => { listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: 'smooth' }); }, [msgs]);
   const recRef = useRef<any>(null);
   const resetTimer = useRef<number>();
   const ctxRef = useRef(ctx);
@@ -45,10 +49,12 @@ export function VoiceBot({ ctx, onLine }: { ctx: BotContext; onLine: (line: stri
     if (!question) return setPhase('idle');
     if (!muted) unlockAudio();
     setHeard(question);
+    setMsgs((m) => [...m, { who: 'me' as const, text: question }].slice(-12));
     setPhase('thinking');
     window.clearTimeout(resetTimer.current);
     const r = reply(question, ctxRef.current);
     window.setTimeout(() => {
+      setMsgs((m) => [...m, { who: 'bot' as const, text: r.text.replace(/\s*[\p{Extended_Pictographic}‍️]+/gu, '') }].slice(-12));
       onLine(r.text, r.mood, true);
       if (!canSpeak || muted) {
         setPhase('speaking');
@@ -108,37 +114,62 @@ export function VoiceBot({ ctx, onLine }: { ctx: BotContext; onLine: (line: stri
   };
 
   const busy = phase === 'thinking' || phase === 'speaking';
+  const name = ctx.car.nickname;
+  const status =
+    phase === 'listening' ? ['듣고 있어요', heard || '편하게 말해 주세요']
+    : phase === 'thinking' ? ['생각 중이에요', heard ? `“${heard}”` : '']
+    : phase === 'speaking' ? ['말하는 중', '']
+    : SR ? ['눌러서 말 걸기', '버튼을 누르고 말해 보세요']
+    : ['글자로 물어보기', typeof window !== 'undefined' && !window.isSecureContext ? '이 주소(http)에선 마이크가 막혀 있어요' : '이 브라우저는 음성 인식을 지원하지 않아요'];
 
   return (
-    <div className={`voicebot phase-${phase}`}>
-      <div className="vb-row">
-        {SR && (
-          <button className={`vb-mic ${phase === 'listening' ? 'on' : ''}`} onClick={listen} disabled={busy} aria-label={phase === 'listening' ? '듣기 멈추기' : '말 걸기'}>
-            <span className="vb-mic-icon">{phase === 'listening' ? '■' : '🎙️'}</span>
-            <span className="vb-rings" aria-hidden />
-          </button>
+    <div className={`talk phase-${phase}`}>
+      <div className="chip-row">
+        {SUGGESTIONS.map((q) => (
+          <button key={q} className="chip" onClick={() => answer(q)} disabled={busy || phase === 'listening'}>{q}</button>
+        ))}
+      </div>
+
+      <div className="messages" ref={listRef} aria-live="polite">
+        {msgs.length === 0 && (
+          <div className="msg bot">
+            <span className="msg-name">{name}</span>
+            <p>안녕하세요! 저한테 뭐든 물어봐요. 지금 제 상태를 보고 대답해 줄게요.</p>
+          </div>
         )}
-        <div className="vb-status">
-          <b className="t-label">
-            {phase === 'listening' ? '듣고 있어요…' : phase === 'thinking' ? '생각 중…' : phase === 'speaking' ? '말하는 중' : SR ? `${ctx.car.nickname}에게 말 걸기` : `${ctx.car.nickname}에게 물어보기`}
-          </b>
-          <span className="t-caption">{heard ? `“${heard}”` : SR ? '마이크를 누르고 말해 보세요' : (typeof window !== 'undefined' && !window.isSecureContext ? '휴대폰 주소(http)에선 마이크가 막혀서 글자·버튼으로 물어봐요' : '이 브라우저는 음성 인식이 안 돼서 글자로 물어봐요')}</span>
-        </div>
-        <button className="vb-icon" onClick={() => setMuted((m) => !m)} aria-label={muted ? '소리 켜기' : '소리 끄기'} title={muted ? '소리 켜기' : '소리 끄기'}>{muted ? '🔇' : '🔊'}</button>
-        {SR && <button className="vb-icon" onClick={() => setTyping((t) => !t)} aria-label="글자로 물어보기" title="글자로 물어보기">⌨️</button>}
+        {msgs.map((m, i) =>
+          m.who === 'me' ? (
+            <div key={i} className="msg me"><p>{m.text}</p></div>
+          ) : (
+            <div key={i} className="msg bot"><span className="msg-name">{name}</span><p>{m.text}</p></div>
+          ),
+        )}
       </div>
 
       {typing && (
-        <form className="vb-form" onSubmit={(e) => { e.preventDefault(); answer(text); setText(''); }}>
-          <input className="text-input" value={text} onChange={(e) => setText(e.target.value)} placeholder="예: 기분 어때?" disabled={busy} />
+        <form className="talk-form" onSubmit={(e) => { e.preventDefault(); answer(text); setText(''); }}>
+          <input className="text-input" value={text} onChange={(e) => setText(e.target.value)} placeholder={`${name}에게 물어보기 (예: 기분 어때?)`} disabled={busy} />
           <button className="btn primary" disabled={busy || !text.trim()}>보내기</button>
         </form>
       )}
 
-      <div className="chips scroll-x vb-suggest">
-        {SUGGESTIONS.map((s) => (
-          <button key={s} className="chip" onClick={() => answer(s)} disabled={busy || phase === 'listening'}>{s}</button>
-        ))}
+      <div className="mic-area">
+        <button className="icon-btn" onClick={() => setMuted((m) => !m)} aria-label={muted ? '소리 켜기' : '소리 끄기'}>{muted ? <VolumeX size={18} /> : <Volume2 size={18} />}</button>
+        {SR ? (
+          <button className={`mic ${phase === 'listening' ? 'on' : ''}`} onClick={listen} disabled={busy} aria-label={phase === 'listening' ? '듣기 멈추기' : '말 걸기'}>
+            <span className="ring r1" aria-hidden /><span className="ring r2" aria-hidden />
+            {phase === 'listening' ? <Square size={22} fill="currentColor" /> : <Mic size={28} />}
+          </button>
+        ) : (
+          <span className="mic disabled" aria-hidden><Mic size={28} /></span>
+        )}
+        {SR ? (
+          <button className={`icon-btn ${typing ? 'on' : ''}`} onClick={() => setTyping((t) => !t)} aria-label="글자로 물어보기"><Keyboard size={18} /></button>
+        ) : <span className="icon-btn ghost" aria-hidden />}
+      </div>
+      <div className="mic-status">
+        <b>{status[0]}</b>
+        {status[1] && <span>{status[1]}</span>}
       </div>
     </div>
   );
