@@ -1,15 +1,16 @@
 // AI 음성봇: 마이크로 말 걸면 캐릭터가 차 상태를 보고 목소리로 대답한다.
 // 브라우저 내장 음성 인식(Web Speech API) + 음성 합성(speechSynthesis) 사용 → 무료, 별도 키 불필요.
 // 음성 인식이 안 되는 브라우저(예: Firefox)나 조용한 곳에서는 글자로 물어볼 수 있다.
-import { Download, Keyboard, Mic, Play, Square, Volume2, VolumeX } from 'lucide-react';
+import { Download, ExternalLink, Keyboard, KeyRound, Mic, Play, Square, Volume2, VolumeX } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import type { Mood } from '../game/character';
-import { cleanForSpeech, cuteSpeech, pickKoVoice, playPcm, sfx, speakWithServer, stopServerVoice, unlockAudio, voiceFor } from '../game/cuteVoice';
+import { cleanForSpeech, cuteSpeech, pickKoVoice, playAudioFile, playPcm, sfx, speakWithServer, stopServerVoice, unlockAudio, voiceFor } from '../game/cuteVoice';
 import { CREDIT, MODEL_MB, VOICES, type VoiceId } from '../voice/voiceList';
 // 음성 AI 엔진(onnxruntime)은 크기가 커서 필요할 때만 불러온다
 const engine = () => import('../voice/supertonic');
 import { loadVoicePrefs, saveVoicePrefs, type VoicePrefs } from '../voice/voicePrefs';
-import { reply, type BotContext } from '../game/voiceBot';
+import { buildContext, reply, type BotContext } from '../game/voiceBot';
+import { chatReply, GEMINI_VOICES, geminiSource, geminiSpeech, setUserKey, type Turn } from '../voice/gemini';
 
 type Phase = 'idle' | 'listening' | 'thinking' | 'speaking';
 
@@ -44,6 +45,34 @@ export function VoiceBot({ ctx, onLine }: { ctx: BotContext; onLine: (line: stri
   const aiRef = useRef(ai);
   aiRef.current = ai;
   const setPrefs = (p: VoicePrefs) => { setPrefsState(p); saveVoicePrefs(p); };
+
+  // ---- 대화 AI (Gemini 무료 키): 무슨 말이든 짧게 대답 ----
+  const [gem, setGem] = useState<'server' | 'device' | null | 'checking'>('checking');
+  const [keyInput, setKeyInput] = useState('');
+  const history = useRef<Turn[]>([]);
+  const gemRef = useRef(gem);
+  gemRef.current = gem;
+  useEffect(() => { void geminiSource().then(setGem); }, []);
+  const saveKey = () => {
+    if (!keyInput.trim()) return;
+    setUserKey(keyInput.trim());
+    setKeyInput('');
+    setGem('checking');
+    void geminiSource().then(setGem);
+  };
+  const clearKey = () => { setUserKey(''); setGem('checking'); void geminiSource().then(setGem); };
+
+  /** Gemini 목소리로 말하기. 실패하면 false */
+  const speakGemini = async (text: string, mood: Mood): Promise<boolean> => {
+    if (prefsRef.current.engine !== 'gemini' || !gemRef.current || gemRef.current === 'checking') return false;
+    try {
+      const wav = await geminiSpeech(cleanForSpeech(text), prefsRef.current.gVoice ?? 'Leda', mood);
+      await playAudioFile(wav, () => setPhase('speaking'));
+      return true;
+    } catch {
+      return false;
+    }
+  };
 
   const loadAi = () => {
     if (aiRef.current.state === 'loading' || aiRef.current.state === 'ready') return;
@@ -111,29 +140,11 @@ export function VoiceBot({ ctx, onLine }: { ctx: BotContext; onLine: (line: stri
     setMsgs((m) => [...m, { who: 'me' as const, text: question }].slice(-12));
     setPhase('thinking');
     window.clearTimeout(resetTimer.current);
-    const r = reply(question, ctxRef.current);
-    window.setTimeout(() => {
-      setMsgs((m) => [...m, { who: 'bot' as const, text: r.text.replace(/\s*[\p{Extended_Pictographic}‍️]+/gu, '') }].slice(-12));
-      onLine(r.text, r.mood, true);
-      if (!canSpeak || muted) {
-        setPhase('speaking');
-        window.setTimeout(() => { onLine(r.text, r.mood, false); finish(); }, Math.min(6000, 1200 + r.text.length * 60));
-        return;
-      }
-      speechSynthesis.cancel();
-      const mood = r.mood ?? 'calm';
-      const done = () => { onLine(r.text, r.mood, false); finish(); };
-      (r.intent === 'unknown' ? sfx.confused : () => sfx.reply(mood))();
-      // 1순위: 무료 음성 AI(선택 시) → 2순위: Typecast 아이 목소리(PC 서버) → 3순위: 브라우저 목소리
-      void (async () => {
-        if (await speakAi(r.text, mood)) return done();
-        if (await speakWithServer(r.text, mood, () => setPhase('speaking'))) return done();
-        browserSpeak(mood, done);
-      })();
-    }, 350);
+    const rule = reply(question, ctxRef.current);
+    const mood: Mood = rule.mood ?? 'calm';
 
-    const browserSpeak = (mood: Mood, done: () => void) => {
-      const u = new SpeechSynthesisUtterance(cuteSpeech(r.text, mood));
+    const browserSpeak = (text: string, mood: Mood, done: () => void) => {
+      const u = new SpeechSynthesisUtterance(cuteSpeech(text, mood));
       u.lang = 'ko-KR';
       const v = pickKoVoice();
       if (v) u.voice = v;
@@ -144,6 +155,39 @@ export function VoiceBot({ ctx, onLine }: { ctx: BotContext; onLine: (line: stri
       u.onend = u.onerror = () => done();
       window.setTimeout(() => speechSynthesis.speak(u), 120);
     };
+
+    void (async () => {
+      // 1) 대답 내용: Gemini(무슨 말이든) → 실패하면 규칙 기반 대답
+      let text = rule.text;
+      let fromAi = false;
+      if (gemRef.current && gemRef.current !== 'checking') {
+        try {
+          text = await Promise.race([
+            chatReply(buildContext(ctxRef.current), history.current, question),
+            new Promise<string>((_, no) => window.setTimeout(() => no(new Error('timeout')), 9000)),
+          ]);
+          fromAi = true;
+        } catch { /* 규칙 대답 사용 */ }
+      }
+      history.current = [...history.current, { role: 'user' as const, text: question }, { role: 'model' as const, text }].slice(-10);
+      const shown = text.replace(/\s*[\p{Extended_Pictographic}\u200d\ufe0f]+/gu, '');
+      setMsgs((m) => [...m, { who: 'bot' as const, text: shown }].slice(-12));
+      onLine(text, mood, true);
+      const done = () => { onLine(text, mood, false); finish(); };
+      if (!canSpeak || muted) {
+        setPhase('speaking');
+        window.setTimeout(done, Math.min(6000, 1200 + text.length * 60));
+        return;
+      }
+      speechSynthesis.cancel();
+      (rule.intent === 'unknown' && !fromAi ? sfx.confused : () => sfx.reply(mood))();
+      // 2) 목소리: Gemini(사람 같은) → 오프라인 음성 AI → Typecast(PC) → 휴대폰 기본
+      if (await speakGemini(text, mood)) return done();
+      if (await speakAi(text, mood)) return done();
+      if (await speakWithServer(text, mood, () => setPhase('speaking'))) return done();
+      browserSpeak(text, mood, done);
+    })();
+
   };
 
   const listen = () => {
@@ -177,7 +221,7 @@ export function VoiceBot({ ctx, onLine }: { ctx: BotContext; onLine: (line: stri
   const name = ctx.car.nickname;
   const status =
     phase === 'listening' ? ['듣고 있어요', heard || '편하게 말해 주세요']
-    : phase === 'thinking' ? [prefs.engine === 'ai' && ai.state === 'ready' ? '목소리 만드는 중' : '생각 중이에요', heard ? `“${heard}”` : '']
+    : phase === 'thinking' ? ['생각 중이에요', heard ? `“${heard}”` : '']
     : phase === 'speaking' ? ['말하는 중', '']
     : SR ? ['눌러서 말 걸기', '버튼을 누르고 말해 보세요']
     : ['글자로 물어보기', typeof window !== 'undefined' && !window.isSecureContext ? '이 주소(http)에선 마이크가 막혀 있어요' : '이 브라우저는 음성 인식을 지원하지 않아요'];
@@ -233,17 +277,44 @@ export function VoiceBot({ ctx, onLine }: { ctx: BotContext; onLine: (line: stri
       </div>
 
       <div className="card voice-card">
-        <div className="card-head"><b className="label">목소리</b><span className="cap">{prefs.engine === 'ai' ? '무료 음성 AI' : '휴대폰 기본 목소리'}</span></div>
+        <div className="card-head"><b className="label">대화 AI</b><span className="cap">{gem === 'server' ? 'Gemini 연결됨 (PC 서버)' : gem === 'device' ? 'Gemini 연결됨 (이 기기 키)' : gem === 'checking' ? '확인 중…' : '기본 대답 모드'}</span></div>
+        {gem === null ? (
+          <>
+            <p className="cap">무료 Gemini 키를 넣으면 무슨 말이든 알아듣고 짧게 대답해요. 사람 같은 목소리도 함께 쓸 수 있어요.</p>
+            <form className="talk-form" onSubmit={(e) => { e.preventDefault(); saveKey(); }}>
+              <input className="text-input" type="password" autoComplete="off" value={keyInput} onChange={(e) => setKeyInput(e.target.value)} placeholder="Gemini API 키 붙여넣기" aria-label="Gemini API 키" />
+              <button className="btn primary" disabled={!keyInput.trim()}><KeyRound size={14} /> 저장</button>
+            </form>
+            <a className="cap key-link" href="https://aistudio.google.com/apikey" target="_blank" rel="noreferrer">Google AI Studio에서 무료 키 받기 <ExternalLink size={11} /></a>
+            <p className="cap credit">키는 이 기기에만 저장돼요. 무료 키로 보낸 대화는 Google 서비스 개선에 쓰일 수 있어요.</p>
+          </>
+        ) : gem === 'device' ? (
+          <button className="btn text" onClick={clearKey}>이 기기에서 키 지우기</button>
+        ) : null}
+
+        <div className="card-head"><b className="label">목소리</b><span className="cap">{prefs.engine === 'gemini' ? '사람 같은 목소리 (Gemini)' : prefs.engine === 'ai' ? '오프라인 음성 AI' : '휴대폰 기본 목소리'}</span></div>
         <div className="chip-row">
           <button className={`chip ${prefs.engine === 'browser' ? 'on' : ''}`} onClick={() => setPrefs({ ...prefs, engine: 'browser' })}>기본</button>
-          <button className={`chip ${prefs.engine === 'ai' && prefs.voice.startsWith('F') ? 'on' : ''}`} onClick={() => setPrefs({ engine: 'ai', voice: prefs.voice.startsWith('F') ? prefs.voice : 'F1' })}>AI 여자</button>
-          <button className={`chip ${prefs.engine === 'ai' && prefs.voice.startsWith('M') ? 'on' : ''}`} onClick={() => setPrefs({ engine: 'ai', voice: prefs.voice.startsWith('M') ? prefs.voice : 'M1' })}>AI 남자</button>
+          <button className={`chip ${prefs.engine === 'gemini' ? 'on' : ''}`} onClick={() => setPrefs({ ...prefs, engine: 'gemini' })} disabled={!gem || gem === 'checking'}>사람 같은 목소리</button>
+          <button className={`chip ${prefs.engine === 'ai' ? 'on' : ''}`} onClick={() => setPrefs({ ...prefs, engine: 'ai' })}>오프라인 AI</button>
         </div>
+        {prefs.engine === 'gemini' && (
+          <>
+            <div className="chip-row">
+              {GEMINI_VOICES.female.map((v) => <button key={v.id} className={`chip sm ${prefs.gVoice === v.id ? 'on' : ''}`} onClick={() => setPrefs({ ...prefs, gVoice: v.id })}>여 · {v.label}</button>)}
+            </div>
+            <div className="chip-row">
+              {GEMINI_VOICES.male.map((v) => <button key={v.id} className={`chip sm ${prefs.gVoice === v.id ? 'on' : ''}`} onClick={() => setPrefs({ ...prefs, gVoice: v.id })}>남 · {v.label}</button>)}
+            </div>
+            <button className="btn outline sm block" onClick={() => answer('안녕! 너 목소리 들려줘')} disabled={busy || phase === 'listening'}><Play size={14} /> 이 목소리로 인사 듣기</button>
+            <p className="cap credit">Google Gemini TTS · 30가지 목소리 중 자연스러운 8가지</p>
+          </>
+        )}
         {prefs.engine === 'ai' && (
           <>
             <div className="chip-row">
-              {VOICES.filter((v) => v.id[0] === prefs.voice[0]).map((v) => (
-                <button key={v.id} className={`chip sm ${prefs.voice === v.id ? 'on' : ''}`} onClick={() => setPrefs({ ...prefs, voice: v.id })}>{v.label.split(' ')[1]}번</button>
+              {VOICES.map((v) => (
+                <button key={v.id} className={`chip sm ${prefs.voice === v.id ? 'on' : ''}`} onClick={() => setPrefs({ ...prefs, voice: v.id })}>{v.label}</button>
               ))}
             </div>
             {ai.state === 'ready' ? (

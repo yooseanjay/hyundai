@@ -11,12 +11,12 @@ const sh = (cmd, opts = {}) => execSync(cmd, { stdio: 'inherit', ...opts });
 // 1) 빌드 — 이미 있는 환경변수가 .env.local보다 우선하므로 키를 비워서 빌드
 rmSync(OUT, { recursive: true, force: true });
 sh(`npx vite build --outDir ${OUT}`, {
-  env: { ...process.env, BASE_PATH: `/${REPO}/`, VITE_DATA_SOURCE: 'mock', VITE_HYUNDAI_CLIENT_ID: '', HYUNDAI_CLIENT_SECRET: '' },
+  env: { ...process.env, BASE_PATH: `/${REPO}/`, VITE_DATA_SOURCE: 'mock', VITE_HYUNDAI_CLIENT_ID: '', HYUNDAI_CLIENT_SECRET: '', GEMINI_API_KEY: '', TYPECAST_API_KEY: '' },
 });
 
 // 2) 안전 검사: .env.local의 실제 키 값이 빌드 결과에 있으면 중단
 const secrets = existsSync('.env.local')
-  ? readFileSync('.env.local', 'utf8').split(/\r?\n/).filter((l) => /^(VITE_HYUNDAI_CLIENT_ID|HYUNDAI_CLIENT_SECRET)=/.test(l)).map((l) => l.split('=').slice(1).join('=').trim()).filter((v) => v.length >= 6)
+  ? readFileSync('.env.local', 'utf8').split(/\r?\n/).filter((l) => /^(VITE_HYUNDAI_CLIENT_ID|HYUNDAI_CLIENT_SECRET|GEMINI_API_KEY|TYPECAST_API_KEY)=/.test(l)).map((l) => l.split('=').slice(1).join('=').trim()).filter((v) => v.length >= 6)
   : [];
 const walk = (d) => readdirSync(d).flatMap((f) => (statSync(join(d, f)).isDirectory() ? walk(join(d, f)) : [join(d, f)]));
 for (const file of walk(OUT)) {

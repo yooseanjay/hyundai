@@ -1,0 +1,151 @@
+// Google Gemini (무료 키): 무슨 말이든 알아듣고 짧게 대답 + 사람 같은 목소리(Gemini TTS)
+//
+// 키는 코드·GitHub에 넣지 않는다.
+//  - PC: .env.local의 GEMINI_API_KEY → 개발 서버가 /gemini-proxy 로 대신 호출 (브라우저에 키 노출 없음)
+//  - 휴대폰: 사용자가 앱에 직접 입력한 키 → 이 기기(localStorage)에만 저장하고 Google로 직접 호출
+const API = 'https://generativelanguage.googleapis.com';
+const KEY_STORE = 'oca.gemini.key';
+const MODEL_STORE = 'oca.gemini.model.v1';
+export const TTS_MODEL = 'gemini-3.8-flash-tts';
+
+export const GEMINI_VOICES = {
+  female: [
+    { id: 'Leda', label: '레다 · 앳된' },
+    { id: 'Aoede', label: '아오이데 · 산뜻한' },
+    { id: 'Zephyr', label: '제퍼 · 밝은' },
+    { id: 'Achernar', label: '아케르나 · 부드러운' },
+  ],
+  male: [
+    { id: 'Puck', label: '퍽 · 경쾌한' },
+    { id: 'Fenrir', label: '펜리르 · 신난' },
+    { id: 'Achird', label: '아키르드 · 다정한' },
+    { id: 'Charon', label: '카론 · 차분한' },
+  ],
+} as const;
+
+export function getUserKey() {
+  try { return localStorage.getItem(KEY_STORE) ?? ''; } catch { return ''; }
+}
+export function setUserKey(k: string) {
+  try {
+    if (k) localStorage.setItem(KEY_STORE, k.trim());
+    else localStorage.removeItem(KEY_STORE);
+    localStorage.removeItem(MODEL_STORE);
+  } catch { /* 무시 */ }
+  route = null;
+}
+
+type Route = { base: string; headers: Record<string, string> } | null;
+let route: Route | Promise<Route> | null = null;
+
+/** 호출 경로: PC 서버 중계(키 숨김) → 없으면 사용자가 입력한 키 */
+async function getRoute(): Promise<Route> {
+  if (route) return route;
+  route = (async (): Promise<Route> => {
+    try {
+      const r = await fetch(`${import.meta.env.BASE_URL}gemini-proxy/status`);
+      if (r.ok && (await r.json()).enabled) return { base: `${import.meta.env.BASE_URL}gemini-proxy`, headers: {} };
+    } catch { /* 배포 사이트에는 서버가 없음 */ }
+    const k = getUserKey();
+    return k ? { base: API, headers: { 'x-goog-api-key': k } } : null;
+  })();
+  return route;
+}
+
+export async function geminiReady() {
+  return !!(await getRoute());
+}
+export async function geminiSource(): Promise<'server' | 'device' | null> {
+  const r = await getRoute();
+  return r ? (r.base === API ? 'device' : 'server') : null;
+}
+
+async function call(path: string, body?: unknown) {
+  const r = await getRoute();
+  if (!r) throw new Error('Gemini 키가 없어요');
+  const res = await fetch(`${r.base}${path}`, {
+    method: body ? 'POST' : 'GET',
+    headers: { ...r.headers, ...(body ? { 'Content-Type': 'application/json' } : {}) },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const msg = json?.error?.message ?? `HTTP ${res.status}`;
+    throw new Error(res.status === 429 ? '무료 사용량을 잠시 다 썼어요. 조금 뒤에 다시 시도해 주세요.' : res.status === 400 && /API key/i.test(msg) ? 'Gemini 키가 올바르지 않아요.' : msg);
+  }
+  return json;
+}
+
+/** 대화용 모델 자동 선택: 무료로 쓸 수 있는 가장 최신 Flash-Lite(빠름) → 없으면 Flash */
+async function chatModel(): Promise<string> {
+  try {
+    const saved = localStorage.getItem(MODEL_STORE);
+    if (saved) return saved;
+  } catch { /* 무시 */ }
+  const list: { name: string; supportedGenerationMethods?: string[] }[] = (await call('/v1beta/models?pageSize=200')).models ?? [];
+  const all = list
+    .map((m) => ({ id: m.name.replace('models/', ''), gen: m.supportedGenerationMethods ?? [] }))
+    .filter((m) => m.gen.includes('generateContent') && /^gemini-\d/.test(m.id) && !/tts|image|audio|live|embed|exp|thinking|robotics|computer/.test(m.id));
+  const stable = all.filter((m) => !/preview/.test(m.id));
+  const ok = stable.length ? stable : all; // 정식 모델이 없으면 미리보기 모델이라도
+  const ver = (id: string) => parseFloat(id.replace('gemini-', '')) || 0;
+  const pick = (re: RegExp) => ok.filter((m) => re.test(m.id)).sort((a, b) => ver(b.id) - ver(a.id))[0]?.id;
+  const id = pick(/flash-lite/) ?? pick(/flash/) ?? ok[0]?.id;
+  if (!id) throw new Error('쓸 수 있는 Gemini 모델이 없어요');
+  try { localStorage.setItem(MODEL_STORE, id); } catch { /* 무시 */ }
+  return id;
+}
+
+export interface Turn { role: 'user' | 'model'; text: string }
+
+/** 무슨 말이든 짧게 대답 (1~2문장, 차 캐릭터 말투) */
+export async function chatReply(carContext: string, history: Turn[], userText: string): Promise<string> {
+  const model = await chatModel();
+  const system = [
+    carContext,
+    '규칙:',
+    '- 너는 사용자의 자동차 캐릭터다. 친한 친구처럼 반말 섞인 귀여운 존댓말("~요")로 말한다.',
+    '- 무조건 짧게: 1~2문장, 40자 안팎. 설명·목록·숫자 나열·이모지 금지. 소리 내어 읽기 좋게.',
+    '- 일상 대화가 목적이다. 차 상태는 사용자가 물어보거나 꼭 필요할 때만 한마디로 언급한다.',
+    '- 모르는 사실(실시간 뉴스, 길 안내 등)은 지어내지 말고 가볍게 넘긴다.',
+    '- 운전 중일 수 있으니 길게 말 걸지 않는다.',
+  ].join('\n');
+  const json = await call(`/v1beta/models/${model}:generateContent`, {
+    systemInstruction: { parts: [{ text: system }] },
+    contents: [...history.slice(-8), { role: 'user', text: userText }].map((t) => ({ role: t.role, parts: [{ text: t.text }] })),
+    generationConfig: { temperature: 0.9, maxOutputTokens: 120 },
+  });
+  const text: string = (json.candidates?.[0]?.content?.parts ?? []).map((p: { text?: string }) => p.text ?? '').join('').trim();
+  if (!text) throw new Error('대답이 비어 있어요');
+  return text.replace(/[\p{Extended_Pictographic}‍️]/gu, '').replace(/\s+/g, ' ').trim();
+}
+
+const STYLE: Record<string, string> = {
+  happy: 'cheerful, warm and friendly, like a cute young character, natural Korean conversation',
+  excited: 'excited and bubbly, playful, natural Korean conversation',
+  calm: 'gentle, relaxed and friendly, natural Korean conversation',
+  hungry: 'a little whiny and hungry, cute, natural Korean conversation',
+  sick: 'a bit weak and sad but sweet, natural Korean conversation',
+  tired: 'sleepy and tired, soft, natural Korean conversation',
+  sleepy: 'very sleepy, yawning softly, whispering, natural Korean conversation',
+};
+
+/** 사람 같은 목소리 → WAV(ArrayBuffer) */
+export async function geminiSpeech(text: string, voice: string, mood: string): Promise<ArrayBuffer> {
+  const json = await call('/v1beta/interactions', {
+    model: TTS_MODEL,
+    input: [{ type: 'user_input', content: [{ type: 'text', text, annotations: [{ type: 'speech_metadata', style: STYLE[mood] ?? STYLE.calm }] }] }],
+    response_format: { type: 'audio' },
+    generation_config: { speech_config: [{ voice }] },
+  });
+  const audio = (json.steps ?? [])
+    .filter((s: any) => s.type === 'model_output')
+    .flatMap((s: any) => s.content ?? [])
+    .filter((c: any) => c.type === 'audio')
+    .pop();
+  if (!audio?.data) throw new Error('목소리를 받지 못했어요');
+  const bin = atob(audio.data);
+  const out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out.buffer;
+}

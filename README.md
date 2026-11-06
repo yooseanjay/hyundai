@@ -77,3 +77,11 @@ src/
 - **Supertonic 2** (Supertone Inc.) — 한국어 남성 5종 · 여성 5종 목소리. 모델 가중치 [OpenRAIL-M](https://huggingface.co/supertone-oss-archive/supertonic-2) 라이선스, 추론 예제 코드 MIT.
 - 모델은 저장소에 포함하지 않고 Hugging Face에서 고정 버전(`7edbcd0`)으로 직접 내려받아 브라우저 안에서 실행합니다 (서버·요금 없음, 처음 한 번 약 267MB).
 - 실행: [ONNX Runtime Web](https://github.com/microsoft/onnxruntime) (MIT)
+
+## 대화 AI · 사람 같은 목소리 (Google Gemini, 무료 키)
+- 무슨 말이든 알아듣고 1~2문장으로 짧게 대답 (차 상태를 아는 캐릭터 말투). 키가 없거나 무료 사용량을 넘으면 기본 대답으로 자동 전환.
+- 목소리: Gemini 3.8 Flash TTS (한국어, 여자·남자 각 4종 선택).
+- 키 넣는 곳 (코드·GitHub에는 넣지 않음)
+  - PC: `.env.local`의 `GEMINI_API_KEY=` → 개발 서버가 대신 호출 (브라우저에 키 노출 없음)
+  - 휴대폰·배포 링크: 앱 대화 화면 '대화 AI'에 직접 입력 → 그 기기에만 저장
+- 무료 키 발급: https://aistudio.google.com/apikey (무료 키로 보낸 대화는 Google 서비스 개선에 쓰일 수 있음)

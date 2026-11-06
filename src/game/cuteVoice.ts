@@ -193,3 +193,20 @@ export async function playPcm(wav: Float32Array, sampleRate: number, onStart: ()
     onStart();
   });
 }
+
+/** WAV/MP3 등 오디오 파일 데이터를 재생 */
+export async function playAudioFile(data: ArrayBuffer, onStart: () => void): Promise<void> {
+  const a = ctx();
+  if (!a) throw new Error('오디오를 재생할 수 없어요');
+  const buf = await a.decodeAudioData(data.slice(0));
+  current?.stop();
+  const src = a.createBufferSource();
+  src.buffer = buf;
+  src.connect(a.destination);
+  current = src;
+  await new Promise<void>((done) => {
+    src.onended = () => done();
+    src.start();
+    onStart();
+  });
+}

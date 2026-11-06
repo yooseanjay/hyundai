@@ -2,6 +2,7 @@ import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
 import { hyundaiAuth } from './server/hyundaiAuth';
 import { typecastTts } from './server/typecastTts';
+import { geminiProxy } from './server/geminiProxy';
 
 export default defineConfig(({ mode }) => {
   // '' 접두사: VITE_가 아닌 HYUNDAI_CLIENT_SECRET도 읽는다 (서버에서만 사용, 브라우저로 안 나감)
@@ -20,6 +21,8 @@ export default defineConfig(({ mode }) => {
         tokenPath: env.HYUNDAI_TOKEN_PATH || '/api/v1/user/oauth2/token',
         root: process.cwd(),
       }),
+      // 대화 AI + 사람 같은 목소리 (Google Gemini 무료 키, .env.local의 GEMINI_API_KEY)
+      geminiProxy(env.GEMINI_API_KEY || ''),
       // 아이 목소리 (Typecast 무료 플랜). 키가 없으면 브라우저 목소리 사용
       typecastTts({
         apiKey: env.TYPECAST_API_KEY || '',
