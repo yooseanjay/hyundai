@@ -36,7 +36,7 @@ flowchart LR
 | **비밀값 유출 방지** | 커밋되는 모든 파일에서 Google·OpenAI·GitHub·AWS 키, 개인 키, JWT 모양 검사 + `.env`·토큰 파일 자체 차단 | `scripts/scan-secrets.mjs` |
 | **공급망** | `npm audit`(high 이상 실패), Dependabot 주간 업데이트, CodeQL `security-extended` 정적 분석 | `.github/` |
 
-함수별 속도 제한: 차량 API 60/분 · 로그인 20/분 · 대화 AI 12/분 · 실시간 음성 토큰 6/분.
+함수별 속도 제한: 차량 API 60/분 · 로그인 20/분 · 대화 AI 12/분(상태 확인은 별도 60/분) · 실시간 음성 토큰 6/분.
 
 ## 2단계 · 주인 확인 (Owner-only Vehicle Access)
 

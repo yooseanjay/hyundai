@@ -22,6 +22,8 @@ export interface GuardOptions {
   maxBody?: number;
   /** true면 같은 사이트에서 온 요청만 (쿠키를 쓰는 차량 API) */
   sameOriginOnly?: boolean;
+  /** 같은 함수 안에서 횟수를 따로 셀 이름 (예: 돈이 드는 호출과 상태 확인 분리) */
+  bucket?: string;
 }
 
 export interface Ctx {
@@ -83,7 +85,7 @@ export function guard(req: Request, opt: GuardOptions): Ctx | Response {
   if (!opt.methods.includes(req.method)) return json({ error: '허용되지 않은 메서드예요', reqId }, 405, { Allow: opt.methods.join(', ') });
 
   const ip = (req.headers.get('x-real-ip') ?? req.headers.get('x-forwarded-for') ?? 'unknown').split(',')[0].trim();
-  const route = new URL(req.url).pathname;
+  const route = new URL(req.url).pathname + (opt.bucket ? `#${opt.bucket}` : '');
   if (rateLimited(`${route}|${ip}`, opt.perMinute)) return json({ error: '잠시 뒤에 다시 시도해 주세요', reqId }, 429, { 'Retry-After': '60' });
 
   const declared = Number(req.headers.get('content-length') ?? 0);

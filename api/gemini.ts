@@ -19,14 +19,16 @@ const MAX_TTS_CHARS = 300;
 const MAX_OUTPUT_TOKENS = 1000; // 대화는 앱이 120으로 요청, 여행지 추천은 900
 
 export default async function handler(req: Request): Promise<Response> {
-  // 보안 1단계 공통 관문: 출처 허용 목록 · 메서드 · IP별 1분 12회 · 본문 크기
-  const ctx = guard(req, { methods: ['GET', 'POST'], perMinute: 12, maxBody: MAX_BODY });
+  // 보안 1단계 공통 관문: 출처 허용 목록 · 메서드 · 본문 크기 · IP별 횟수
+  //   돈이 드는 AI 호출은 1분 12회, 키 유무만 알려 주는 상태 확인은 따로 1분 60회
+  const p = new URL(req.url).searchParams.get('p') ?? '';
+  const isStatus = p === 'status';
+  const ctx = guard(req, { methods: ['GET', 'POST'], perMinute: isStatus ? 60 : 12, maxBody: MAX_BODY, bucket: isStatus ? 'status' : 'ai' });
   if (ctx instanceof Response) return ctx;
   const { json, headers: cors } = ctx;
 
   const key = process.env.GEMINI_API_KEY ?? '';
-  const p = new URL(req.url).searchParams.get('p') ?? '';
-  if (p === 'status') return json({ enabled: !!key }, 200);
+  if (isStatus) return json({ enabled: !!key }, 200);
   if (!key) return json({ error: { message: '서버에 키가 아직 없어요' } }, 503);
   if (!ALLOWED_PATH.test(p)) return json({ error: { message: '허용되지 않은 경로' } }, 403);
 
