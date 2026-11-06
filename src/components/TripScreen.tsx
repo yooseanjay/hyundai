@@ -81,7 +81,7 @@ export function TripScreen({ car, snap, trips, onXp }: { car: CarProfile; snap: 
     let alive = true;
     fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${pos.lat}&longitude=${pos.lng}&localityLanguage=ko`)
       .then((r) => r.json())
-      .then((j) => { if (alive) setPos((p) => ({ ...p, name: [j.principalSubdivision, j.city || j.locality].filter(Boolean).join(' ') || p.name })); })
+      .then((j) => { if (alive) setPos((p) => ({ ...p, name: [...new Set([j.principalSubdivision, j.city || j.locality].filter(Boolean))].join(' ') || p.name })); })
       .catch(() => {});
     fetch(`https://api.open-meteo.com/v1/forecast?latitude=${pos.lat}&longitude=${pos.lng}&current=temperature_2m,weather_code,wind_speed_10m&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max&timezone=Asia%2FSeoul&forecast_days=1`)
       .then((r) => r.json())
@@ -159,7 +159,7 @@ export function TripScreen({ car, snap, trips, onXp }: { car: CarProfile; snap: 
             <div className="weather">
               <b className="big">{weather.temp}°</b>
               <span className="label">{wmoText(weather.code)}</span>
-              <span className="cap">최고 {weather.max}° · 최저 {weather.min}° · 비 {weather.rainProb}% · 바람 {weather.wind}km/h</span>
+              <span className="cap">오늘 최고 {weather.max}° · 최저 {weather.min}° · 강수 확률 {weather.rainProb}% · 바람 {weather.wind}km/h</span>
             </div>
             <p className="tip">{driveTip(weather, ev)}</p>
           </>
