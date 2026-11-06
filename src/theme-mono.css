@@ -364,3 +364,63 @@ a { color: inherit; text-decoration: none; }
 .cap.due { color: var(--bad); font-weight: 600; }
 .spin { animation: spin 1s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
+
+/* ===================== 하단 도크: 마이크 첫 칸 ===================== */
+.tabbar.with-mic { grid-template-columns: 64px repeat(5, 1fr); padding-left: 6px; }
+.dock-mic { position: relative; width: 56px; height: 56px; border-radius: 50%; display: grid; place-items: center; justify-self: center;
+  background: #fff; color: #000; box-shadow: 0 0 0 4px rgba(77, 163, 255, .18), 0 6px 18px rgba(0,0,0,.5); }
+.dock-mic .ring { position: absolute; border-radius: 50%; border: 1px solid rgba(110, 180, 255, .45); pointer-events: none; opacity: 0; }
+.dock-mic .r1 { inset: -6px; }
+.dock-mic .r2 { inset: -12px; }
+.dock-mic.on { background: linear-gradient(180deg, #8cc8ff, #3d8bff); color: #fff; }
+.dock-mic.on .ring, .dock-mic.speaking .ring { animation: ripple 1.4s ease-out infinite; }
+.dock-mic.on .r2, .dock-mic.speaking .r2 { animation-delay: .35s; }
+.dock-mic:disabled { opacity: .6; }
+
+/* ===================== 파란 연기 대화 ===================== */
+.smoke-layer { position: fixed; inset: 0; z-index: 25; display: grid; align-items: end; justify-items: center;
+  background: linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,4,12,.72) 35%, rgba(0,6,18,.94) 100%); animation: fade .25s ease; }
+.smoke-stage { position: relative; width: 100%; max-width: 430px; padding: 0 20px calc(110px + env(safe-area-inset-bottom)); display: grid; justify-items: center; gap: 10px; }
+
+/* 구름 말풍선: 연기가 뭉쳐 글자가 된 느낌 */
+.smoke-cloud { position: relative; width: 100%; max-width: 340px; min-height: 92px; padding: 22px 24px; border-radius: 46px; display: grid; place-items: center; text-align: center;
+  background: radial-gradient(120% 140% at 50% 0%, rgba(120, 190, 255, .38), rgba(40, 110, 230, .22) 55%, rgba(20, 60, 160, .12));
+  box-shadow: 0 0 40px rgba(77, 163, 255, .45), inset 0 0 30px rgba(170, 215, 255, .25);
+  backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); animation: puffIn .6s cubic-bezier(.2, 1.3, .4, 1); }
+.smoke-cloud p { position: relative; z-index: 1; margin: 0; font-size: 17px; line-height: 1.55; font-weight: 600; color: #f2f8ff; text-shadow: 0 0 12px rgba(120, 190, 255, .8); }
+.smoke-cloud .puff { position: absolute; border-radius: 50%; background: radial-gradient(closest-side, rgba(130, 195, 255, .45), rgba(60, 130, 240, 0)); filter: blur(2px); animation: drift 4s ease-in-out infinite; }
+.smoke-cloud .p1 { width: 90px; height: 70px; left: -18px; top: -20px; }
+.smoke-cloud .p2 { width: 110px; height: 80px; right: -24px; top: -26px; animation-delay: -1.3s; }
+.smoke-cloud .p3 { width: 70px; height: 60px; left: 40%; bottom: -26px; animation-delay: -2.4s; }
+@keyframes puffIn { from { opacity: 0; transform: translateY(30px) scale(.6); filter: blur(10px); } }
+@keyframes drift { 50% { transform: translate(6px, -6px) scale(1.08); } }
+
+/* 차에서 피어오르는 파란 연기 줄기 */
+.smoke-trail { position: relative; width: 120px; height: 70px; margin-bottom: -26px; z-index: 1; pointer-events: none; }
+.smoke-trail span { position: absolute; left: 50%; bottom: 0; width: 26px; height: 26px; margin-left: -13px; border-radius: 50%;
+  background: radial-gradient(closest-side, rgba(140, 200, 255, .75), rgba(60, 140, 255, 0)); filter: blur(3px); opacity: 0;
+  animation: rise 2.6s ease-out infinite; animation-delay: calc(var(--i) * -0.19s); }
+.smoke-trail span:nth-child(odd) { --dx: -18px; }
+.smoke-trail span:nth-child(even) { --dx: 18px; }
+@keyframes rise {
+  0% { transform: translate(0, 10px) scale(.4); opacity: 0; }
+  20% { opacity: .9; }
+  100% { transform: translate(var(--dx, 0), -90px) scale(2.4); opacity: 0; }
+}
+.smoke-layer.phase-speaking .smoke-trail span { animation-duration: 1.5s; }
+.smoke-layer.phase-thinking .smoke-trail span { animation-duration: 3.6s; }
+.smoke-layer.phase-listening .smoke-cloud { box-shadow: 0 0 26px rgba(77, 163, 255, .3), inset 0 0 20px rgba(170, 215, 255, .2); }
+
+.smoke-car { position: relative; filter: drop-shadow(0 0 22px rgba(77, 163, 255, .35)); animation: carBob 2.4s ease-in-out infinite; }
+.smoke-layer.phase-speaking .smoke-car { animation-duration: .5s; }
+@keyframes carBob { 50% { transform: translateY(-3px); } }
+.smoke-you { margin: 0; font-size: 13px; color: var(--fg-2); text-align: center; }
+.smoke-chips { justify-content: center; flex-wrap: wrap; }
+.smoke-hint { text-align: center; }
+
+@media (prefers-reduced-motion: reduce) {
+  .smoke-trail span, .smoke-cloud .puff, .smoke-car, .dock-mic .ring { animation: none; }
+}
+
+/* 연기 대화 중에도 하단 마이크를 누를 수 있게 탭바를 위로 */
+.tabbar { z-index: 30; }

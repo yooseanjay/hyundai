@@ -3,6 +3,8 @@
 // 음성 인식이 안 되는 브라우저(예: Firefox)나 조용한 곳에서는 글자로 물어볼 수 있다.
 import { Download, ExternalLink, Keyboard, KeyRound, Mic, Play, Square, Volume2, VolumeX } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
+import { CarCharacter } from './CarCharacter';
 import type { Mood } from '../game/character';
 import { cleanForSpeech, cuteSpeech, pcmStreamPlayer, pickKoVoice, playAudioFile, playPcm, sfx, speakWithServer, stopServerVoice, unlockAudio, voiceFor } from '../game/cuteVoice';
 import { CREDIT, MODEL_MB, VOICES, type VoiceId } from '../voice/voiceList';
@@ -26,7 +28,15 @@ const AI_SPEED: Record<Mood, number> = { excited: 1.15, happy: 1.08, calm: 1.03,
 
 const SUGGESTIONS = ['기분 어때?', '얼마나 갈 수 있어?', '어디 아파?', '어디 주차했어?', '오늘 얼마나 달렸어?', '레벨 몇이야?'];
 
-export function VoiceBot({ ctx, onLine }: { ctx: BotContext; onLine: (line: string | null, mood?: Mood, speaking?: boolean) => void }) {
+export function VoiceBot({ ctx, onLine, variant = 'screen', mood: faceMood }: {
+  ctx: BotContext;
+  onLine: (line: string | null, mood?: Mood, speaking?: boolean) => void;
+  /** screen: 대화 화면(기록·설정) / dock: 하단 마이크 + 파란 연기 말풍선 */
+  variant?: 'screen' | 'dock';
+  mood?: Mood;
+}) {
+  const dock = variant === 'dock';
+  const [open, setOpen] = useState(false); // dock: 연기 말풍선 열림
   const [phase, setPhase] = useState<Phase>('idle');
   const [heard, setHeard] = useState('');
   const [typing, setTyping] = useState(!canMic);
@@ -40,6 +50,7 @@ export function VoiceBot({ ctx, onLine }: { ctx: BotContext; onLine: (line: stri
   useEffect(() => { listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: 'smooth' }); }, [msgs]);
   const recRef = useRef<any>(null);
   const resetTimer = useRef<number>();
+  const closeTimer = useRef<number>();
   const ctxRef = useRef(ctx);
   ctxRef.current = ctx;
 
@@ -145,6 +156,7 @@ export function VoiceBot({ ctx, onLine }: { ctx: BotContext; onLine: (line: stri
 
   const finish = () => {
     setPhase('idle');
+    if (dock) { window.clearTimeout(closeTimer.current); closeTimer.current = window.setTimeout(() => { if (!live.current?.micOn) setOpen(false); }, 7000); }
     window.clearTimeout(resetTimer.current);
     resetTimer.current = window.setTimeout(() => onLine(null), 6000); // 잠시 뒤 평소 대사로
   };
@@ -324,7 +336,7 @@ export function VoiceBot({ ctx, onLine }: { ctx: BotContext; onLine: (line: stri
     liveFails.current = 0;
     live.current?.close();
     live.current = null;
-    const id = window.setTimeout(() => { void ensureLive(); }, 300);
+    const id = window.setTimeout(() => { if (!dock) void ensureLive(); }, 300);
     return () => window.clearTimeout(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [prefs.gVoice]);
@@ -334,6 +346,7 @@ export function VoiceBot({ ctx, onLine }: { ctx: BotContext; onLine: (line: stri
   const answer = (q: string) => {
     const question = q.trim();
     if (!question) return;
+    if (dock) setOpen(true);
     if (!muted) unlockAudio();
     window.clearTimeout(resetTimer.current);
     setPhase('thinking');
@@ -358,6 +371,7 @@ export function VoiceBot({ ctx, onLine }: { ctx: BotContext; onLine: (line: stri
   /** 마이크: Live면 계속 듣는 대화(말을 멈추면 대답, 다시 누르면 끝) → 안 되면 브라우저 음성 인식 */
   const listen = async () => {
     if (!muted) unlockAudio();
+    if (dock && !live.current?.micOn) setOpen(true);
     if (live.current?.micOn) {
       live.current.stopMic();
       setLiveMic(false);
@@ -399,6 +413,61 @@ export function VoiceBot({ ctx, onLine }: { ctx: BotContext; onLine: (line: stri
     : phase === 'speaking' ? ['말하는 중', '']
     : canMic ? ['눌러서 말 걸기', liveState === 'ready' ? '실시간 대화 준비 완료' : '버튼을 누르고 말해 보세요']
     : ['글자로 물어보기', typeof window !== 'undefined' && !window.isSecureContext ? '이 주소(http)에선 마이크가 막혀 있어요' : '이 브라우저는 음성 인식을 지원하지 않아요'];
+
+  // ================= 하단 도크: 마이크 + 자동차가 파란 연기로 대답 =================
+  if (dock) {
+    const lastBot = [...msgs].reverse().find((m) => m.who === 'bot')?.text;
+    const lastMe = [...msgs].reverse().find((m) => m.who === 'me')?.text;
+    const active = phase === 'listening' || liveMic;
+    const cloud =
+      phase === 'thinking' ? '음… 생각 중이에요' :
+      active && !heard ? '듣고 있어요. 편하게 말해 주세요!' :
+      lastBot ?? `안녕하세요! 저 ${name}예요. 무엇이든 말해 주세요.`;
+    const stop = () => {
+      if (live.current?.micOn) { live.current.stopMic(); setLiveMic(false); }
+      if (phase === 'listening') recRef.current?.stop();
+      stopServerVoice();
+      if (canSpeak) speechSynthesis.cancel();
+      setPhase('idle');
+      setOpen(false);
+      onLine(null);
+    };
+    return (
+      <>
+        {open && createPortal(
+          <div className={`smoke-layer phase-${phase}`} onClick={stop} role="dialog" aria-label={`${name}와 대화`}>
+            <div className="smoke-stage" onClick={(e) => e.stopPropagation()}>
+              <div className="smoke-cloud" key={cloud} aria-live="polite">
+                <span className="puff p1" /><span className="puff p2" /><span className="puff p3" />
+                <p>{cloud}</p>
+              </div>
+              <div className="smoke-trail" aria-hidden>
+                {Array.from({ length: 14 }, (_, i) => <span key={i} style={{ ['--i' as string]: i }} />)}
+              </div>
+              <div className="smoke-car"><CarCharacter mood={faceMood ?? 'happy'} cosmetic={ctx.progress.equipped} color={ctx.car.bodyColor} size={190} /></div>
+              {(heard || lastMe) && <p className="smoke-you">“{heard || lastMe}”</p>}
+              {!active && phase === 'idle' && (
+                <div className="chip-row smoke-chips">
+                  {SUGGESTIONS.slice(0, 4).map((q) => <button key={q} className="chip sm" onClick={() => answer(q)}>{q}</button>)}
+                </div>
+              )}
+              <p className="cap smoke-hint">{active ? '말을 멈추면 대답해요 · 마이크를 다시 누르면 끝' : '바깥을 누르면 닫혀요'}</p>
+            </div>
+          </div>,
+          document.body,
+        )}
+        <button
+          className={`dock-mic ${active ? 'on' : ''} ${phase === 'speaking' ? 'speaking' : ''}`}
+          onClick={() => void listen()}
+          disabled={busy && !liveMic}
+          aria-label={active ? '듣기 멈추기' : `${name}에게 말 걸기`}
+        >
+          <span className="ring r1" aria-hidden /><span className="ring r2" aria-hidden />
+          {active ? <Square size={18} fill="currentColor" /> : <Mic size={24} />}
+        </button>
+      </>
+    );
+  }
 
   return (
     <div className={`talk phase-${phase}`}>

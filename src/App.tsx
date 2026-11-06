@@ -539,7 +539,12 @@ export default function App() {
       )}
 
       {/* ---------- 하단 탭바 ---------- */}
-      <nav className="tabbar">
+      <nav className={`tabbar ${view === 'talk' ? '' : 'with-mic'}`}>
+        {/* 음성 우선: 어느 화면에서든 바로 말 걸기 (대화 화면에서는 그 화면의 마이크 사용) */}
+        {view !== 'talk' && (
+          <VoiceBot variant="dock" mood={bot?.mood ?? st.mood} ctx={{ car, snap, status: st, trips, progress }}
+            onLine={(line, mood, speaking) => setBot(line ? { line, mood, speaking } : null)} />
+        )}
         {TABS.map(([id, Icon, label]) => (
           <button key={id} className={tab === id ? 'on' : ''} onClick={() => setView(id)} disabled={driving && id !== 'drive'} aria-label={label}>
             <Icon size={22} strokeWidth={tab === id ? 2 : 1.6} />
