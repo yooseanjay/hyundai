@@ -19,6 +19,8 @@ export interface CarRig {
   setColor(c?: BodyColor): void;
   setStyle(s: CharStyle): void;
   setCosmetic(c: CosmeticId, base: string): void;
+  /** 실제 차 3D 모델(GLB)로 차체를 바꿈. 얼굴 화면·액세서리는 그대로 */
+  useModel(root: THREE.Object3D, rotY?: number): void;
   dispose(): void;
 }
 
@@ -138,10 +140,10 @@ export function buildCar(shapeId?: string): CarRig {
   faceTex.anisotropy = 4;
   const faceY = bottom + (noseTop - bottom) * 0.45;
   const faceW = Math.min(0.8, W * 0.8); // 귀엽게 큰 얼굴 화면
-  add(box(0.05, faceW * 0.42, faceW * 1.1, black), F + 0.01, faceY, 0);
+  add(box(0.05, faceW * 0.42, faceW * 1.1, black), F + 0.01, faceY, 0).userData.keep = true;
   const screen = new THREE.Mesh(keep(new THREE.PlaneGeometry(faceW, faceW * 0.39)), keep(new THREE.MeshBasicMaterial({ map: faceTex, toneMapped: false })));
   screen.rotation.y = Math.PI / 2;
-  add(screen, F + 0.04, faceY, 0);
+  add(screen, F + 0.04, faceY, 0).userData.keep = true;
 
   // ---- 바퀴 (터빈 모양 휠) ----
   const wheels: THREE.Object3D[] = [];
@@ -195,6 +197,13 @@ export function buildCar(shapeId?: string): CarRig {
     faceTex.needsUpdate = true;
   };
   const roofCX = (roofFX + roofBX) / 2;
+  // 실제 3D 모델: 사진 질감(은색)에 고른 색을 곱해서 칠함
+  let current: BodyColor | undefined;
+  const modelMats: THREE.MeshStandardMaterial[] = [];
+  const tintModel = () => {
+    const hex = !current || current === 'silver' ? '#ffffff' : paintOf(current);
+    modelMats.forEach((m) => m.color.set(hex));
+  };
   const topY = S.cargo && !S.cargo.open ? Math.max(roofY, S.cargo.top) : roofY;
 
   return {
@@ -203,7 +212,11 @@ export function buildCar(shapeId?: string): CarRig {
     wheelR: wr,
     setMood(m, c) { mood = m; cosmetic = c; redraw(); },
     setBlink(closed) { redraw(closed); },
-    setColor(c) { paint.color.set(paintOf(c)); },
+    setColor(c) {
+      current = c;
+      paint.color.set(paintOf(c));
+      tintModel();
+    },
     setStyle(s) { style = s; redraw(); },
     setCosmetic(c, base) {
       clearAcc();
@@ -229,6 +242,43 @@ export function buildCar(shapeId?: string): CarRig {
         group.add(acc);
       };
       img.src = `${base}character/${f[0]}`;
+    },
+    useModel(root, rotY = 0) {
+      // 크기·방향을 코드 차와 맞춤 (앞 +x, 바닥 y=0)
+      const holder = new THREE.Group();
+      holder.add(root);
+      root.rotation.y = rotY;
+      root.updateMatrixWorld(true);
+      let box3 = new THREE.Box3().setFromObject(root);
+      const size = box3.getSize(new THREE.Vector3());
+      const k = (2 * F) / size.x;
+      root.scale.multiplyScalar(k);
+      root.updateMatrixWorld(true);
+      box3 = new THREE.Box3().setFromObject(root);
+      const c = box3.getCenter(new THREE.Vector3());
+      root.position.set(root.position.x - c.x, root.position.y - box3.min.y, root.position.z - c.z);
+      root.traverse((o) => {
+        const m = o as THREE.Mesh;
+        if (!m.isMesh) return;
+        m.castShadow = true;
+        m.receiveShadow = true;
+        const mats = Array.isArray(m.material) ? m.material : [m.material];
+        mats.forEach((mt) => {
+          const sm = mt as THREE.MeshStandardMaterial;
+          if (!sm.isMeshStandardMaterial) return;
+          sm.metalness = 0.35;
+          sm.roughness = Math.min(sm.roughness, 0.45);
+          sm.envMapIntensity = 1.3;
+          modelMats.push(sm);
+          disposables.push(sm);
+          if (sm.map) disposables.push(sm.map);
+        });
+        disposables.push(m.geometry);
+      });
+      // 코드로 만든 차체는 숨기고 얼굴 화면만 남김
+      group.children.forEach((o) => { if (!o.userData.keep && o !== acc) o.visible = false; });
+      group.add(holder);
+      tintModel();
     },
     dispose() {
       clearAcc();

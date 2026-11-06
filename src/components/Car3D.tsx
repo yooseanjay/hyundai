@@ -305,4 +305,37 @@ function mountCar(scene: THREE.Scene, rig: { current: CarRig | null }, shape: st
   car.setCosmetic(l.cosmetic, import.meta.env.BASE_URL);
   scene.add(car.group);
   rig.current = car;
+  // 실제 차 3D 모델이 있으면 불러와서 차체를 바꿈 (그동안은 코드로 만든 차)
+  const sh = shapeOf(shape);
+  if (sh.glb) {
+    loadGlb(import.meta.env.BASE_URL + sh.glb)
+      .then((root) => {
+        if (rig.current !== car) return;
+        car.useModel(root, sh.glbRotY);
+        car.group.scale.multiplyScalar(0.86); // 실제 모델은 조금 더 통통해서 화면에 맞게
+      })
+      .catch(() => { /* 코드 차 그대로 */ });
+  }
+}
+
+const glbCache = new Map<string, Promise<THREE.Object3D>>();
+function loadGlb(url: string) {
+  if (!glbCache.has(url)) {
+    glbCache.set(url, (async () => {
+      const [{ GLTFLoader }, { MeshoptDecoder }] = await Promise.all([
+        import('three/examples/jsm/loaders/GLTFLoader.js'),
+        import('three/examples/jsm/libs/meshopt_decoder.module.js'),
+      ]);
+      const loader = new GLTFLoader();
+      loader.setMeshoptDecoder(MeshoptDecoder);
+      const g = await loader.loadAsync(url);
+      return g.scene;
+    })());
+  }
+  // 차를 바꿀 때마다 새로 쓰도록 복제 (재질도 따로)
+  return glbCache.get(url)!.then((s) => {
+    const c = s.clone(true);
+    c.traverse((o) => { const m = o as THREE.Mesh; if (m.isMesh) m.material = Array.isArray(m.material) ? m.material.map((x) => x.clone()) : m.material.clone(); });
+    return c;
+  });
 }

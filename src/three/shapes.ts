@@ -16,9 +16,12 @@ export interface CarShape {
   lamp: 'pixel' | 'bar' | 'round';
   /** N: 스포일러 + 빨간 포인트 */
   sport?: boolean;
+  /** 실제 3D 모델 파일 (public/models) · 앞이 +x가 되도록 돌릴 각도 */
+  glb?: string;
+  glbRotY?: number;
 }
 
-const ioniq5: CarShape = { L: 2.3, W: 0.93, wr: 0.38, wb: 1.45, bottom: 0.32, noseTop: 0.94, cowl: [1.05, 1.04], beltRear: 1.06, tailTop: 1.0, roofY: 1.5, roofFX: 0.12, roofBX: -1.62, deckX: -2.12, lamp: 'pixel' };
+const ioniq5: CarShape = { L: 2.3, W: 0.93, wr: 0.38, wb: 1.45, bottom: 0.32, noseTop: 0.94, cowl: [1.05, 1.04], beltRear: 1.06, tailTop: 1.0, roofY: 1.5, roofFX: 0.12, roofBX: -1.62, deckX: -2.12, lamp: 'pixel', glb: 'models/ioniq5.glb', glbRotY: Math.PI / 2 };
 const avante: CarShape = { L: 2.33, W: 0.9, wr: 0.34, wb: 1.36, bottom: 0.3, noseTop: 0.76, cowl: [0.92, 0.92], beltRear: 0.98, tailTop: 0.98, roofY: 1.4, roofFX: -0.05, roofBX: -0.85, deckX: -1.68, lamp: 'bar' };
 const ioniq6: CarShape = { L: 2.43, W: 0.94, wr: 0.36, wb: 1.5, bottom: 0.3, noseTop: 0.7, cowl: [1.02, 0.9], beltRear: 0.98, tailTop: 0.94, roofY: 1.47, roofFX: 0.05, roofBX: -0.5, deckX: -2.08, lamp: 'pixel' };
 
