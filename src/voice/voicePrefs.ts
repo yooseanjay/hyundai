@@ -11,9 +11,10 @@ const KEY = 'oca.voice.v1';
 export function loadVoicePrefs(): VoicePrefs {
   try {
     const v = JSON.parse(localStorage.getItem(KEY) ?? '');
-    if (v && ['ai', 'browser', 'gemini'].includes(v.engine)) return { gVoice: 'Leda', ...v };
+    // 목소리는 Gemini만 사용 (예전 '기본'·'오프라인 AI' 설정은 Gemini로 자동 전환)
+    if (v && typeof v === 'object') return { ...v, engine: 'gemini', gVoice: v.gVoice ?? 'Leda' };
   } catch { /* 기본값 */ }
-  return { engine: 'browser', voice: 'F1', gVoice: 'Leda' };
+  return { engine: 'gemini', voice: 'F1', gVoice: 'Leda' };
 }
 export function saveVoicePrefs(p: VoicePrefs) {
   try { localStorage.setItem(KEY, JSON.stringify(p)); } catch { /* 무시 */ }

@@ -303,48 +303,26 @@ export function VoiceBot({ ctx, onLine }: { ctx: BotContext; onLine: (line: stri
           <button className="btn text" onClick={clearKey}>이 기기에서 키 지우기</button>
         ) : null}
 
-        <div className="card-head"><b className="label">목소리</b><span className="cap">{prefs.engine === 'gemini' ? '사람 같은 목소리 (Gemini)' : prefs.engine === 'ai' ? '오프라인 음성 AI' : '휴대폰 기본 목소리'}</span></div>
-        <div className="chip-row">
-          <button className={`chip ${prefs.engine === 'browser' ? 'on' : ''}`} onClick={() => setPrefs({ ...prefs, engine: 'browser' })}>기본</button>
-          <button className={`chip ${prefs.engine === 'gemini' ? 'on' : ''}`} onClick={() => setPrefs({ ...prefs, engine: 'gemini' })} disabled={!gem || gem === 'checking'}>사람 같은 목소리</button>
-          <button className={`chip ${prefs.engine === 'ai' ? 'on' : ''}`} onClick={() => setPrefs({ ...prefs, engine: 'ai' })}>오프라인 AI</button>
-        </div>
-        {prefs.engine === 'gemini' && (
-          <>
-            <div className="chip-row">
-              {GEMINI_VOICES.female.map((v) => <button key={v.id} className={`chip sm ${prefs.gVoice === v.id ? 'on' : ''}`} onClick={() => setPrefs({ ...prefs, gVoice: v.id })}>여 · {v.label}</button>)}
-            </div>
-            <div className="chip-row">
-              {GEMINI_VOICES.male.map((v) => <button key={v.id} className={`chip sm ${prefs.gVoice === v.id ? 'on' : ''}`} onClick={() => setPrefs({ ...prefs, gVoice: v.id })}>남 · {v.label}</button>)}
-            </div>
-            <button className="btn outline sm block" onClick={() => answer('안녕! 너 목소리 들려줘')} disabled={busy || phase === 'listening'}><Play size={14} /> 이 목소리로 인사 듣기</button>
-            <p className="cap credit">Google Gemini TTS · 30가지 목소리 중 자연스러운 8가지</p>
-          </>
-        )}
-        {prefs.engine === 'ai' && (
-          <>
-            <div className="chip-row">
-              {VOICES.map((v) => (
-                <button key={v.id} className={`chip sm ${prefs.voice === v.id ? 'on' : ''}`} onClick={() => setPrefs({ ...prefs, voice: v.id })}>{v.label}</button>
-              ))}
-            </div>
-            {ai.state === 'ready' ? (
-              <button className="btn outline sm block" onClick={() => preview(prefs.voice)} disabled={busy || phase === 'listening'}><Play size={14} /> {VOICES.find((v) => v.id === prefs.voice)?.label} 미리 듣기</button>
-            ) : ai.state === 'loading' ? (
-              <div className="dl">
-                <div className="card-head"><span className="cap">{ai.msg}</span><span className="cap">{ai.pct}%</span></div>
-                <div className="bar"><div style={{ width: `${ai.pct}%` }} /></div>
+        <div className="card-head"><b className="label">목소리</b><span className="cap">Gemini · {GEMINI_VOICES.male.some((v) => v.id === prefs.gVoice) ? '남자' : '여자'} 목소리</span></div>
+        {(() => {
+          const male = GEMINI_VOICES.male.some((v) => v.id === prefs.gVoice);
+          const list = male ? GEMINI_VOICES.male : GEMINI_VOICES.female;
+          return (
+            <>
+              <div className="chip-row">
+                <button className={`chip ${!male ? 'on' : ''}`} onClick={() => setPrefs({ ...prefs, engine: 'gemini', gVoice: GEMINI_VOICES.female[0].id })}>여자 목소리</button>
+                <button className={`chip ${male ? 'on' : ''}`} onClick={() => setPrefs({ ...prefs, engine: 'gemini', gVoice: GEMINI_VOICES.male[0].id })}>남자 목소리</button>
               </div>
-            ) : (
-              <>
-                <p className="cap">사람처럼 자연스러운 오픈소스 음성 AI예요. 이 휴대폰 안에서 목소리를 만들어서 요금이 없어요. 처음 한 번 약 {MODEL_MB}MB를 내려받아요 (Wi-Fi 권장).</p>
-                {ai.state === 'error' && <p className="cap gps-err">{ai.msg} — 다시 시도해 주세요.</p>}
-                <button className="btn primary sm block" onClick={loadAi}><Download size={14} /> 음성 AI 내려받기</button>
-              </>
-            )}
-            <p className="cap credit">{CREDIT}{ai.state === 'ready' && ai.msg ? ` · ${ai.msg}` : ''}</p>
-          </>
-        )}
+              <div className="chip-row">
+                {list.map((v) => (
+                  <button key={v.id} className={`chip sm ${prefs.gVoice === v.id ? 'on' : ''}`} onClick={() => setPrefs({ ...prefs, engine: 'gemini', gVoice: v.id })}>{v.label}</button>
+                ))}
+              </div>
+              <button className="btn outline sm block" onClick={() => answer('안녕! 너 목소리 들려줘')} disabled={busy || phase === 'listening' || !gem || gem === 'checking'}><Play size={14} /> 이 목소리로 인사 듣기</button>
+              <p className="cap credit">Google Gemini 목소리{gem === null ? ' · 지금은 연결이 안 돼서 휴대폰 목소리로 대신 말해요' : ''}</p>
+            </>
+          );
+        })()}
       </div>
     </div>
   );
