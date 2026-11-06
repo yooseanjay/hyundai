@@ -11,12 +11,15 @@ const engine = () => import('../voice/supertonic');
 import { loadVoicePrefs, saveVoicePrefs, type VoicePrefs } from '../voice/voicePrefs';
 import { buildContext, reply, type BotContext } from '../game/voiceBot';
 import { chatReply, GEMINI_VOICES, geminiSource, geminiSpeech, geminiSpeechStream, setUserKey, type Turn } from '../voice/gemini';
+import { LiveSession } from '../voice/live';
 
 type Phase = 'idle' | 'listening' | 'thinking' | 'speaking';
 
 // 음성 인식(마이크)은 https 또는 localhost에서만 동작 → 휴대폰에서 http로 열면 글자 입력으로 대체
 const SR: any = typeof window !== 'undefined' && window.isSecureContext ? (window as any).SpeechRecognition ?? (window as any).webkitSpeechRecognition : undefined;
 const canSpeak = typeof window !== 'undefined' && 'speechSynthesis' in window;
+// Live는 마이크 소리를 직접 보내므로 음성 인식이 없는 브라우저(아이폰 등)도 마이크 사용 가능
+const canMic = !!SR || (typeof window !== 'undefined' && window.isSecureContext && !!navigator.mediaDevices?.getUserMedia);
 
 /** 기분별 말하기 속도 (음성 AI) */
 const AI_SPEED: Record<Mood, number> = { excited: 1.15, happy: 1.08, calm: 1.03, hungry: 0.95, sick: 0.93, tired: 0.9, sleepy: 0.88 };
@@ -26,10 +29,13 @@ const SUGGESTIONS = ['기분 어때?', '얼마나 갈 수 있어?', '어디 아�
 export function VoiceBot({ ctx, onLine }: { ctx: BotContext; onLine: (line: string | null, mood?: Mood, speaking?: boolean) => void }) {
   const [phase, setPhase] = useState<Phase>('idle');
   const [heard, setHeard] = useState('');
-  const [typing, setTyping] = useState(!SR);
+  const [typing, setTyping] = useState(!canMic);
   const [text, setText] = useState('');
   const [muted, setMuted] = useState(false);
-  const [msgs, setMsgs] = useState<{ who: 'me' | 'bot'; text: string }[]>([]);
+  const [msgs, setMsgs] = useState<{ id: number; who: 'me' | 'bot'; text: string }[]>([]);
+  const msgId = useRef(1);
+  const upsert = (id: number, who: 'me' | 'bot', text: string) =>
+    setMsgs((m) => (m.some((x) => x.id === id) ? m.map((x) => (x.id === id ? { ...x, text } : x)) : [...m, { id, who, text }].slice(-12)));
   const listRef = useRef<HTMLDivElement>(null);
   useEffect(() => { listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: 'smooth' }); }, [msgs]);
   const recRef = useRef<any>(null);
@@ -143,12 +149,13 @@ export function VoiceBot({ ctx, onLine }: { ctx: BotContext; onLine: (line: stri
     resetTimer.current = window.setTimeout(() => onLine(null), 6000); // 잠시 뒤 평소 대사로
   };
 
-  const answer = (q: string) => {
+  /** 기존 방식: 대답(Gemini 글자) → 목소리(Gemini TTS, 하루 10번) → 휴대폰 목소리 */
+  const answerClassic = (q: string) => {
     const question = q.trim();
     if (!question) return setPhase('idle');
     if (!muted) unlockAudio();
     setHeard(question);
-    setMsgs((m) => [...m, { who: 'me' as const, text: question }].slice(-12));
+    upsert(msgId.current++, 'me', question);
     setPhase('thinking');
     window.clearTimeout(resetTimer.current);
     const rule = reply(question, ctxRef.current);
@@ -182,7 +189,7 @@ export function VoiceBot({ ctx, onLine }: { ctx: BotContext; onLine: (line: stri
       }
       history.current = [...history.current, { role: 'user' as const, text: question }, { role: 'model' as const, text }].slice(-10);
       const shown = text.replace(/\s*[\p{Extended_Pictographic}\u200d\ufe0f]+/gu, '');
-      setMsgs((m) => [...m, { who: 'bot' as const, text: shown }].slice(-12));
+      upsert(msgId.current++, 'bot', shown);
       onLine(text, mood, true);
       const done = () => { onLine(text, mood, false); finish(); };
       if (!canSpeak || muted) {
@@ -201,7 +208,8 @@ export function VoiceBot({ ctx, onLine }: { ctx: BotContext; onLine: (line: stri
 
   };
 
-  const listen = () => {
+  /** 기존 방식 마이크: 브라우저 음성 인식 */
+  const listenClassic = () => {
     if (phase === 'listening') return recRef.current?.stop();
     if (!muted) unlockAudio();
     stopServerVoice();
@@ -224,17 +232,172 @@ export function VoiceBot({ ctx, onLine }: { ctx: BotContext; onLine: (line: stri
       onLine(msg, 'calm');
       finish();
     };
-    rec.onend = () => { if (final) answer(final); else setPhase((p) => (p === 'listening' ? 'idle' : p)); };
+    rec.onend = () => { if (final) answerClassic(final); else setPhase((p) => (p === 'listening' ? 'idle' : p)); };
     rec.start();
+  };
+
+  // ================= Gemini Live: 대답 + 목소리를 한 번에 (하루 횟수 제한 없음) =================
+  const live = useRef<LiveSession | null>(null);
+  const connecting = useRef<Promise<LiveSession | null> | null>(null);
+  const liveFails = useRef(0);
+  const [liveState, setLiveState] = useState<'off' | 'connecting' | 'ready' | 'failed'>('off');
+  const [liveMic, setLiveMic] = useState(false);
+  const mutedRef = useRef(muted);
+  mutedRef.current = muted;
+  const fresh = () => ({ q: '', user: '', bot: '', userId: 0, botId: 0, player: null as ReturnType<typeof pcmStreamPlayer> | null });
+  const turn = useRef(fresh());
+  const clean = (t: string) => t.replace(/\s*[\p{Extended_Pictographic}\u200d\ufe0f]+/gu, '').replace(/\s+/g, ' ').trim();
+  const moodOf = (): Mood => reply(turn.current.user || turn.current.q || '안녕', ctxRef.current).mood ?? 'calm';
+
+  const handlers = {
+    onAudio(pcm: Uint8Array) {
+      if (mutedRef.current) return;
+      const t = turn.current;
+      if (!t.player) t.player = pcmStreamPlayer(24000, () => setPhase('speaking'));
+      t.player.push(pcm);
+    },
+    onBotText(d: string) {
+      const t = turn.current;
+      if (!t.botId) t.botId = msgId.current++;
+      t.bot += d;
+      upsert(t.botId, 'bot', clean(t.bot));
+      onLine(clean(t.bot), moodOf(), true);
+    },
+    onUserText(d: string) {
+      const t = turn.current;
+      if (!t.userId) t.userId = msgId.current++;
+      t.user += d;
+      upsert(t.userId, 'me', t.user.trim());
+      setHeard(t.user.trim());
+    },
+    async onTurnComplete() {
+      const t = turn.current;
+      turn.current = fresh();
+      const text = clean(t.bot);
+      const mood = reply(t.user || t.q || '안녕', ctxRef.current).mood ?? 'calm';
+      if (t.player) await t.player.finish();
+      if (text) onLine(text, mood, false);
+      if (live.current?.micOn) setPhase('listening');
+      else finish();
+    },
+    onInterrupted() {
+      stopServerVoice(); // 말 끊으면 바로 멈춤
+      turn.current.player = null;
+    },
+    onClose() {
+      live.current = null;
+      setLiveState('off');
+      setLiveMic(false);
+      setPhase((p) => (p === 'idle' ? p : 'idle'));
+    },
+  };
+
+  /** Live 연결 (이미 있으면 재사용). 두 번 연속 실패하면 기존 방식으로 */
+  const ensureLive = async (): Promise<LiveSession | null> => {
+    if (prefsRef.current.engine !== 'gemini') return null;
+    if (live.current?.ready) return live.current;
+    if (connecting.current) return connecting.current;
+    if (liveFails.current >= 2) return null;
+    setLiveState('connecting');
+    connecting.current = (async () => {
+      const ss = new LiveSession(handlers);
+      try {
+        await ss.connect(buildContext(ctxRef.current), prefsRef.current.gVoice ?? 'Leda');
+        live.current = ss;
+        liveFails.current = 0;
+        setLiveState('ready');
+        return ss;
+      } catch {
+        ss.close();
+        liveFails.current += 1;
+        setLiveState('failed');
+        return null;
+      } finally {
+        connecting.current = null;
+      }
+    })();
+    return connecting.current;
+  };
+
+  // 화면을 열면 미리 연결 → 첫 대답이 빨라짐. 목소리를 바꾸면 새 목소리로 다시 연결
+  useEffect(() => {
+    liveFails.current = 0;
+    live.current?.close();
+    live.current = null;
+    const id = window.setTimeout(() => { void ensureLive(); }, 300);
+    return () => window.clearTimeout(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [prefs.gVoice]);
+  useEffect(() => () => { live.current?.close(); live.current = null; }, []);
+
+  /** 말 걸기 (글자 · 추천 질문): Live 우선 → 안 되면 기존 방식 */
+  const answer = (q: string) => {
+    const question = q.trim();
+    if (!question) return;
+    if (!muted) unlockAudio();
+    window.clearTimeout(resetTimer.current);
+    setPhase('thinking');
+    void (async () => {
+      const ss = await ensureLive();
+      if (ss) {
+        try {
+          stopServerVoice();
+          if (canSpeak) speechSynthesis.cancel();
+          turn.current = { ...fresh(), q: question };
+          ss.sendText(question);
+          setHeard(question);
+          upsert(msgId.current++, 'me', question);
+          if (!muted) sfx.reply(reply(question, ctxRef.current).mood ?? 'calm');
+          return;
+        } catch { /* 기존 방식으로 */ }
+      }
+      answerClassic(question);
+    })();
+  };
+
+  /** 마이크: Live면 계속 듣는 대화(말을 멈추면 대답, 다시 누르면 끝) → 안 되면 브라우저 음성 인식 */
+  const listen = async () => {
+    if (!muted) unlockAudio();
+    if (live.current?.micOn) {
+      live.current.stopMic();
+      setLiveMic(false);
+      setPhase('idle');
+      onLine(null);
+      return;
+    }
+    if (phase === 'listening') return recRef.current?.stop();
+    if (typeof navigator.mediaDevices?.getUserMedia === 'function' && prefsRef.current.engine === 'gemini') {
+      setPhase('thinking');
+      const ss = await ensureLive();
+      if (ss) {
+        try {
+          stopServerVoice();
+          await ss.startMic();
+          setLiveMic(true);
+          if (!muted) sfx.listen();
+          setHeard('');
+          setPhase('listening');
+          onLine('듣고 있어요… 👂', 'calm');
+          return;
+        } catch {
+          setPhase('idle');
+          onLine('마이크 권한이 필요해요. 주소창 옆 자물쇠에서 허용해 주세요!', 'calm');
+          finish();
+          return;
+        }
+      }
+      setPhase('idle');
+    }
+    if (SR) listenClassic();
   };
 
   const busy = phase === 'thinking' || phase === 'speaking';
   const name = ctx.car.nickname;
   const status =
-    phase === 'listening' ? ['듣고 있어요', heard || '편하게 말해 주세요']
+    phase === 'listening' ? ['듣고 있어요', liveMic ? (heard || '말을 멈추면 대답해요 · 다시 누르면 끝') : (heard || '편하게 말해 주세요')]
     : phase === 'thinking' ? ['생각 중이에요', heard ? `“${heard}”` : '']
     : phase === 'speaking' ? ['말하는 중', '']
-    : SR ? ['눌러서 말 걸기', '버튼을 누르고 말해 보세요']
+    : canMic ? ['눌러서 말 걸기', liveState === 'ready' ? '실시간 대화 준비 완료' : '버튼을 누르고 말해 보세요']
     : ['글자로 물어보기', typeof window !== 'undefined' && !window.isSecureContext ? '이 주소(http)에선 마이크가 막혀 있어요' : '이 브라우저는 음성 인식을 지원하지 않아요'];
 
   return (
@@ -270,15 +433,15 @@ export function VoiceBot({ ctx, onLine }: { ctx: BotContext; onLine: (line: stri
 
       <div className="mic-area">
         <button className="icon-btn" onClick={() => setMuted((m) => !m)} aria-label={muted ? '소리 켜기' : '소리 끄기'}>{muted ? <VolumeX size={18} /> : <Volume2 size={18} />}</button>
-        {SR ? (
-          <button className={`mic ${phase === 'listening' ? 'on' : ''}`} onClick={listen} disabled={busy} aria-label={phase === 'listening' ? '듣기 멈추기' : '말 걸기'}>
+        {canMic ? (
+          <button className={`mic ${phase === 'listening' || liveMic ? 'on' : ''}`} onClick={() => void listen()} disabled={busy && !liveMic} aria-label={phase === 'listening' || liveMic ? '듣기 멈추기' : '말 걸기'}>
             <span className="ring r1" aria-hidden /><span className="ring r2" aria-hidden />
-            {phase === 'listening' ? <Square size={22} fill="currentColor" /> : <Mic size={28} />}
+            {phase === 'listening' || liveMic ? <Square size={22} fill="currentColor" /> : <Mic size={28} />}
           </button>
         ) : (
           <span className="mic disabled" aria-hidden><Mic size={28} /></span>
         )}
-        {SR ? (
+        {canMic ? (
           <button className={`icon-btn ${typing ? 'on' : ''}`} onClick={() => setTyping((t) => !t)} aria-label="글자로 물어보기"><Keyboard size={18} /></button>
         ) : <span className="icon-btn ghost" aria-hidden />}
       </div>
@@ -288,7 +451,7 @@ export function VoiceBot({ ctx, onLine }: { ctx: BotContext; onLine: (line: stri
       </div>
 
       <div className="card voice-card">
-        <div className="card-head"><b className="label">대화 AI</b><span className="cap">{gem === 'server' ? 'Gemini 연결됨 (서버)' : gem === 'device' ? 'Gemini 연결됨 (이 기기 키)' : gem === 'checking' ? '확인 중…' : '기본 대답 모드'}</span></div>
+        <div className="card-head"><b className="label">대화 AI</b>{liveState !== 'off' && <span className={`cap live-tag ${liveState}`}>{liveState === 'ready' ? '● 실시간' : liveState === 'connecting' ? '연결 중…' : '실시간 연결 실패'}</span>}<span className="cap">{gem === 'server' ? 'Gemini 연결됨 (서버)' : gem === 'device' ? 'Gemini 연결됨 (이 기기 키)' : gem === 'checking' ? '확인 중…' : '기본 대답 모드'}</span></div>
         {gem === null ? (
           <>
             <p className="cap">무료 Gemini 키를 넣으면 무슨 말이든 알아듣고 짧게 대답해요. 사람 같은 목소리도 함께 쓸 수 있어요.</p>

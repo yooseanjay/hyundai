@@ -340,3 +340,8 @@ a { color: inherit; text-decoration: none; }
 .credit { font-size: 10.5px; color: var(--fg-3); }
 
 .key-link { display: inline-flex; align-items: center; gap: 4px; color: var(--fg); text-decoration: underline; text-underline-offset: 3px; }
+
+/* 실시간(Live) 연결 표시 */
+.live-tag { margin-left: 8px; font-size: 10.5px; }
+.live-tag.ready { color: var(--good); }
+.live-tag.failed { color: var(--warn); }
