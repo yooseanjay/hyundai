@@ -340,7 +340,7 @@ export default function App() {
               </div>
               <span className="ready"><i className="dot good pulse" />{driving ? '주행 중' : dataSource.kind === 'hyundai' ? '차량 연결됨' : '출발 준비 완료'}</span>
             </div>
-            <Show3D car={car} look={look} mood={bot?.mood ?? st.mood} cosmetic={progress.equipped} height={210} />
+            <Show3D car={car} look={look} mood={bot?.mood ?? st.mood} cosmetic={progress.equipped} height={goldH()} />
             <div className="hero-range">
               <div className="range-num"><b>{snap.dteKm}</b><span>km</span></div>
               <div className="range-meta">
@@ -430,7 +430,7 @@ export default function App() {
             <h1 className="h1">{car.nickname}와 대화</h1>
             <span className="cap conn"><i className="dot good" />{dataSource.kind === 'hyundai' ? '차량 연결됨' : '데모 차량 연결됨'}</span>
           </div>
-          <Show3D car={car} look={look} mood={bot?.mood ?? st.mood} cosmetic={progress.equipped} talking={!!bot?.speaking} height={190} />
+          <Show3D car={car} look={look} mood={bot?.mood ?? st.mood} cosmetic={progress.equipped} talking={!!bot?.speaking} height={goldH()} />
           <VoiceBot ctx={{ car, snap, status: st, trips, progress }} onLine={(line, mood, speaking) => setBot(line ? { line, mood, speaking } : null)} />
         </section>
       )}
@@ -445,7 +445,7 @@ export default function App() {
           <Suspense fallback={<div className="highway"><CarCharacter mood={st.mood} cosmetic={progress.equipped} color={carColor} size={232} /></div>}>
             <div className="drive3d">
               <Car3D mode="drive" mood={driving ? (live.braking ? 'sick' : 'excited') : st.mood} cosmetic={progress.equipped} color={carColor} shape={carShape} style={look}
-                speedKmh={driving ? live.speed : 0} braking={live.braking} height={230} />
+                speedKmh={driving ? live.speed : 0} braking={live.braking} height={goldH()} />
               {driving && (
                 <div className="hud">
                   <b>{Math.round(live.speed)}</b><span>km/h</span>
@@ -577,7 +577,7 @@ export default function App() {
           config={simulator?.config}
           onConfig={simulator ? (c) => { simulator?.setCar(c); refresh(); } : undefined}
           icons={COSMETIC_ICON} tab={studioTab} onTab={setStudioTab}
-          preview={<Show3D car={car} look={look} mood="happy" cosmetic={progress.equipped} height={250} />}
+          preview={<Show3D car={car} look={look} mood="happy" cosmetic={progress.equipped} height={goldH(true)} />}
           footer={
             <div className="row-center">
               {simulator && (
@@ -653,6 +653,13 @@ function Brand({ live }: { live?: boolean }) {
 }
 
 /** 3D 쇼룸 (불러오는 동안 사진 캐릭터) */
+/** 황금 직사각형 무대: 세로 = 가로 ÷ φ (bleed: 화면 끝까지 꽉 찬 무대) */
+const PHI = 1.618;
+function goldH(bleed = false) {
+  const w = Math.min(typeof window === 'undefined' ? 390 : window.innerWidth, 430);
+  return Math.round((w - (bleed ? 0 : 42)) / PHI);
+}
+
 function Show3D({ car, look, mood, cosmetic, talking, height = 200 }: { car: CarProfile; look: CharStyle; mood: Mood; cosmetic: CosmeticId; talking?: boolean; height?: number }) {
   const color = colorOf(look, car.bodyColor);
   return (
