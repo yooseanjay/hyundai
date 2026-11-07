@@ -140,7 +140,8 @@ export function buildCar(shapeId?: string): CarRig {
   faceTex.anisotropy = 4;
   const faceY = bottom + (noseTop - bottom) * 0.45;
   const faceW = Math.min(0.8, W * 0.8); // 귀엽게 큰 얼굴 화면
-  add(box(0.05, faceW * 0.42, faceW * 1.1, black), F + 0.01, faceY, 0).userData.keep = true;
+  const frontFrame = add(box(0.05, faceW * 0.42, faceW * 1.1, black), F + 0.01, faceY, 0);
+  frontFrame.userData.keep = true;
   const screen = new THREE.Mesh(keep(new THREE.PlaneGeometry(faceW, faceW * 0.39)), keep(new THREE.MeshBasicMaterial({ map: faceTex, toneMapped: false })));
   screen.rotation.y = Math.PI / 2;
   add(screen, F + 0.04, faceY, 0).userData.keep = true;
@@ -304,6 +305,14 @@ export function buildCar(shapeId?: string): CarRig {
       const rs = new THREE.Mesh(screen.geometry, screen.material);
       rs.scale.setScalar(0.85);
       at(rs, S.glbRearY ?? 0.31, 0, -1, 0.02);
+      // 앞 얼굴 화면도 모델 앞 범퍼 면에 붙임 (코드 차 코 위치에 두면 범퍼 앞으로 떠서 튀어나옴)
+      ray.set(new THREE.Vector3(20, faceY, 0), new THREE.Vector3(-1, 0, 0));
+      const fh = ray.intersectObject(root, true)[0];
+      if (fh) {
+        const dx = fh.point.x - F - 0.005;
+        frontFrame.position.x += dx;
+        screen.position.x += dx;
+      }
       // 코드로 만든 차체는 숨기고 얼굴 화면만 남김
       group.children.forEach((o) => { if (!o.userData.keep && o !== acc) o.visible = false; });
       group.add(holder);
