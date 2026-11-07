@@ -311,3 +311,19 @@ html, body, .app { background: var(--bg); color: var(--fg); }
 .brand-logo, .brand-bar .cap, .wordmark { white-space: nowrap; }
 .theme-toggle { width: 32px; height: 32px; padding: 0; justify-content: center; flex: none; }
 .theme-toggle span { display: none; }
+
+/* ---------- 홈: 주행 가능 거리 km 형광 ---------- */
+:root { --neon: #2DF5C4; --neon-ink: #00A37A; }
+.range-num b {
+  color: var(--neon-ink);
+  text-shadow: 0 0 1px rgba(0, 200, 150, .5), 0 0 10px rgba(45, 245, 196, .55), 0 0 26px rgba(45, 245, 196, .35);
+}
+.range-num span { color: var(--neon-ink); font-weight: 700; text-shadow: 0 0 8px rgba(45, 245, 196, .5); }
+.range-bar > div { background: linear-gradient(90deg, var(--blue), var(--neon)); box-shadow: 0 0 10px rgba(45, 245, 196, .6); }
+:root[data-theme="dark"] .range-num b, :root[data-theme="dark"] .range-num span { color: var(--neon); }
+:root[data-theme="dark"] .range-num b { text-shadow: 0 0 2px #fff, 0 0 12px rgba(45, 245, 196, .8), 0 0 32px rgba(45, 245, 196, .5), 0 0 60px rgba(45, 245, 196, .25); }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .range-num b, :root:not([data-theme="light"]) .range-num span { color: var(--neon); }
+  :root:not([data-theme="light"]) .range-num b { text-shadow: 0 0 2px #fff, 0 0 12px rgba(45, 245, 196, .8), 0 0 32px rgba(45, 245, 196, .5), 0 0 60px rgba(45, 245, 196, .25); }
+}
+.home-status .vs-title { display: inline-flex; align-items: center; gap: 6px; }

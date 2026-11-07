@@ -70,7 +70,6 @@ export default function App() {
   const [studioTab, setStudioTab] = useState<StudioTab>('model');
   const [bot, setBot] = useState<{ line: string; mood?: Mood; speaking?: boolean } | null>(null);
   const [partsTick, setPartsTick] = useState(0);
-  const [showStatus, setShowStatus] = useState(false);
   const [wx, setWx] = useState<{ text: string; temp: number; rain: number; tip: string } | null>(null);
   const [month, setMonth] = useState(() => { const d = new Date(); return { y: d.getFullYear(), m: d.getMonth() }; });
 
@@ -382,6 +381,15 @@ export default function App() {
           </div>
           {Level}
 
+          {/* 차량 상태: 홈에서 바로 보이게 (타이어 · 온도 · 경고등) */}
+          <div className="card home-status">
+            <div className="card-head">
+              <b className="label vs-title"><GaugeIcon size={18} strokeWidth={1.8} />차량 상태</b>
+              <span className="cap">마지막 수신 {hhmm(new Date(snap.updatedAt))}</span>
+            </div>
+            <VehicleStatus car={car} snap={snap} compact />
+          </div>
+
           {careCount > 0 && (
             <div className="list">
               <div className="list-title"><b className="label">돌봐주세요</b><span className="cap">{careCount}건 · 돌보면 경험치</span></div>
@@ -410,12 +418,6 @@ export default function App() {
           )}
 
           <div className="list">
-            <button className="list-row link" onClick={() => setShowStatus((v) => !v)} aria-expanded={showStatus}>
-              <GaugeIcon size={18} strokeWidth={1.6} />
-              <div className="grow"><b className="label">차량 상태</b><span className="cap">타이어 · 온도 · 경고등 · 마지막 수신 {hhmm(new Date(snap.updatedAt))}</span></div>
-              <ChevronRight size={16} className={`muted chev ${showStatus ? 'open' : ''}`} />
-            </button>
-            {showStatus && <div className="list-expand"><VehicleStatus car={car} snap={snap} compact /></div>}
             {snap.parking && (
               <a className="list-row link" href={`https://map.kakao.com/link/map/${encodeURIComponent(car.nickname)},${snap.parking.lat},${snap.parking.lng}`} target="_blank" rel="noreferrer">
                 <MapPin size={18} strokeWidth={1.6} />
