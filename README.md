@@ -1,58 +1,63 @@
 # 🚗 우리 차가 살아있다면
 
-> 내 차가 캐릭터가 되어, 실제 차량 데이터에 반응하고 일기를 쓰고 성장하는 서비스
+> 내 차가 말하는 캐릭터가 되어, 실제 차량 데이터에 반응하고 함께 달린 하루를 일기로 남기는 서비스
 > 현대자동차 Open API 공모전 출품작
 
-## 핵심 루프
+**체험하기 → https://yooseanjay.github.io/our-car-alive/** (데모 모드: 차량 데이터는 시뮬레이터, 대화 AI는 실제 동작)
+
+## 핵심 경험
 
 ```
-운전 ──▶ 캐릭터 상태 변화 ──▶ 하차 시 '오늘의 일기' ──▶ 관리(정비·충전) ──▶ 성장 · 외형 해금
-  ▲                                                                              │
-  └──────────────────────────────────────────────────────────────────────────────┘
+차 상태 확인 ──▶ 출발(주행 카드 · 실시간 차량 상태) ──▶ 하차 시 '오늘의 일기'
+      ▲                                                        │
+      └────────── 언제든 말 걸기: "충전소 찾아줘", "노래 틀어줘" ◀──┘
 ```
 
 | 차량 데이터 (Hyundai Open API) | 캐릭터 반응 |
 |---|---|
-| 주행 가능 거리 / 배터리 SoC | 🍙 에너지(배고픔) |
-| 경고 정보 (타이어 공기압, 엔진오일, 브레이크오일, 워셔액, 램프, 스마트키) | 💖 건강, 아픈 표정과 대사 |
-| 운행 정보 (거리, 시간, 평균 속도, 급제동) | 😪 피로도, 일기 내용, 경험치 |
-| 누적 주행거리 | 성장 단계, 해금 조건 |
-| 충전 상태 | ⚡ "냠냠" 충전 연출 |
-| 주차 위치 | 📍 일기 속 장소 |
+| 배터리 SoC · 주행 가능 거리 | 배가 고프면 시무룩한 표정, 충전하면 "냠냠" |
+| 경고 정보 (타이어 공기압, 엔진오일, 브레이크오일, 워셔액, 램프, 스마트키) | 아픈 표정과 대사, 화면에 바로 알림 |
+| 운행 기록 (거리, 시간, 평균 속도, 급제동) | 일기 내용, 주간 운전 리포트 |
+| 누적 주행거리 | 소모품 교체 시기 안내 |
+| 주차 위치 | 일기 속 장소, 마지막 주차 위치 |
 
-## 화면
+## 화면 (탭 3개)
 
-- **홈**: 캐릭터, 상태 게이지, 돌봐주세요(경고 → 정비 시 XP), 주차 위치
-- **운전**: 주행 시뮬레이터(API 승인 전 시연용) → 하차 시 일기 작성
-- **일기장**: 날짜별 캐릭터 일기
-- **꾸미기**: 레벨·누적 거리·정비 횟수·안전 운전으로 해금되는 외형
+- **홈**: 360° 돌려 보는 3D 내 차 + 앞면 스크린 얼굴, 차량 상태(배터리·주행 가능 거리·타이어 공기압·경고등·주차 위치), 바로 출발. 주행 중엔 도로 장면과 주행 카드
+- **꾸미기**: 얼굴 표정·얼굴 빛·이름, 차 색상(차종마다 현대차 공식 가격표의 실제 외장 색만)
+- **일기**: 하차할 때마다 쌓이는 캐릭터의 일기장
 
-## 디자인
+3D 차량: 아이오닉 5 · 아반떼 · 쏘나타 디 엣지 · 그랜저 (데모에서는 꾸미기 › 색상에서 차종 변경)
 
-[Figma – 우리 차가 살아있다면 App UI](https://www.figma.com/design/d391qsxYI9dMTT0ui0Py3W)
+## 말 걸기 (음성 대화)
 
-- **📱 Screens**: v2 화면 6종 (홈 · 운전 전 · 운전 중 · 오늘의 일기 · 일기장 · 꾸미기) + v1 프로토타입 보관
-- **🎨 Design System**: Color / Radius & Space 변수, 텍스트 스타일 8종, 컴포넌트 (Button, Chip, StatCard, CareItem, DiaryCard, ClosetTile, XPBar, SpeechBubble, TabBar)
-- **🚗 Character**: 표정 7종 × 꾸미기 6종 Character 컴포넌트, 컨셉 시안
+마이크 버튼을 누르고 말하면 차 상태를 아는 캐릭터가 짧게 대답하고, 필요하면 화면에 카드를 띄웁니다.
 
-캐릭터는 3D 이미지 본체 + 앞면 스크린의 **SVG 얼굴**로 구성됩니다. 얼굴만 바꿔 표정을 만들기 때문에 생김새가 항상 일정하고, 눈 깜빡임·반짝임 같은 애니메이션이 가능합니다.
-`http://localhost:5173/#moods` 에서 모든 표정과 꾸미기를 한 번에 볼 수 있습니다.
+| 이렇게 말하면 | 이렇게 해 줘요 |
+|---|---|
+| "근처 충전소 / 주유소 / 세차장 / 정비소 / 카페" | 카카오맵 · 네이버 지도 바로가기 |
+| "오늘 날씨 어때?" | 지금 위치 날씨와 운전 팁 |
+| "어디 놀러 갈까?" | 남은 주행 거리 안에서 갈 만한 곳 추천 |
+| "소모품 언제 갈아?" | 누적 거리로 계산한 교체 시기 |
+| "이번 주 운전 어땠어?" | 주간 운전 리포트 |
+| "신나는 노래 틀어줘" | Spotify 재생 카드 (서버에 Spotify 키가 없으면 Spotify 검색으로 연결) |
 
-캐릭터 에셋 재생성: `python -I design/tools/prepare_character.py design/concepts/C_yellow_screen-face.png public/character`
+- 대화: Google Gemini (서버가 대신 호출, 키는 브라우저에 오지 않음). 키가 없거나 무료 사용량을 넘으면 기본 대답으로 자동 전환
+- 목소리: Gemini TTS (여자·남자 목소리 선택), 브라우저 안에서 도는 오픈소스 Supertonic 2
 
 ## 실행
 
 ```bash
 npm install
-npm run dev     # http://localhost:5173
+npm run dev     # http://localhost:5173  (?demo 를 붙이면 데모 모드)
 ```
 
 ## 실제 API 연결
 
 1. `.env.example`을 `.env.local`로 복사
-2. `VITE_DATA_SOURCE=hyundai`, `VITE_HYUNDAI_CLIENT_ID` 입력
-3. `src/api/hyundaiClient.ts`의 `ENDPOINTS`와 응답 필드 매핑을 developers.hyundai.com 문서에 맞게 수정
-4. OAuth code → token 교환은 client secret이 필요하므로 백엔드(서버리스 함수 등)에서 처리
+2. `VITE_DATA_SOURCE=hyundai`, `VITE_HYUNDAI_CLIENT_ID`, `HYUNDAI_CLIENT_SECRET` 입력
+3. OAuth 로그인과 토큰 교환은 서버(`server/hyundaiAuth.ts`, 배포 시 `api/auth.ts` · `api/car.ts`)가 처리 — client secret은 브라우저에 오지 않음
+4. 호출하는 API: 차량 목록, 누적 주행거리, 주행 가능 거리, EV 배터리·충전 상태, 경고 정보, 주차 위치, 운행 기록 (`src/api/hyundaiClient.ts`)
 
 > ⚠️ client secret과 토큰은 절대 커밋하지 마세요. `.env.local`은 `.gitignore`에 포함되어 있습니다.
 
@@ -67,7 +72,7 @@ npm run dev     # http://localhost:5173
 | 3 · 내 기기 금고 | 저장 데이터 AES-256-GCM 암호화, PIN(PBKDF2 310,000회) 잠금·자동 잠금, AI 전송 전 개인정보 가리기 |
 
 ```bash
-npm run verify   # 타입 검사 + 보안 테스트 54개 + 비밀값·헤더·의존성 검사
+npm run verify   # 타입 검사 + 테스트 54개 + 비밀값·헤더·의존성 검사
 ```
 
 ## 구조
@@ -75,27 +80,20 @@ npm run verify   # 타입 검사 + 보안 테스트 54개 + 비밀값·헤더·�
 ```
 src/
   api/          데이터 소스 (mockVehicle = 시뮬레이터, hyundaiClient = 실제 API)
-  game/         character.ts (데이터→상태 규칙), diary.ts (일기 생성), progress.ts (XP·해금)
-  components/   CarCharacter.tsx (SVG 캐릭터, 표정·액세서리)
-  App.tsx       화면과 핵심 루프
+  game/         character.ts (차 데이터 → 표정·대사), diary.ts (오늘의 일기), gpsTrip.ts (실제 GPS 주행)
+  three/        3D 차량 모델 · 앞면 얼굴 스크린
+  voice/        대화 AI · 음성 · 말로 하는 기능(지도·날씨·음악 등)
+  components/   화면 구성 요소
+  security/     기기 저장 암호화 · PIN 잠금 · 개인정보 가리기
+api/            배포 서버 함수 (현대 OAuth · 차량 API 중계 · Gemini · Spotify)
 ```
 
-## 다음 단계
+## 디자인
 
-- [ ] API 키 승인 후 실제 엔드포인트 연결과 OAuth 백엔드
-- [ ] 일기를 LLM으로 생성(백엔드에서 호출)
-- [ ] 운행 종료 감지 → 푸시 알림 "오늘의 일기가 도착했어요"
-- [ ] 차종별 캐릭터 외형, PWA 설치 지원
+[Figma – 우리 차가 살아있다면 App UI](https://www.figma.com/design/d391qsxYI9dMTT0ui0Py3W)
 
-## 오픈소스 음성 AI
-- **Supertonic 2** (Supertone Inc.) — 한국어 남성 5종 · 여성 5종 목소리. 모델 가중치 [OpenRAIL-M](https://huggingface.co/supertone-oss-archive/supertonic-2) 라이선스, 추론 예제 코드 MIT.
-- 모델은 저장소에 포함하지 않고 Hugging Face에서 고정 버전(`7edbcd0`)으로 직접 내려받아 브라우저 안에서 실행합니다 (서버·요금 없음, 처음 한 번 약 267MB).
-- 실행: [ONNX Runtime Web](https://github.com/microsoft/onnxruntime) (MIT)
+## 사용한 오픈소스 · 외부 서비스
 
-## 대화 AI · 사람 같은 목소리 (Google Gemini, 무료 키)
-- 무슨 말이든 알아듣고 1~2문장으로 짧게 대답 (차 상태를 아는 캐릭터 말투). 키가 없거나 무료 사용량을 넘으면 기본 대답으로 자동 전환.
-- 목소리: Gemini 3.8 Flash TTS (한국어, 여자·남자 각 4종 선택).
-- 키 넣는 곳 (코드·GitHub에는 넣지 않음)
-  - PC: `.env.local`의 `GEMINI_API_KEY=` → 개발 서버가 대신 호출 (브라우저에 키 노출 없음)
-  - 휴대폰·배포 링크: 앱 대화 화면 '대화 AI'에 직접 입력 → 그 기기에만 저장
-- 무료 키 발급: https://aistudio.google.com/apikey (무료 키로 보낸 대화는 Google 서비스 개선에 쓰일 수 있음)
+- **Supertonic 2** (Supertone Inc.) — 한국어 음성 합성. 모델 가중치 [OpenRAIL-M](https://huggingface.co/supertone-oss-archive/supertonic-2), 추론 예제 코드 MIT. 저장소에 포함하지 않고 고정 버전(`7edbcd0`)을 브라우저에서 직접 내려받아 실행
+- [ONNX Runtime Web](https://github.com/microsoft/onnxruntime) (MIT), [three.js](https://threejs.org) (MIT), React (MIT), lucide-react (ISC)
+- Google Gemini API (대화 · 음성), Spotify Web API (음악 검색), Open-Meteo (날씨, CC BY 4.0), 카카오맵 · 네이버 지도 (링크)
