@@ -5,7 +5,7 @@ import { WARNING_LABELS, type CarProfile, type Trip, type VehicleSnapshot } from
 import { ENERGY_TERMS, FUEL_LABEL } from '../data/hyundaiModels';
 import type { CharacterStatus, Mood } from './character';
 import { WARNING_UI } from './character';
-import { COSMETICS, levelOf, XP_PER_LEVEL, type Progress } from './progress';
+import { type Progress } from './progress';
 
 export interface BotContext {
   car: CarProfile;
@@ -42,7 +42,6 @@ const INTENTS: { id: string; words: string[] }[] = [
   { id: 'parking', words: ['어디', '주차', '위치', '찾아'] },
   { id: 'today', words: ['오늘', '얼마나 달', '운전', '주행', '달렸'] },
   { id: 'diary', words: ['일기'] },
-  { id: 'level', words: ['레벨', '경험치', '성장', '해금', '꾸미', '선물', '왕관'] },
   { id: 'odometer', words: ['누적', '총 거리', '주행거리', '키로수', '몇 살'] },
   { id: 'weather', words: ['날씨', '비 와', '비와', '눈 와', '눈와', '추워', '더워'] },
   { id: 'mood', words: ['기분', '어때', '컨디션', '상태', '뭐해', '뭐 해'] },
@@ -65,7 +64,6 @@ export function reply(raw: string, ctx: BotContext): BotReply {
   const warns = status.activeWarnings;
   const todayTrips = trips.filter((t) => isToday(t.endedAt));
   const todayKm = todayTrips.reduce((a, t) => a + t.distanceKm, 0);
-  const lv = levelOf(progress.xp);
 
   switch (intent) {
     case 'greet':
@@ -115,16 +113,6 @@ export function reply(raw: string, ctx: BotContext): BotReply {
       return { intent, mood: 'happy', text: `제일 최근 일기 제목은 "${d.title}"예요. ${d.body.split('\n')[0]}` };
     }
 
-    case 'level': {
-      const next = COSMETICS.find((c) => !c.unlocked(progress));
-      const left = XP_PER_LEVEL - (progress.xp % XP_PER_LEVEL);
-      return {
-        intent,
-        mood: 'excited',
-        text: `지금 레벨 ${lv}! 다음 레벨까지 경험치 ${left} 남았어요.` + (next ? ` 다음 선물은 ${josa(next.name, '인데', '인데')}, 조건은 ${josa(next.condition, '이에요', '예요')}.` : ' 꾸미기 아이템을 전부 모았어요!'),
-      };
-    }
-
     case 'odometer':
       return { intent, mood: 'calm', text: `지금까지 모두 ${snap.odometerKm.toLocaleString()}킬로미터를 달렸어요. 지구 한 바퀴가 4만 킬로미터래요!` };
 
@@ -132,7 +120,7 @@ export function reply(raw: string, ctx: BotContext): BotReply {
       return { intent, mood: 'calm', text: '날씨는 아직 제가 볼 수 없어요. 그래도 비 오는 날엔 와이퍼랑 워셔액, 추운 날엔 타이어 공기압을 꼭 챙겨 주세요!' };
 
     case 'mood':
-      return { intent, mood: status.mood, text: `${status.line} 에너지 ${status.energy}, 건강 ${status.health}, 피로도 ${status.fatigue}이에요.` };
+      return { intent, mood: status.mood, text: status.line };
 
     case 'thanks':
       return { intent, mood: 'excited', text: pick(['헤헤, 저도 고마워요! 앞으로도 잘 부탁해요.', '칭찬 들으니까 엔진이 두근두근해요!', '저도 주인님이 최고예요!']) };
@@ -141,7 +129,7 @@ export function reply(raw: string, ctx: BotContext): BotReply {
       return { intent, mood: 'sleepy', text: pick(['조심히 다녀와요! 여기서 기다릴게요.', '푹 쉬어요. 저도 좀 잘게요, 쿨쿨.', '다음에 또 달려요!']) };
 
     case 'help':
-      return { intent, mood: 'happy', text: '이렇게 물어봐요. 기분 어때? 얼마나 갈 수 있어? 어디 아파? 어디 주차했어? 오늘 얼마나 달렸어? 레벨 몇이야?' };
+      return { intent, mood: 'happy', text: '이렇게 물어봐요. 기분 어때? 얼마나 갈 수 있어? 어디 아파? 어디 주차했어? 오늘 얼마나 달렸어? 노래 틀어줘!' };
 
     default:
       return { intent, mood: 'calm', text: pick([`음… 잘 못 알아들었어요. "기분 어때?"나 "얼마나 갈 수 있어?"처럼 물어봐 줄래요?`, '그건 아직 몰라요. 제 상태나 오늘 운전에 대해 물어봐 주세요!']) };
@@ -155,6 +143,6 @@ export function buildContext(ctx: BotContext): string {
     `너는 사용자의 자동차 "${car.nickname}"(${car.model}, ${FUEL_LABEL[car.fuelType]})이고 귀여운 말투로 짧게 대답한다.`,
     `연료/배터리 ${status.energy}%, 주행가능거리 ${snap.dteKm}km, 누적 ${snap.odometerKm}km`,
     `경고: ${status.activeWarnings.map((k) => WARNING_LABELS[k]).join(', ') || '없음'}`,
-    `주차: ${snap.parking?.label ?? '알 수 없음'}, 레벨 ${levelOf(progress.xp)}`,
+    `주차: ${snap.parking?.label ?? '알 수 없음'}`,
   ].join('\n');
 }

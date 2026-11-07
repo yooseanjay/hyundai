@@ -44,7 +44,7 @@ export function writeDiary(opts: {
   if (snapshot.fuelLevelPct < 20) lines.push(`배가 너무 고프다. 남은 힘으로 ${snapshot.dteKm}km 정도 갈 수 있을 것 같다. 🍙`);
   else if (snapshot.fuelLevelPct > 70) lines.push('아직 힘이 넘친다! 내일도 문제없다 💪');
 
-  lines.push(`지금은 ${place}에서 쉬는 중. 오늘 경험치 +${xpGained}!`);
+  lines.push(`지금은 ${place}에서 쉬는 중.`);
 
   const stamp = newWarnings.length ? '🤕' : trip.hardBrakes >= 3 ? '😵' : trip.distanceKm > 80 ? '🏔️' : '😊';
   const title = newWarnings.length ? '조금 아팠던 날' : trip.distanceKm > 80 ? '먼 길 다녀온 날' : trip.hardBrakes >= 3 ? '두근두근한 날' : '평범하고 좋은 날';

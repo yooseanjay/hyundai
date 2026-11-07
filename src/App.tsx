@@ -1,7 +1,7 @@
-// 화면 구성: Figma "우리 차가 살아있다면" 흑백 디자인 (홈 · AI 음성봇 · 운전 · 오늘의 일기 · 일기장 · 꾸미기)
+// 화면 구성: Figma "우리 차가 살아있다면" 흑백 디자인 (홈+운전 · AI 음성봇 · 오늘의 일기 · 일기장 · 꾸미기)
 import {
-  ArrowUpRight, Award, BookOpen, CalendarDays, ChevronLeft, ChevronRight, Crown,
-  Flower2, Gauge as GaugeIcon, Glasses, HardHat, House, MapPin, Mic, Ribbon, Route, Sparkles, Sun, X, type LucideIcon,
+  ArrowUpRight, BookOpen, CalendarDays, ChevronLeft, ChevronRight,
+  Gauge as GaugeIcon, House, MapPin, Mic, Route, Sparkles, Sun, X, type LucideIcon,
 } from 'lucide-react';
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { dataSource, simulator, WARNING_LABELS, type CarProfile, type Trip, type VehicleSnapshot, type WarningKey } from './api';
@@ -11,7 +11,7 @@ import { Studio, type StudioTab } from './components/Studio';
 import { EMBLEM_PATH, EMBLEM_VIEWBOX } from './three/emblem';
 import { colorOf, loadStyle, saveStyle, type CharStyle } from './game/style';
 import { VehicleStatus, type LiveDrive } from './components/VehicleStatus';
-import { markReplaced, partsStatus, quickWeather } from './voice/actions';
+import { markReplaced, partsStatus } from './voice/actions';
 import { gpsSupported, startGpsTrip, type GpsUpdate } from './game/gpsTrip';
 import { VoiceBot } from './components/VoiceBot';
 import { ThemeToggle } from './components/ThemeToggle';
@@ -25,8 +25,8 @@ import { secureStorage } from './security';
 import SecurityPanel from './components/SecurityPanel';
 import type { Trip as TripT } from './api/types';
 import {
-  levelOf, loadProgress, newlyUnlocked, saveProgress, xpForTrip,
-  XP_FOR_CHARGE, XP_FOR_FIX, XP_PER_LEVEL, type CosmeticId, type Progress,
+  loadProgress, saveProgress, xpForTrip,
+  XP_FOR_CHARGE, XP_FOR_FIX, type CosmeticId, type Progress,
 } from './game/progress';
 
 type Tab = 'home' | 'studio' | 'diary';
@@ -38,7 +38,6 @@ const STYLE_DESC: Record<Style, string> = { calm: '차분한 주행', normal: '�
 const AVG_SPEED: Record<Style, number> = { calm: 38, normal: 52, sporty: 74 };
 // 하단: 음성(빛나는 구) · 홈(운전 포함) · 꾸미기 · 일기. 여행·날씨·주변 찾기는 음성으로
 const TABS: [Tab, LucideIcon, string][] = [['home', House, '홈'], ['studio', Sparkles, '꾸미기'], ['diary', BookOpen, '일기']];
-const COSMETIC_ICON: Record<CosmeticId, LucideIcon | null> = { none: null, sunglasses: Glasses, flower: Flower2, wrench: Award, scarf: Ribbon, cap: HardHat, crown: Crown };
 const WARNING_TITLE: Record<WarningKey, string> = {
   tirePressure: '타이어 공기압이 낮아요', engineOil: '엔진오일을 갈 때예요', brakeOil: '브레이크액을 확인해요',
   washerFluid: '워셔액이 부족해요', lamp: '램프를 점검해요', smartKeyBattery: '스마트키 배터리가 약해요',
@@ -67,10 +66,9 @@ export default function App() {
   const [openDiary, setOpenDiary] = useState<{ d: DiaryEntry; fresh: boolean } | null>(null);
   const [look, setLookState] = useState<CharStyle>(loadStyle);
   const setLook = (patch: Partial<CharStyle>) => setLookState((prev) => { const n = { ...prev, ...patch }; saveStyle(n); return n; });
-  const [studioTab, setStudioTab] = useState<StudioTab>('model');
+  const [studioTab, setStudioTab] = useState<StudioTab>('face');
   const [bot, setBot] = useState<{ line: string; mood?: Mood; speaking?: boolean } | null>(null);
   const [partsTick, setPartsTick] = useState(0);
-  const [wx, setWx] = useState<{ text: string; temp: number; rain: number; tip: string } | null>(null);
   const [month, setMonth] = useState(() => { const d = new Date(); return { y: d.getFullYear(), m: d.getMonth() }; });
 
   const [driving, setDriving] = useState(false);
@@ -96,12 +94,6 @@ export default function App() {
   const updateProgress = useCallback((fn: (p: Progress) => Progress) => {
     setProgress((prev) => {
       const next = fn(prev);
-      const fresh = newlyUnlocked(next);
-      if (fresh.length) {
-        next.seenUnlocks = [...next.seenUnlocks, ...fresh.map((c) => c.id)];
-        window.setTimeout(() => showToast(`새 스타일 해금 · ${fresh.map((c) => c.name).join(', ')}`), 400);
-      }
-      if (levelOf(next.xp) > levelOf(prev.xp)) window.setTimeout(() => showToast(`레벨 업! Lv.${levelOf(next.xp)}`), 100);
       saveProgress(next);
       return next;
     });
@@ -124,7 +116,7 @@ export default function App() {
         const gain = fixed.reduce((a, k) => a + XP_FOR_FIX[k], 0) + (charged ? XP_FOR_CHARGE : 0);
         if (gain > 0) {
           updateProgress((p) => ({ ...p, xp: p.xp + gain, fixes: p.fixes + fixed.length }));
-          showToast(fixed.length ? `${fixed.map((k) => WARNING_LABELS[k]).join(', ')} 회복 · +${gain} XP` : `든든해졌어요 · +${gain} XP`);
+          showToast(fixed.length ? `${fixed.map((k) => WARNING_LABELS[k]).join(', ')} 회복했어요` : '든든해졌어요');
         }
       }
       return s;
@@ -153,15 +145,6 @@ export default function App() {
   }, [refresh]);
 
   useEffect(() => { window.scrollTo({ top: 0 }); }, [view]);
-  const wxKey = snap?.parking ? `${snap.parking.lat.toFixed(2)},${snap.parking.lng.toFixed(2)}` : '';
-  useEffect(() => {
-    if (!snap || !car) return;
-    const lat = snap.parking?.lat ?? 37.5665;
-    const lng = snap.parking?.lng ?? 126.978;
-    quickWeather(lat, lng, car.fuelType === 'ev').then(setWx).catch(() => {});
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [wxKey, !!car]);
-
   /** 주행 시뮬레이션: 0.1초마다 속도·거리 계산 (화면 1초 = 실제 1.5분, 90배속) */
   const TIME_SCALE = 90;
   const startGps = () => {
@@ -301,8 +284,6 @@ export default function App() {
   if (!car || !snap) return <main className="app"><Brand /><p className="loading">차가 깨어나는 중…</p></main>;
 
   const st = computeStatus(snap, trips, driving);
-  const level = levelOf(progress.xp);
-  const xpInLevel = progress.xp % XP_PER_LEVEL;
   const kmNow = Math.round(live.km * 10) / 10;
   const etaMin = Math.round(((distance - live.km) / Math.max(20, live.speed || AVG_SPEED[style])) * 60);
   const tab: Tab = view === 'talk' ? 'home' : view;
@@ -313,22 +294,6 @@ export default function App() {
   const dueParts = partsStatus({ car, snap }).filter((p) => p.pct >= 90);
   const energyName = car.fuelType === 'ev' ? '배터리' : car.fuelType === 'hydrogen' ? '수소' : '연료';
   const careCount = st.activeWarnings.length + dueParts.length + (st.energy < 50 ? 1 : 0);
-  // AI 브리핑: 지금 꼭 알아야 할 것만 3줄 (경고 → 날씨 → 에너지/소모품 → 좋은 소식)
-  const briefing: { tone: 'bad' | 'warn' | 'good' | 'info'; text: string }[] = [];
-  if (st.activeWarnings.length) briefing.push({ tone: 'bad', text: `${st.activeWarnings.map((k) => WARNING_LABELS[k]).join(', ')} 점검이 필요해요` });
-  if (wx) briefing.push({ tone: wx.rain >= 60 || wx.temp <= 0 ? 'warn' : 'info', text: `지금 ${wx.text} ${wx.temp}°${wx.rain >= 60 ? ` · 오늘 강수 확률 ${wx.rain}%` : ''}. ${wx.tip}` });
-  if (st.energy < 30) briefing.push({ tone: 'warn', text: `${energyName}가 ${st.energy}%예요. 출발 전 ${energyTerm.refill.replace('하기', '')}을 권해요` });
-  else briefing.push({ tone: 'good', text: `오늘 약 ${snap.dteKm}km까지 문제없이 달릴 수 있어요` });
-  if (dueParts.length) briefing.push({ tone: 'warn', text: `${dueParts[0].name} 교체 시기가 다가왔어요` });
-  briefing.splice(3);
-
-  const Level = (
-    <div className="level">
-      <div className="level-row"><b>Lv.{level} · {xpInLevel}/{XP_PER_LEVEL} XP</b><span>다음 레벨까지 {XP_PER_LEVEL - xpInLevel} XP</span></div>
-      <div className="bar"><div style={{ width: `${(xpInLevel / XP_PER_LEVEL) * 100}%` }} /></div>
-    </div>
-  );
-
   return (
     <main className={`app view-${view}`}>
       <Brand live={dataSource.kind === 'hyundai'} />
@@ -342,16 +307,14 @@ export default function App() {
               <div className="hero-id">
                 <span className="eyebrow-ai">AI MOBILITY</span>
                 <h1 className="hero-name">{car.nickname}</h1>
-                <button className="model-link" onClick={() => { setStudioTab('model'); setView('studio'); }} disabled={driving} aria-label="차종과 모습 바꾸기">
-                  {car.model} · {snap.odometerKm.toLocaleString()}km<ChevronRight size={12} />
-                </button>
+                <span className="model-link">{car.model} · {snap.odometerKm.toLocaleString()}km</span>
               </div>
               <span className="ready"><i className="dot good pulse" />{driving ? '주행 중' : dataSource.kind === 'hyundai' ? '차량 연결됨' : '출발 준비 완료'}</span>
             </div>
             {driving ? (
-            <Suspense fallback={<div className="highway"><CarCharacter mood={st.mood} cosmetic={progress.equipped} color={carColor} size={232} /></div>}>
+            <Suspense fallback={<div className="highway"><CarCharacter mood={st.mood} cosmetic="none" color={carColor} size={232} /></div>}>
               <div className="drive3d">
-                <Car3D mode="drive" mood={driving ? (live.braking ? 'sick' : 'excited') : st.mood} cosmetic={progress.equipped} color={carColor} shape={carShape} style={look}
+                <Car3D mode="drive" mood={driving ? (live.braking ? 'sick' : 'excited') : st.mood} cosmetic="none" color={carColor} shape={carShape} style={look}
                   speedKmh={driving ? live.speed : 0} braking={live.braking} height={goldH()} />
                 {driving && (
                   <div className="hud">
@@ -363,7 +326,7 @@ export default function App() {
               </div>
             </Suspense>
             ) : (
-              <Show3D car={car} look={look} mood={bot?.mood ?? st.mood} cosmetic={progress.equipped} height={goldH()} />
+              <Show3D car={car} look={look} mood={bot?.mood ?? st.mood} cosmetic="none" height={goldH()} />
             )}
             <div className="hero-range">
               <div className="range-num"><b>{snap.dteKm}</b><span>km</span></div>
@@ -438,27 +401,6 @@ export default function App() {
           ) : null}
 
           {!driving && (<>
-          {/* AI Mobility: 오닉이가 먼저 알려 주는 오늘의 브리핑 */}
-          <div className="ai-brief">
-            <div className="ai-head">
-              <span className="ai-badge">AI</span>
-              <b>{car.nickname} 브리핑</b>
-              <span className="cap">{hhmm(new Date())}</span>
-            </div>
-            <p className="ai-line" key={st.line}>{st.line.replace(/\s*[\p{Extended_Pictographic}\u200d\ufe0f]+/gu, '')}</p>
-            <ul className="ai-list">
-              {briefing.map((b, i) => <li key={i} className={b.tone}><i />{b.text}</li>)}
-            </ul>
-            <span className="ai-hint"><Mic size={12} /> 아래 파란 구를 누르고 무엇이든 물어보세요</span>
-          </div>
-
-          {/* Premium Minimal: 선으로만 나눈 상태 */}
-          <div className="metrics">
-            <Metric label="에너지" value={st.energy} bad={st.energy < 20} />
-            <Metric label="건강" value={st.health} bad={st.health < 100} />
-            <Metric label="피로도" value={st.fatigue} bad={st.fatigue > 70} />
-          </div>
-          {Level}
 
           {/* 차량 상태: 홈에서 바로 보이게 (타이어 · 온도 · 경고등) */}
           <div className="card home-status">
@@ -471,7 +413,7 @@ export default function App() {
 
           {careCount > 0 && (
             <div className="list">
-              <div className="list-title"><b className="label">돌봐주세요</b><span className="cap">{careCount}건 · 돌보면 경험치</span></div>
+              <div className="list-title"><b className="label">돌봐주세요</b><span className="cap">{careCount}건</span></div>
               {st.activeWarnings.map((k) => (
                 <div key={k} className="list-row">
                   <i className="dot bad" />
@@ -483,7 +425,7 @@ export default function App() {
                 <div key={p.id} className="list-row">
                   <i className="dot warn" />
                   <div className="grow"><b className="label">{p.name} 교체할 때예요</b><span className="cap">{p.left ? `${p.left.toLocaleString()}km 남음` : '권장 거리 지남'}</span></div>
-                  <button className="btn outline sm" onClick={() => { markReplaced(p.id, snap.odometerKm); setPartsTick((n) => n + 1); updateProgress((pr) => ({ ...pr, xp: pr.xp + 15, fixes: pr.fixes + 1 })); showToast(`${p.name} 교체 완료 · +15 XP`); }}>교체 완료</button>
+                  <button className="btn outline sm" onClick={() => { markReplaced(p.id, snap.odometerKm); setPartsTick((n) => n + 1); updateProgress((pr) => ({ ...pr, fixes: pr.fixes + 1 })); showToast(`${p.name} 교체 완료`); }}>교체 완료</button>
                 </div>
               ))}
               {st.energy < 50 && (
@@ -521,7 +463,7 @@ export default function App() {
             <h1 className="h1">{car.nickname}와 대화</h1>
             <span className="cap conn"><i className="dot good" />{dataSource.kind === 'hyundai' ? '차량 연결됨' : '데모 차량 연결됨'}</span>
           </div>
-          <Show3D car={car} look={look} mood={bot?.mood ?? st.mood} cosmetic={progress.equipped} talking={!!bot?.speaking} height={goldH()} />
+          <Show3D car={car} look={look} mood={bot?.mood ?? st.mood} cosmetic="none" talking={!!bot?.speaking} height={goldH()} />
           <VoiceBot ctx={{ car, snap, status: st, trips, progress }} onLine={(line, mood, speaking) => setBot(line ? { line, mood, speaking } : null)} />
         </section>
       )}
@@ -562,7 +504,7 @@ export default function App() {
                       <span className="card-head"><span className="cap">{pad(t.getMonth() + 1)}.{pad(t.getDate())} {weekday(t)}{isToday(d.date) && <em className="badge">TODAY</em>}</span><ArrowUpRight size={16} className="muted" /></span>
                       <b className="h3">{d.title}</b>
                       <span className="excerpt">{body}</span>
-                      <span className="cap meta">{d.distanceKm} km · {d.place}<i className="sep" />+{d.xpGained} XP</span>
+                      <span className="cap meta">{d.distanceKm} km · {d.place}</span>
                     </button>
                   </li>
                 );
@@ -575,12 +517,11 @@ export default function App() {
       {/* ---------- 꾸미기 스튜디오 ---------- */}
       {view === 'studio' && (
         <Studio
-          car={car} progress={progress} look={look} onLook={setLook}
-          onEquip={(id) => updateProgress((p) => ({ ...p, equipped: id }))}
+          car={car} look={look} onLook={setLook}
           config={simulator?.config}
           onConfig={simulator ? (c) => { simulator?.setCar(c); refresh(); } : undefined}
-          icons={COSMETIC_ICON} tab={studioTab} onTab={setStudioTab}
-          preview={<Show3D car={car} look={look} mood="happy" cosmetic={progress.equipped} height={goldH(true)} />}
+          tab={studioTab} onTab={setStudioTab}
+          preview={<Show3D car={car} look={look} mood="happy" cosmetic="none" height={goldH(true)} />}
           footer={
             <>
             <SecurityPanel />
@@ -624,7 +565,7 @@ export default function App() {
               <span className="handle" />
               <div className="card-head"><b className="h2">오늘의 일기</b><button className="icon-btn plain" onClick={() => setOpenDiary(null)} aria-label="닫기"><X size={20} /></button></div>
               <div className="keepsake">
-                <div className="peek"><CarCharacter mood="happy" cosmetic={progress.equipped} color={carColor} size={210} /></div>
+                <div className="peek"><CarCharacter mood="happy" cosmetic="none" color={carColor} size={210} /></div>
                 <article className="paper">
                   <div className="card-head"><span className="cap">{t.getFullYear()}.{pad(t.getMonth() + 1)}.{pad(t.getDate())} · {weekday(t)}</span><Sun size={16} /></div>
                   <h3 className="paper-title">{car.nickname}의 일기 — {d.title}</h3>
@@ -633,7 +574,6 @@ export default function App() {
               </div>
               <div className="chip-row">
                 <span className="chip static">{d.distanceKm}km</span>
-                <span className="chip static">+{d.xpGained} XP</span>
                 <span className="chip static">{d.place}</span>
               </div>
               <button className="btn primary block" onClick={() => { setOpenDiary(null); if (openDiary.fresh) setView('diary'); }}>{openDiary.fresh ? '일기장에 붙이기' : '닫기'}</button>
@@ -685,15 +625,6 @@ function Showroom({ children, talking, small }: { children: React.ReactNode; tal
   );
 }
 
-function Metric({ label, value, bad }: { label: string; value: number; bad?: boolean }) {
-  return (
-    <div className={`metric ${bad ? 'bad' : ''}`}>
-      <span className="cap">{label}</span>
-      <b>{value}</b>
-      <div className="metric-bar"><div style={{ width: `${value}%` }} /></div>
-    </div>
-  );
-}
 
 /** 현대 엠블럼 (화면용 SVG, 실제 로고 모양) */
 function HyundaiEmblem() {
