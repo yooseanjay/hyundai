@@ -14,6 +14,7 @@ import { VehicleStatus, type LiveDrive } from './components/VehicleStatus';
 import { markReplaced, partsStatus, quickWeather } from './voice/actions';
 import { gpsSupported, startGpsTrip, type GpsUpdate } from './game/gpsTrip';
 import { VoiceBot } from './components/VoiceBot';
+import { ThemeToggle } from './components/ThemeToggle';
 
 // 3D(three.js)는 용량이 커서 필요할 때 불러온다. 불러오는 동안은 사진 캐릭터
 const Car3D = lazy(() => import('./components/Car3D'));
@@ -657,7 +658,7 @@ export default function App() {
 function Brand({ live }: { live?: boolean }) {
   return (
     <header className="brand">
-      <div className="brand-bar"><span className="brand-logo"><HyundaiEmblem /><span className="wordmark">HYUNDAI</span></span><span className="cap">현대자동차 Open API</span></div>
+      <div className="brand-bar"><span className="brand-logo"><HyundaiEmblem /><span className="wordmark">HYUNDAI</span></span><span className="brand-right"><span className="cap">현대자동차 Open API</span><ThemeToggle /></span></div>
       <p className="cap">우리 차가 살아있다면{live === false && <em className="badge">DEMO</em>}</p>
     </header>
   );

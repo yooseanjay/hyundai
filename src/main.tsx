@@ -2,8 +2,12 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import './styles.css';
 import './theme-mono.css';
+import './theme-toss.css';
+import { applyTheme } from './theme';
 import { bootSecurity } from './security';
 import LockScreen from './components/LockScreen';
+
+applyTheme(); // 첫 화면부터 저장된 밝기로 (깜빡임 방지)
 
 const root = createRoot(document.getElementById('root')!);
 
