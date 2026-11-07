@@ -309,9 +309,10 @@ export function buildCar(shapeId?: string): CarRig {
       ray.set(new THREE.Vector3(20, faceY, 0), new THREE.Vector3(-1, 0, 0));
       const fh = ray.intersectObject(root, true)[0];
       if (fh) {
-        const dx = fh.point.x - F - 0.005;
-        frontFrame.position.x += dx;
-        screen.position.x += dx;
+        // 화면은 범퍼 면 바로 앞, 검은 테두리는 화면 바로 뒤에서 차 안쪽으로 깊게 들어가게 (앞으로 튀어나온 검은 상자 없앰)
+        screen.position.x = fh.point.x + 0.006;
+        frontFrame.scale.x = 6; // 두께 0.05 → 0.3, 뒤쪽은 범퍼 속에 묻힘
+        frontFrame.position.x = screen.position.x - 0.003 - 0.15;
       }
       // 코드로 만든 차체는 숨기고 얼굴 화면만 남김
       group.children.forEach((o) => { if (!o.userData.keep && o !== acc) o.visible = false; });
