@@ -33,7 +33,7 @@ export const CSP = {
   'object-src': ["'none'"],
   'base-uri': ["'self'"],
   'form-action': ["'self'"],
-  'frame-src': ["'none'"],
+  'frame-src': ['https://open.spotify.com'], // 음성으로 튼 노래: Spotify 공식 재생기(embed)만
   'manifest-src': ["'self'"],
 };
 

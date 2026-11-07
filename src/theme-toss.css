@@ -320,3 +320,10 @@ html, body, .app { background: var(--bg); color: var(--fg); }
   :root:not([data-theme="light"]) { --km-glow: 0 0 6px rgba(255, 255, 255, .55), 0 0 18px rgba(255, 255, 255, .35), 0 0 40px rgba(160, 200, 255, .25); }
 }
 .home-status .vs-title { display: inline-flex; align-items: center; gap: 6px; }
+
+/* ---------- 음악: Spotify 재생 카드 ---------- */
+.music .spotify-embed { width: 100%; border: 0; border-radius: 12px; display: block; background: #121212; }
+.music-alts { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; }
+.music-alts::-webkit-scrollbar { display: none; }
+.music-alts .chip { max-width: 220px; overflow: hidden; text-overflow: ellipsis; }
+.music .act-links a:first-child { background: #1DB954; color: #fff; }

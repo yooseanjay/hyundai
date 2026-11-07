@@ -4,6 +4,7 @@
 //  - get_weather: 현재 위치(또는 주차 위치) 날씨 + 운전 팁
 //  - check_maintenance: 소모품 남은 거리
 //  - weekly_report: 최근 7일 운전 요약
+//  - play_music: Spotify에서 노래를 찾아 화면에 재생 카드 (키가 없으면 Spotify 검색 열기)
 import { secureStorage } from '../security/secureStorage';
 import type { CarProfile, Trip, VehicleSnapshot } from '../api/types';
 import { recommendTrips, type TripIdea } from './gemini';
@@ -16,7 +17,10 @@ export type ActionCard =
   | { kind: 'nearby'; label: string; kakao: string; naver: string }
   | { kind: 'weather'; place: string; temp: number; text: string; max: number; min: number; rain: number; tip: string }
   | { kind: 'parts'; items: { name: string; left: number; pct: number }[] }
-  | { kind: 'report'; n: number; km: number; avg: number; brakes: number; calm: number };
+  | { kind: 'report'; n: number; km: number; avg: number; brakes: number; calm: number }
+  | { kind: 'music'; query: string; tracks: SpotifyTrack[]; search: string };
+
+export interface SpotifyTrack { id: string; name: string; artist: string; album: string; image: string; url: string }
 
 export interface ActionResult { card: ActionCard; data: Record<string, unknown> }
 
@@ -151,6 +155,35 @@ export function weeklyReport(ctx: ActionCtx): ActionResult {
   return { card: { kind: 'report', n: w.length, km, avg, brakes, calm }, data: { 주행횟수: w.length, 거리km: km, 평균속도: avg, 급정거: brakes, 부드러운운전비율: `${calm}%` } };
 }
 
+// ---------- 음악: Spotify ----------
+const SERVER = (import.meta.env.VITE_GEMINI_SERVER as string | undefined) || 'https://our-car-alive.vercel.app';
+const apiBase = () => (location.origin === SERVER || /\.vercel\.app$/.test(location.hostname) ? '' : SERVER);
+
+/** "아이유 밤편지 틀어줘" → "아이유 밤편지" */
+export function musicQuery(text: string): string {
+  const q = text
+    .replace(/(스포티파이|spotify)(에서|로|으로)?/gi, ' ')
+    .replace(/(노래|음악|곡)?\s*(좀\s*)?(틀어|켜|재생해|들려|불러|플레이해)\s*(줘|주세요|줄래|줄래요|봐|줘요)?[.!?~]*/g, ' ')
+    .replace(/(을|를)\s*$/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return q && !/^(노래|음악|아무|아무거나|아무노래)$/.test(q.replace(/\s/g, '')) ? q : '드라이브 신나는 노래';
+}
+
+export async function playMusic(query: string): Promise<ActionResult> {
+  const q = musicQuery(query);
+  const search = `https://open.spotify.com/search/${encodeURIComponent(q)}`;
+  let tracks: SpotifyTrack[] = [];
+  try {
+    const r = await fetch(`${apiBase()}/api/spotify?q=${encodeURIComponent(q)}`);
+    if (r.ok) tracks = ((await r.json()) as { tracks?: SpotifyTrack[] }).tracks ?? [];
+  } catch { /* 서버·키가 없으면 검색 링크만 */ }
+  return {
+    card: { kind: 'music', query: q, tracks, search },
+    data: tracks.length ? { 재생할곡: `${tracks[0].artist} - ${tracks[0].name}`, 다른후보: tracks.slice(1).map((t) => `${t.artist} - ${t.name}`) } : { 검색어: q, 안내: 'Spotify 검색 버튼을 띄움' },
+  };
+}
+
 // ---------- 도구 실행 (Live AI가 부름) ----------
 export async function runTool(name: string, args: Record<string, unknown>, ctx: ActionCtx): Promise<ActionResult> {
   switch (name) {
@@ -159,6 +192,7 @@ export async function runTool(name: string, args: Record<string, unknown>, ctx: 
     case 'get_weather': return getWeather(ctx);
     case 'check_maintenance': return checkMaintenance(ctx);
     case 'weekly_report': return weeklyReport(ctx);
+    case 'play_music': return playMusic(String(args.query ?? ''));
     default: throw new Error(`모르는 도구: ${name}`);
   }
 }
@@ -167,6 +201,7 @@ export async function runTool(name: string, args: Record<string, unknown>, ctx: 
 export function detectTool(text: string): { name: string; args: Record<string, unknown> } | null {
   const q = text.replace(/\s+/g, '');
   const has = (...w: string[]) => w.some((x) => q.includes(x));
+  if (has('노래', '음악', '스포티파이', 'spotify', 'Spotify') || /(틀어|들려|재생해)/.test(q)) return { name: 'play_music', args: { query: text } };
   if (has('여행', '추천', '어디갈', '놀러', '드라이브코스', '갈만한')) {
     const mood = ['바다', '산', '카페', '맛집', '야경', '공원'].find((m) => q.includes(m)) ?? '드라이브';
     return { name: 'recommend_places', args: { mood, hours: has('하루') ? '하루' : has('한시간', '1시간', '잠깐') ? '1시간' : '반나절' } };
@@ -193,6 +228,8 @@ export const LIVE_TOOLS = [{
     { name: 'get_weather', description: '날씨나 오늘 운전하기 괜찮은지 물을 때.', parameters: { type: 'OBJECT', properties: {} } },
     { name: 'check_maintenance', description: '소모품(엔진오일, 타이어, 와이퍼, 필터, 브레이크액) 교체 시기를 물을 때.', parameters: { type: 'OBJECT', properties: {} } },
     { name: 'weekly_report', description: '이번 주 운전 기록, 운전 습관, 급정거 등을 물을 때.', parameters: { type: 'OBJECT', properties: {} } },
+    { name: 'play_music', description: '노래·음악을 틀어 달라고 할 때. Spotify에서 곡을 찾아 화면에 재생 카드를 띄운다. 가수·곡 이름이 없으면 분위기(예: 신나는 드라이브 노래)를 검색어로.',
+      parameters: { type: 'OBJECT', properties: { query: { type: 'STRING', description: '검색어. 예: 아이유 밤편지, 뉴진스, 비 오는 날 잔잔한 노래' } }, required: ['query'] } },
   ],
 }];
 
@@ -206,6 +243,7 @@ export function summaryOf(card: ActionCard): string {
       const due = card.items.filter((i) => i.pct >= 90);
       return due.length ? `${due.map((i) => i.name).join(', ')} 교체할 때가 됐어요.` : `${card.items[0].name}이 ${card.items[0].left.toLocaleString()}km 남아서 제일 먼저예요.`;
     }
+    case 'music': return card.tracks.length ? `${card.tracks[0].artist}의 ${card.tracks[0].name}, 화면에서 재생을 눌러 주세요!` : `Spotify에서 '${card.query}'를 바로 찾을 수 있게 띄워 드렸어요.`;
     case 'report': return card.n ? `이번 주 ${card.n}번, ${card.km}km 함께 달렸고 급정거는 ${card.brakes}번이었어요.` : '이번 주에는 아직 함께 달린 기록이 없어요.';
   }
 }

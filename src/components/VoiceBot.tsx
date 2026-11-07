@@ -356,6 +356,8 @@ export function VoiceBot({ ctx, onLine, variant = 'screen' }: {
     if (dock) setOpen(true);
     if (!muted) unlockAudio();
     window.clearTimeout(resetTimer.current);
+    // 노래 틀어 달라는 말은 AI 판단을 기다리지 않고 바로 Spotify 카드 (확실하고 빠름)
+    if (detectTool(question)?.name === 'play_music') return answerClassic(question);
     setPhase('thinking');
     void (async () => {
       const ss = await ensureLive();

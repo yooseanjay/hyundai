@@ -21,6 +21,8 @@ const LIVE_TOOLS = [{
     { name: 'get_weather', description: '날씨나 오늘 운전하기 괜찮은지 물을 때.', parameters: { type: 'OBJECT', properties: {} } },
     { name: 'check_maintenance', description: '소모품(엔진오일, 타이어, 와이퍼, 필터, 브레이크액) 교체 시기를 물을 때.', parameters: { type: 'OBJECT', properties: {} } },
     { name: 'weekly_report', description: '이번 주 운전 기록, 운전 습관, 급정거 등을 물을 때.', parameters: { type: 'OBJECT', properties: {} } },
+    { name: 'play_music', description: '노래·음악을 틀어 달라고 할 때. Spotify에서 곡을 찾아 화면에 재생 카드를 띄운다. 가수·곡 이름이 없으면 분위기(예: 신나는 드라이브 노래)를 검색어로.',
+      parameters: { type: 'OBJECT', properties: { query: { type: 'STRING', description: '검색어. 예: 아이유 밤편지, 뉴진스, 비 오는 날 잔잔한 노래' } }, required: ['query'] } },
   ],
 }];
 
