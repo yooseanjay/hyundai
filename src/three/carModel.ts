@@ -1,14 +1,14 @@
 // 현대차 차종별 3D 자동차를 코드로 만든다 (외부 모델 파일 없음).
 // 앞(+x) · 위(+y) · 오른쪽(+z). 차종 치수는 shapes.ts
 import * as THREE from 'three';
-import { BODY_COLORS, type BodyColor } from '../data/hyundaiModels';
+import { PAINTS, type BodyColor } from '../data/hyundaiModels';
 import type { Mood } from '../game/character';
 import type { CosmeticId } from '../game/progress';
 import { DEFAULT_STYLE, type CharStyle } from '../game/style';
 import { drawFace } from './face';
 import { shapeOf, type CarShape } from './shapes';
 
-const paintOf = (c?: BodyColor) => BODY_COLORS.find((b) => b.id === c)?.hex ?? '#c4c8ce';
+const paintOf = (c?: BodyColor) => (c && PAINTS[c]?.hex) || '#c4c8ce';
 
 export interface CarRig {
   group: THREE.Group;
@@ -213,8 +213,10 @@ export function buildCar(shapeId?: string): CarRig {
   let current: BodyColor | undefined;
   const modelMats: THREE.MeshStandardMaterial[] = [];
   const tintModel = () => {
-    const hex = !current || current === 'silver' ? '#ffffff' : paintOf(current);
-    modelMats.forEach((m) => m.color.set(hex));
+    // 모델 질감이 원래 은색이라 흰색 계열은 그대로(#fff), 나머지는 실제 색을 곱함. 무광 색은 반사를 줄임
+    const p = current ? PAINTS[current] : undefined;
+    const hex = !p || parseInt(p.hex.slice(1, 3), 16) > 0xa8 ? '#ffffff' : p.hex;
+    modelMats.forEach((m) => { m.color.set(hex); m.roughness = p?.matte ? 0.7 : 0.45; });
   };
   const topY = S.cargo && !S.cargo.open ? Math.max(roofY, S.cargo.top) : roofY;
 

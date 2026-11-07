@@ -332,3 +332,6 @@ html, body, .app { background: var(--bg); color: var(--fg); }
 .tabbar { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .tabbar.with-mic { grid-template-columns: 66px repeat(3, minmax(0, 1fr)); }
 .drive-card .h3 { font-size: 18px; }
+
+/* 꾸미기 · 색상: 차종 고르기 (실제 3D 모델 4종) */
+.studio-models { margin-bottom: 14px; }

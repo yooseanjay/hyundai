@@ -1,6 +1,6 @@
 import type { Mood } from '../game/character';
 import type { CosmeticId } from '../game/progress';
-import type { BodyColor } from '../data/hyundaiModels';
+import { PAINTS, type BodyColor } from '../data/hyundaiModels';
 import plate from '../data/ioniq5-screen.json';
 
 // 배포 주소가 하위 경로(/our-car-alive/)여도 이미지가 열리도록
@@ -153,15 +153,16 @@ const ROOF_ITEMS: Partial<Record<CosmeticId, string>> = {
   flower: `${ASSET}character/acc-flower.png`,
 };
 
-/** 흑백 디자인: 사진 차의 밝기만 바꿔 무채색으로 표현 (유채색을 고르면 실버로 표시) */
-const COLOR_FILTER: Partial<Record<BodyColor, string>> = {
-  white: 'brightness(1.12) saturate(0.4)',
-  gray: 'brightness(0.72) saturate(0.4)',
-  black: 'brightness(0.4) contrast(1.15) saturate(0.3)',
-  beige: 'brightness(1.05) saturate(0.5)',
-};
+/** 사진 차는 색 대신 밝기만 맞춤 (고른 색의 밝기 기준) */
+function colorFilter(c: BodyColor): string {
+  const hex = PAINTS[c]?.hex;
+  if (!hex) return 'none';
+  const n = parseInt(hex.slice(1), 16);
+  const lum = (0.299 * (n >> 16) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)) / 255;
+  return `brightness(${(0.35 + lum * 0.8).toFixed(2)}) saturate(0.4)`;
+}
 
-export function CarCharacter({ mood, cosmetic, driving, color = 'silver', size = 280 }: Props) {
+export function CarCharacter({ mood, cosmetic, driving, color = 'SAW', size = 280 }: Props) {
   const roof = ROOF_ITEMS[cosmetic];
   return (
     <div
@@ -171,7 +172,7 @@ export function CarCharacter({ mood, cosmetic, driving, color = 'silver', size =
       aria-label={`차 캐릭터 (${mood})`}
     >
       <div className="car3d-body">
-        <img src={`${ASSET}character/ioniq5.png`} alt="" draggable={false} style={{ filter: COLOR_FILTER[color] ?? 'none' }} />
+        <img src={`${ASSET}character/ioniq5.png`} alt="" draggable={false} style={{ filter: colorFilter(color) }} />
         <div className="car3d-screen" style={{ left: `${plate.x * 100}%`, top: `${plate.y * 100}%`, width: `${plate.w * 100}%`, height: `${plate.h * 100}%` }}>
           <Face mood={mood} cosmetic={cosmetic} />
         </div>

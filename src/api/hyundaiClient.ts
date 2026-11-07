@@ -110,7 +110,7 @@ export class HyundaiApiSource implements VehicleDataSource {
         model: m?.name ?? (c.carSellname || c.carName || ''),
         fuelType: FUEL_BY_CAR_TYPE[c.carType] ?? m?.fuels[0] ?? 'gasoline',
         modelId: m?.id,
-        bodyColor: m?.color ?? 'yellow',
+        bodyColor: m?.color ?? 'SAW',
       };
     });
   }

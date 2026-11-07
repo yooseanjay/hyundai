@@ -2,7 +2,7 @@
 // 실제 API 키 승인 전에도 "운전 → 상태 변화 → 일기 → 성장" 루프 전체를 체험할 수 있게 한다.
 // 현대차 전 라인업(src/data/hyundaiModels.ts) 중 아무 차나 골라 시뮬레이션할 수 있다.
 import { secureStorage } from '../security/secureStorage';
-import { findModelById, HYUNDAI_MODELS, type BodyColor } from '../data/hyundaiModels';
+import { findModelById, HYUNDAI_MODELS, validColor, type BodyColor } from '../data/hyundaiModels';
 import type { CarProfile, FuelType, Trip, VehicleDataSource, VehicleSnapshot, WarningKey } from './types';
 
 const STORE_KEY = 'oca.mock.v2';
@@ -20,7 +20,7 @@ interface MockState {
   trips: Trip[];
 }
 
-const DEFAULT_CAR: MockCarConfig = { modelId: 'ioniq5', fuel: 'ev', color: 'yellow', nickname: '오닉이' };
+const DEFAULT_CAR: MockCarConfig = { modelId: 'ioniq5', fuel: 'ev', color: 'SAW', nickname: '오닉이' };
 
 function specOf(car: MockCarConfig) {
   const m = findModelById(car.modelId) ?? HYUNDAI_MODELS[0];
@@ -54,7 +54,13 @@ function initial(car: MockCarConfig = DEFAULT_CAR): MockState {
 function load(): MockState {
   try {
     const raw = secureStorage.getItem(STORE_KEY);
-    if (raw) return JSON.parse(raw) as MockState;
+    if (raw) {
+      const s = JSON.parse(raw) as MockState;
+      // 없어진 차종·색이면 3D 모델이 있는 차·실제 색으로 바꿈
+      if (!findModelById(s.car.modelId)) s.car = { ...s.car, modelId: DEFAULT_CAR.modelId, fuel: DEFAULT_CAR.fuel };
+      s.car.color = validColor(s.car.color, s.car.modelId);
+      return s;
+    }
   } catch {
     /* ignore */
   }
@@ -103,7 +109,7 @@ export class MockVehicleSource implements VehicleDataSource {
   setCar(car: MockCarConfig) {
     const { model, fuel } = specOf(car);
     const modelChanged = car.modelId !== this.state.car.modelId || fuel !== this.state.car.fuel;
-    this.state.car = { ...car, fuel };
+    this.state.car = { ...car, fuel, color: validColor(car.color, model.id) };
     if (modelChanged) {
       this.state.snapshot.dteKm = dteOf(this.state.car, this.state.snapshot.fuelLevelPct);
       this.state.snapshot.charging = false;

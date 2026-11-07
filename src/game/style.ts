@@ -1,6 +1,6 @@
 // 캐릭터 꾸미기: 눈 모양 · 얼굴 빛 색 · 볼터치 · 차 색 (기기에 저장)
 import { secureStorage } from '../security/secureStorage';
-import type { BodyColor } from '../data/hyundaiModels';
+import { validColor, type BodyColor } from '../data/hyundaiModels';
 
 export type EyeStyle = 'classic' | 'round' | 'sparkle' | 'dot';
 export type GlowColor = 'white' | 'blue' | 'mint' | 'pink' | 'yellow';
@@ -45,6 +45,6 @@ export function saveStyle(s: CharStyle) {
 
 export const glowHex = (g: GlowColor) => GLOWS.find((x) => x.id === g)?.hex ?? '#fff';
 
-/** 실제 칠할 색: 고른 색 → 없으면 차종 기본 색을 흑백 톤으로 (첫 화면은 프리미엄 무채색) */
-export const colorOf = (s: CharStyle, base: BodyColor): BodyColor =>
-  s.color ?? (['white', 'gray', 'black', 'beige', 'silver'].includes(base) ? base : 'silver');
+/** 실제 칠할 색: 고른 색 → 없으면 차 기본 색. 그 차에 실제로 없는 색은 기본 색으로 */
+export const colorOf = (s: CharStyle, base: BodyColor, modelId?: string): BodyColor =>
+  validColor(s.color ?? base, modelId);

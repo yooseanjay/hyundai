@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import type { CarProfile } from '../api/types';
 import type { MockCarConfig } from '../api/mockVehicle';
-import { BODY_COLORS, findModelById, type BodyColor } from '../data/hyundaiModels';
+import { colorsOf, findModelById, HYUNDAI_MODELS, PAINTS, type BodyColor } from '../data/hyundaiModels';
 import { colorOf, EYES, GLOWS, type CharStyle } from '../game/style';
 import { drawFace } from '../three/face';
 
@@ -12,7 +12,7 @@ interface Props {
   car: CarProfile;
   look: CharStyle;
   onLook: (patch: Partial<CharStyle>) => void;
-  /** 데모(시뮬레이터)일 때만: 이름 바꾸기 */
+  /** 데모(시뮬레이터)일 때만: 차종(3D 모델 있는 4종) · 이름 바꾸기 */
   config?: MockCarConfig;
   onConfig?: (c: MockCarConfig) => void;
   tab: StudioTab;
@@ -22,8 +22,9 @@ interface Props {
 }
 
 export function Studio({ car, look, onLook, config, onConfig, tab, onTab, preview, footer }: Props) {
-  const color: BodyColor = colorOf(look, car.bodyColor);
-  const model = findModelById(config?.modelId ?? car.modelId ?? '');
+  const modelId = config?.modelId ?? car.modelId;
+  const color: BodyColor = colorOf(look, car.bodyColor, modelId);
+  const model = findModelById(modelId ?? '');
   const [name, setName] = useState(car.nickname);
   useEffect(() => setName(car.nickname), [car.nickname]);
 
@@ -34,7 +35,7 @@ export function Studio({ car, look, onLook, config, onConfig, tab, onTab, previe
         <div className="studio-tag">
           <span className="eyebrow-ai">MY {model?.isNew ? 'NEW ' : ''}HYUNDAI</span>
           <b>{car.nickname}</b>
-          <span className="cap">{model?.name ?? car.model} · {BODY_COLORS.find((c) => c.id === color)?.name}</span>
+          <span className="cap">{model?.name ?? car.model} · {PAINTS[color]?.name}</span>
         </div>
       </div>
 
@@ -46,8 +47,27 @@ export function Studio({ car, look, onLook, config, onConfig, tab, onTab, previe
 
       {tab === 'color' && (
         <div className="studio-panel">
+          {config && onConfig && (
+            <div className="chip-row studio-models" role="radiogroup" aria-label="차종">
+              {HYUNDAI_MODELS.map((m) => (
+                <button
+                  key={m.id}
+                  role="radio"
+                  aria-checked={m.id === modelId}
+                  className={`chip ${m.id === modelId ? 'on' : ''}`}
+                  onClick={() => {
+                    if (m.id === modelId) return;
+                    onConfig({ ...config, modelId: m.id, fuel: m.fuels[0], color: m.color });
+                    onLook({ color: m.color });
+                  }}
+                >
+                  {m.name}
+                </button>
+              ))}
+            </div>
+          )}
           <div className="paint-grid">
-            {BODY_COLORS.map((c) => (
+            {colorsOf(modelId).map((c) => (
               <button key={c.id} className={`paint ${color === c.id ? 'on' : ''}`} onClick={() => onLook({ color: c.id })} aria-label={c.name}>
                 <i style={{ background: `radial-gradient(circle at 35% 30%, #ffffff66, transparent 45%), ${c.hex}` }} />
                 <span>{c.name}</span>

@@ -287,7 +287,7 @@ export default function App() {
   const kmNow = Math.round(live.km * 10) / 10;
   const etaMin = Math.round(((distance - live.km) / Math.max(20, live.speed || AVG_SPEED[style])) * 60);
   const tab: Tab = view === 'talk' ? 'home' : view;
-  const carColor = colorOf(look, car.bodyColor);
+  const carColor = colorOf(look, car.bodyColor, car.modelId);
   const carShape = findModelById(car.modelId ?? '')?.shape;
   const energyTerm = ENERGY_TERMS[car.fuelType];
   void partsTick; // 교체 완료 후 다시 계산
@@ -607,7 +607,7 @@ function goldH(bleed = false) {
 }
 
 function Show3D({ car, look, mood, cosmetic, talking, height = 200 }: { car: CarProfile; look: CharStyle; mood: Mood; cosmetic: CosmeticId; talking?: boolean; height?: number }) {
-  const color = colorOf(look, car.bodyColor);
+  const color = colorOf(look, car.bodyColor, car.modelId);
   return (
     <Suspense fallback={<Showroom><CarCharacter mood={mood} cosmetic={cosmetic} color={color} size={268} /></Showroom>}>
       <Car3D mode="show" mood={mood} cosmetic={cosmetic} color={color} shape={findModelById(car.modelId ?? '')?.shape} style={look} talking={talking} height={height} />
