@@ -278,6 +278,20 @@ export function buildCar(shapeId?: string): CarRig {
         m.castShadow = true;
         m.receiveShadow = true;
         const mats = Array.isArray(m.material) ? m.material : [m.material];
+        // 창문(모델 파일에서 'glass' 재질로 따로 나눠 둠): 실내가 안 보이는 매끈한 검정 유리. 차 색은 안 칠함
+        if (mats.some((mt) => mt.name === 'glass')) {
+          mats.forEach((mt) => mt.dispose());
+          // 표면이 울퉁불퉁해 조명 반짝임이 흰 얼룩처럼 튀어나옴 → 반사를 넓고 약하게 해서 고르게 검게, 은은한 광만
+          const glassMat = new THREE.MeshPhysicalMaterial({
+            name: 'glass', color: '#020304', metalness: 0, roughness: 0.42,
+            specularIntensity: 0.3, envMapIntensity: 0.22, clearcoat: 0,
+          });
+          m.receiveShadow = false;
+          m.material = glassMat;
+          disposables.push(glassMat);
+          disposables.push(m.geometry);
+          return;
+        }
         mats.forEach((mt) => {
           const sm = mt as THREE.MeshStandardMaterial;
           if (!sm.isMeshStandardMaterial) return;
