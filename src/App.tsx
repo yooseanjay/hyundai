@@ -1,6 +1,6 @@
 // 화면 구성: Figma "우리 차가 살아있다면" 흑백 디자인 (홈 · AI 음성봇 · 운전 · 오늘의 일기 · 일기장 · 꾸미기)
 import {
-  ArrowUpRight, Award, BookOpen, CalendarDays, CarFront, ChevronLeft, ChevronRight, Crown,
+  ArrowUpRight, Award, BookOpen, CalendarDays, ChevronLeft, ChevronRight, Crown,
   Flower2, Gauge as GaugeIcon, Glasses, HardHat, House, MapPin, Mic, Ribbon, Route, Sparkles, Sun, X, type LucideIcon,
 } from 'lucide-react';
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -29,15 +29,15 @@ import {
   XP_FOR_CHARGE, XP_FOR_FIX, XP_PER_LEVEL, type CosmeticId, type Progress,
 } from './game/progress';
 
-type Tab = 'home' | 'drive' | 'studio' | 'diary';
+type Tab = 'home' | 'studio' | 'diary';
 type View = Tab | 'talk';
 type Style = 'calm' | 'normal' | 'sporty';
 
 const STYLE_LABEL: Record<Style, string> = { calm: '차분하게', normal: '보통', sporty: '신나게' };
 const STYLE_DESC: Record<Style, string> = { calm: '차분한 주행', normal: '보통 주행', sporty: '신나는 주행' };
 const AVG_SPEED: Record<Style, number> = { calm: 38, normal: 52, sporty: 74 };
-// 하단: 음성(빛나는 구) · 홈 · 운전 · 꾸미기 · 일기. 여행·날씨·주변 찾기는 음성으로
-const TABS: [Tab, LucideIcon, string][] = [['home', House, '홈'], ['drive', CarFront, '운전'], ['studio', Sparkles, '꾸미기'], ['diary', BookOpen, '일기']];
+// 하단: 음성(빛나는 구) · 홈(운전 포함) · 꾸미기 · 일기. 여행·날씨·주변 찾기는 음성으로
+const TABS: [Tab, LucideIcon, string][] = [['home', House, '홈'], ['studio', Sparkles, '꾸미기'], ['diary', BookOpen, '일기']];
 const COSMETIC_ICON: Record<CosmeticId, LucideIcon | null> = { none: null, sunglasses: Glasses, flower: Flower2, wrench: Award, scarf: Ribbon, cap: HardHat, crown: Crown };
 const WARNING_TITLE: Record<WarningKey, string> = {
   tirePressure: '타이어 공기압이 낮아요', engineOil: '엔진오일을 갈 때예요', brakeOil: '브레이크액을 확인해요',
@@ -348,7 +348,23 @@ export default function App() {
               </div>
               <span className="ready"><i className="dot good pulse" />{driving ? '주행 중' : dataSource.kind === 'hyundai' ? '차량 연결됨' : '출발 준비 완료'}</span>
             </div>
-            <Show3D car={car} look={look} mood={bot?.mood ?? st.mood} cosmetic={progress.equipped} height={goldH()} />
+            {driving ? (
+            <Suspense fallback={<div className="highway"><CarCharacter mood={st.mood} cosmetic={progress.equipped} color={carColor} size={232} /></div>}>
+              <div className="drive3d">
+                <Car3D mode="drive" mood={driving ? (live.braking ? 'sick' : 'excited') : st.mood} cosmetic={progress.equipped} color={carColor} shape={carShape} style={look}
+                  speedKmh={driving ? live.speed : 0} braking={live.braking} height={goldH()} />
+                {driving && (
+                  <div className="hud">
+                    <b>{Math.round(live.speed)}</b><span>km/h</span>
+                    {live.braking && <em>급정거!</em>}
+                    {source === 'gps' && <i className="gps-tag">GPS</i>}
+                  </div>
+                )}
+              </div>
+            </Suspense>
+            ) : (
+              <Show3D car={car} look={look} mood={bot?.mood ?? st.mood} cosmetic={progress.equipped} height={goldH()} />
+            )}
             <div className="hero-range">
               <div className="range-num"><b>{snap.dteKm}</b><span>km</span></div>
               <div className="range-meta">
@@ -359,6 +375,69 @@ export default function App() {
             </div>
           </div>
 
+          {/* 운전: 홈에서 바로 출발 · 주행 중이면 실시간 카드만 */}
+          {!driving && (
+            <div className="card drive-card">
+              <div className="card-head"><b className="h3">함께 달려볼까요?</b><Route size={18} className="muted" /></div>
+              <div className="card-head"><b className="label">측정 방식</b><span className="cap">{source === 'gps' ? '휴대폰 GPS로 실제 속도' : '데모 시뮬레이션'}</span></div>
+              <div className="chip-row">
+                <button className={`chip ${source === 'gps' ? 'on' : ''}`} onClick={() => setSource('gps')} disabled={!gpsSupported()}>실제 GPS</button>
+                {simulator && <button className={`chip ${source === 'sim' ? 'on' : ''}`} onClick={() => setSource('sim')}>시뮬레이션</button>}
+              </div>
+              {source === 'gps' ? (
+                <>
+                  <p className="cap gps-note">
+                    {gpsSupported()
+                      ? '휴대폰을 차에 두고 시동을 걸면 실제 속도·거리·급정거를 측정해요. 위치는 이 휴대폰 안에서만 계산하고 어디에도 보내지 않아요.'
+                      : '이 주소에서는 GPS를 쓸 수 없어요. https 주소(배포 링크)에서 열어 주세요.'}
+                  </p>
+                  <p className="safety">운전 중에는 화면을 조작하지 마세요. 거치대에 두거나 동승자가 사용해 주세요.</p>
+                </>
+              ) : (
+                <>
+                  <div className="chip-row">
+                    {(Object.keys(STYLE_LABEL) as Style[]).map((st2) => (
+                      <button key={st2} className={`chip ${style === st2 ? 'on' : ''}`} onClick={() => setStyle(st2)}>{STYLE_LABEL[st2]}</button>
+                    ))}
+                  </div>
+                  <div className="card-head"><span className="cap">목표 거리</span><b className="label">{distance} km</b></div>
+                  <input className="range" type="range" min={5} max={150} step={5} value={distance}
+                    style={{ ['--p' as string]: `${((distance - 5) / 145) * 100}%` }} onChange={(e) => setDistance(Number(e.target.value))} aria-label="목표 거리" />
+                </>
+              )}
+              <button className="btn primary block" onClick={startDrive} disabled={source === 'gps' && !gpsSupported()}>{source === 'gps' ? '시동 걸기 · GPS 측정 시작' : '시동 걸기'}</button>
+              {!simulator && <button className="btn text" onClick={() => refresh(snap)}>현대 운행 기록 새로고침</button>}
+            </div>
+          )}
+          {driving ? (
+            <>
+            <div className="card">
+              {source === 'gps' ? (
+                <>
+                  <div className="card-head">
+                    <span className="label run"><i className={`dot ${gps?.fix ? 'good' : 'warn'} pulse`} />{gps?.fix ? '주행 측정 중' : 'GPS 신호 찾는 중…'}</span>
+                    <span className="cap">{gps?.accuracy != null ? `정확도 ±${gps.accuracy}m` : ''}</span>
+                  </div>
+                  <div className="card-head"><b className="big">{kmNow.toFixed(1)} km</b><span className="cap">{Math.floor(gps?.elapsedMin ?? 0)}분째 · 평균 {Math.round(gps?.avgSpeed ?? 0)}km/h</span></div>
+                  {gpsMsg && <p className="cap gps-err">{gpsMsg}</p>}
+                </>
+              ) : (
+                <>
+                  <div className="card-head"><span className="label run"><i className="dot good pulse" />주행 중</span><span className="cap">{driveProgress >= 100 ? '도착' : `${hhmm(new Date(Date.now() + etaMin * 60000))} 도착`}</span></div>
+                  <div className="card-head"><b className="big">{kmNow} / {distance} km</b><span className="cap">{STYLE_DESC[style]}</span></div>
+                  <div className="bar"><div style={{ width: `${driveProgress}%` }} /></div>
+                </>
+              )}
+              <button className="btn primary block" onClick={getOff}>하차하고 오늘의 일기 보기</button>
+            </div>
+            <div className="card">
+              <div className="card-head"><b className="label">실시간 차량 상태</b><span className="cap">{source === 'gps' ? 'GPS 실측' : STYLE_DESC[style]}</span></div>
+              <VehicleStatus car={car} snap={snap} live={live} />
+            </div>
+            </>
+          ) : null}
+
+          {!driving && (<>
           {/* AI Mobility: 오닉이가 먼저 알려 주는 오늘의 브리핑 */}
           <div className="ai-brief">
             <div className="ai-head">
@@ -431,6 +510,7 @@ export default function App() {
               <ChevronRight size={16} className="muted" />
             </button>
           </div>
+          </>)}
         </section>
       )}
 
@@ -443,94 +523,6 @@ export default function App() {
           </div>
           <Show3D car={car} look={look} mood={bot?.mood ?? st.mood} cosmetic={progress.equipped} talking={!!bot?.speaking} height={goldH()} />
           <VoiceBot ctx={{ car, snap, status: st, trips, progress }} onLine={(line, mood, speaking) => setBot(line ? { line, mood, speaking } : null)} />
-        </section>
-      )}
-
-      {/* ---------- 운전 ---------- */}
-      {view === 'drive' && (
-        <section className="screen">
-          <div className="title-row">
-            <h1 className="h1">{!driving ? '함께 달려볼까요?' : source === 'gps' ? (live.speed > 3 ? '실제로 달리는 중' : '잠시 멈췄어요') : driveProgress >= 100 ? '도착했어요!' : '신나게 달리는 중'}</h1>
-            <Route size={20} className="muted" />
-          </div>
-          <Suspense fallback={<div className="highway"><CarCharacter mood={st.mood} cosmetic={progress.equipped} color={carColor} size={232} /></div>}>
-            <div className="drive3d">
-              <Car3D mode="drive" mood={driving ? (live.braking ? 'sick' : 'excited') : st.mood} cosmetic={progress.equipped} color={carColor} shape={carShape} style={look}
-                speedKmh={driving ? live.speed : 0} braking={live.braking} height={goldH()} />
-              {driving && (
-                <div className="hud">
-                  <b>{Math.round(live.speed)}</b><span>km/h</span>
-                  {live.braking && <em>급정거!</em>}
-                  {source === 'gps' && <i className="gps-tag">GPS</i>}
-                </div>
-              )}
-            </div>
-          </Suspense>
-          {!driving && (
-            <div className="card">
-              <div className="card-head"><b className="label">측정 방식</b><span className="cap">{source === 'gps' ? '휴대폰 GPS로 실제 속도' : '데모 시뮬레이션'}</span></div>
-              <div className="chip-row">
-                <button className={`chip ${source === 'gps' ? 'on' : ''}`} onClick={() => setSource('gps')} disabled={!gpsSupported()}>실제 GPS</button>
-                {simulator && <button className={`chip ${source === 'sim' ? 'on' : ''}`} onClick={() => setSource('sim')}>시뮬레이션</button>}
-              </div>
-              {source === 'gps' ? (
-                <>
-                  <p className="cap gps-note">
-                    {gpsSupported()
-                      ? '휴대폰을 차에 두고 시동을 걸면 실제 속도·거리·급정거를 측정해요. 위치는 이 휴대폰 안에서만 계산하고 어디에도 보내지 않아요.'
-                      : '이 주소에서는 GPS를 쓸 수 없어요. https 주소(배포 링크)에서 열어 주세요.'}
-                  </p>
-                  <p className="safety">운전 중에는 화면을 조작하지 마세요. 거치대에 두거나 동승자가 사용해 주세요.</p>
-                </>
-              ) : (
-                <>
-                  <div className="chip-row">
-                    {(Object.keys(STYLE_LABEL) as Style[]).map((st2) => (
-                      <button key={st2} className={`chip ${style === st2 ? 'on' : ''}`} onClick={() => setStyle(st2)}>{STYLE_LABEL[st2]}</button>
-                    ))}
-                  </div>
-                  <div className="card-head"><span className="cap">목표 거리</span><b className="label">{distance} km</b></div>
-                  <input className="range" type="range" min={5} max={150} step={5} value={distance}
-                    style={{ ['--p' as string]: `${((distance - 5) / 145) * 100}%` }} onChange={(e) => setDistance(Number(e.target.value))} aria-label="목표 거리" />
-                </>
-              )}
-              <button className="btn primary block" onClick={startDrive} disabled={source === 'gps' && !gpsSupported()}>{source === 'gps' ? '시동 걸기 · GPS 측정 시작' : '시동 걸기'}</button>
-              {!simulator && <button className="btn text" onClick={() => refresh(snap)}>현대 운행 기록 새로고침</button>}
-            </div>
-          )}
-          {!driving && (
-            <div className="card">
-              <div className="card-head"><b className="label">출발 전 차량 점검</b><span className="cap">{st.activeWarnings.length ? '확인이 필요해요' : '출발해도 좋아요'}</span></div>
-              <VehicleStatus car={car} snap={snap} compact />
-            </div>
-          )}
-          {driving ? (
-            <>
-            <div className="card">
-              {source === 'gps' ? (
-                <>
-                  <div className="card-head">
-                    <span className="label run"><i className={`dot ${gps?.fix ? 'good' : 'warn'} pulse`} />{gps?.fix ? '주행 측정 중' : 'GPS 신호 찾는 중…'}</span>
-                    <span className="cap">{gps?.accuracy != null ? `정확도 ±${gps.accuracy}m` : ''}</span>
-                  </div>
-                  <div className="card-head"><b className="big">{kmNow.toFixed(1)} km</b><span className="cap">{Math.floor(gps?.elapsedMin ?? 0)}분째 · 평균 {Math.round(gps?.avgSpeed ?? 0)}km/h</span></div>
-                  {gpsMsg && <p className="cap gps-err">{gpsMsg}</p>}
-                </>
-              ) : (
-                <>
-                  <div className="card-head"><span className="label run"><i className="dot good pulse" />주행 중</span><span className="cap">{driveProgress >= 100 ? '도착' : `${hhmm(new Date(Date.now() + etaMin * 60000))} 도착`}</span></div>
-                  <div className="card-head"><b className="big">{kmNow} / {distance} km</b><span className="cap">{STYLE_DESC[style]}</span></div>
-                  <div className="bar"><div style={{ width: `${driveProgress}%` }} /></div>
-                </>
-              )}
-              <button className="btn primary block" onClick={getOff}>하차하고 오늘의 일기 보기</button>
-            </div>
-            <div className="card">
-              <div className="card-head"><b className="label">실시간 차량 상태</b><span className="cap">{source === 'gps' ? 'GPS 실측' : STYLE_DESC[style]}</span></div>
-              <VehicleStatus car={car} snap={snap} live={live} />
-            </div>
-            </>
-          ) : null}
         </section>
       )}
 
@@ -557,7 +549,7 @@ export default function App() {
             <div className="card empty">
               <CalendarDays size={22} className="muted" />
               <p className="body muted">{progress.diaries.length ? '이 달에는 일기가 없어요.' : '아직 일기가 없어요. 함께 달리고 나면 오늘의 일기가 생겨요.'}</p>
-              {!progress.diaries.length && <button className="btn primary" onClick={() => setView('drive')}>운전하러 가기</button>}
+              {!progress.diaries.length && <button className="btn primary" onClick={() => setView('home')}>운전하러 가기</button>}
             </div>
           ) : (
             <ul className="diary-list">
@@ -614,7 +606,7 @@ export default function App() {
             onLine={(line, mood, speaking) => setBot(line ? { line, mood, speaking } : null)} />
         )}
         {TABS.map(([id, Icon, label]) => (
-          <button key={id} className={tab === id ? 'on' : ''} onClick={() => setView(id)} disabled={driving && id !== 'drive'} aria-label={label}>
+          <button key={id} className={tab === id ? 'on' : ''} onClick={() => setView(id)} disabled={driving && id !== 'home'} aria-label={label}>
             <Icon size={22} strokeWidth={tab === id ? 2 : 1.6} />
             <span>{label}</span>
           </button>

@@ -327,3 +327,8 @@ html, body, .app { background: var(--bg); color: var(--fg); }
 .music-alts::-webkit-scrollbar { display: none; }
 .music-alts .chip { max-width: 220px; overflow: hidden; text-overflow: ellipsis; }
 .music .act-links a:first-child { background: #1DB954; color: #fff; }
+
+/* 탭 3개 (홈에 운전 합침): 음성 구 + 홈 · 꾸미기 · 일기 */
+.tabbar { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.tabbar.with-mic { grid-template-columns: 66px repeat(3, minmax(0, 1fr)); }
+.drive-card .h3 { font-size: 18px; }
