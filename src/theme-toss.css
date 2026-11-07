@@ -312,18 +312,11 @@ html, body, .app { background: var(--bg); color: var(--fg); }
 .theme-toggle { width: 32px; height: 32px; padding: 0; justify-content: center; flex: none; }
 .theme-toggle span { display: none; }
 
-/* ---------- 홈: 주행 가능 거리 km 형광 ---------- */
-:root { --neon: #2DF5C4; --neon-ink: #00A37A; }
-.range-num b {
-  color: var(--neon-ink);
-  text-shadow: 0 0 1px rgba(0, 200, 150, .5), 0 0 10px rgba(45, 245, 196, .55), 0 0 26px rgba(45, 245, 196, .35);
-}
-.range-num span { color: var(--neon-ink); font-weight: 700; text-shadow: 0 0 8px rgba(45, 245, 196, .5); }
-.range-bar > div { background: linear-gradient(90deg, var(--blue), var(--neon)); box-shadow: 0 0 10px rgba(45, 245, 196, .6); }
-:root[data-theme="dark"] .range-num b, :root[data-theme="dark"] .range-num span { color: var(--neon); }
-:root[data-theme="dark"] .range-num b { text-shadow: 0 0 2px #fff, 0 0 12px rgba(45, 245, 196, .8), 0 0 32px rgba(45, 245, 196, .5), 0 0 60px rgba(45, 245, 196, .25); }
+/* ---------- 홈: 주행 가능 거리 km — 글자색은 그대로, 뒤에서 불빛만 번지게 ---------- */
+:root { --km-glow: 0 0 12px rgba(49, 130, 246, .35), 0 0 30px rgba(49, 130, 246, .2); }
+.range-num b, .range-num span { text-shadow: var(--km-glow); }
+:root[data-theme="dark"] { --km-glow: 0 0 6px rgba(255, 255, 255, .55), 0 0 18px rgba(255, 255, 255, .35), 0 0 40px rgba(160, 200, 255, .25); }
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) .range-num b, :root:not([data-theme="light"]) .range-num span { color: var(--neon); }
-  :root:not([data-theme="light"]) .range-num b { text-shadow: 0 0 2px #fff, 0 0 12px rgba(45, 245, 196, .8), 0 0 32px rgba(45, 245, 196, .5), 0 0 60px rgba(45, 245, 196, .25); }
+  :root:not([data-theme="light"]) { --km-glow: 0 0 6px rgba(255, 255, 255, .55), 0 0 18px rgba(255, 255, 255, .35), 0 0 40px rgba(160, 200, 255, .25); }
 }
 .home-status .vs-title { display: inline-flex; align-items: center; gap: 6px; }
