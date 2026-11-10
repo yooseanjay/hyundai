@@ -1,0 +1,11 @@
+node_modules
+dist
+.env
+.env.local
+*.log
+.hyundai-token.json
+dist-pages
+.tts-cache
+# 앱이 처음 작업 폴더에서 복사한 예전 뼈대 파일 (사용 안 함)
+our-car-alive/
+tsconfig.tsbuildinfo
