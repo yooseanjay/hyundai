@@ -442,3 +442,22 @@ html.pleos .app > .screen > .side { gap: var(--g2); }
 .mc-list > .label + .mc-row { border-top: 0; }
 .mc-row b { flex: 1; font-size: 15px; font-weight: 600; }
 .mc-ic { flex: none; width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; background: var(--ai-soft); color: var(--ai); }
+
+/* ---------- Spotify 계정 연결 · 재생 조작 ---------- */
+.sp-title { display: inline-flex; align-items: center; gap: 8px; }
+.sp-logo { width: 18px; height: 18px; border-radius: 50%; background: #1DB954; box-shadow: 0 0 10px rgba(29, 185, 84, .6); }
+.good-text { color: var(--good) !important; }
+.sp-btn { background: #1DB954 !important; color: #000 !important; box-shadow: 0 0 21px rgba(29, 185, 84, .35) !important; }
+.sp-card code { font-size: 12px; padding: 1px 5px; border-radius: 5px; background: var(--line); word-break: break-all; }
+.sp-card a { color: var(--blue); }
+.sp-cid { display: flex; gap: 8px; }
+.sp-cid .text-input { flex: 1; min-width: 0; }
+.sp-player { display: grid; gap: var(--g2, 13px); }
+.sp-now { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.sp-now img, .sp-art { flex: none; width: 44px; height: 44px; border-radius: 8px; background: var(--line); object-fit: cover; }
+.sp-txt { display: grid; min-width: 0; }
+.sp-txt b, .sp-txt .cap { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sp-btns { display: flex; justify-content: center; align-items: center; gap: 21px; }
+.sp-btns .icon-btn { border: 0; background: var(--line); color: var(--fg); width: 44px; height: 44px; }
+.sp-btns .sp-main { width: 55px; height: 55px; background: #1DB954; color: #000; box-shadow: 0 0 21px rgba(29, 185, 84, .45); }
+.sp-card .btn.text { justify-self: start; padding: 0; min-height: 0; }

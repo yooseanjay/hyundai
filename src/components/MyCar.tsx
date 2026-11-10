@@ -10,6 +10,7 @@ import {
 import type { ReactNode } from 'react';
 import { WARNING_LABELS, type CarProfile, type Trip, type VehicleSnapshot, type WarningKey } from '../api';
 import { markReplaced, partsStatus, weeklyReport } from '../voice/actions';
+import { SpotifyPanel } from './SpotifyPanel';
 
 export const MYHYUNDAI_URL = 'https://www.hyundai.com/kr/ko/customer-service/myhyundai';
 const RESERVE_URL = 'https://www.hyundai.com/kr/ko/customer-service/service-network/service-reservation-search';
@@ -118,6 +119,8 @@ export function MyCar({ car, snap, trips, onReplaced }: Props) {
           {ev && <span className="cap mc-charge"><BatteryCharging size={15} aria-hidden />{snap.charging ? '충전 중' : snap.pluggedIn ? '충전기 연결됨' : '충전기 연결 안 됨'}</span>}
           {warns.length > 0 && <span className="cap bad-text">{warns.map((k) => WARNING_LABELS[k]).join(' · ')}</span>}
         </div>
+
+        <SpotifyPanel />
 
         <div className="card mc-list">
           <b className="label">차량 관리</b>

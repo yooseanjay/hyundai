@@ -15,7 +15,7 @@ export const CSP = {
     'https://oapi.map.naver.com', 'https://*.pstatic.net'],
   'style-src': ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com', 'https://cdn.jsdelivr.net'],
   'font-src': ["'self'", 'data:', 'https://fonts.gstatic.com', 'https://cdn.jsdelivr.net'],
-  'img-src': ["'self'", 'data:', 'blob:', 'https://*.pstatic.net', 'https://*.naver.net', 'https://*.naver.com'],
+  'img-src': ["'self'", 'data:', 'blob:', 'https://*.pstatic.net', 'https://*.naver.net', 'https://*.naver.com', 'https://i.scdn.co'],
   'media-src': ["'self'", 'data:', 'blob:'],
   'worker-src': ["'self'", 'blob:'],
   'connect-src': [
@@ -29,6 +29,7 @@ export const CSP = {
     'https://nominatim.openstreetmap.org', 'https://api.openstreetmap.org',
     'https://*.map.naver.com', 'https://*.pstatic.net', 'https://*.naver.net',
     'https://api.bigdatacloud.net',
+    'https://accounts.spotify.com', 'https://api.spotify.com', // Spotify 계정 연결(PKCE) · 재생 제어
     'https://cdn.jsdelivr.net',
     'https://huggingface.co',
     'https://*.huggingface.co',

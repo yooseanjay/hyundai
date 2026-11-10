@@ -29,6 +29,7 @@ import { wideCar } from './carScreen';
 import { SCENES, type SceneId } from './three/scenery';
 import { REAL_ROADS } from './data/realRoads';
 import { MyCar } from './components/MyCar';
+import { handleSpotifyCallback } from './voice/spotify';
 import { RouteMap } from './components/RouteMap';
 import { DriveControls } from './components/DriveControls';
 import { distToRoad, myPosition, roadNear } from './data/nearbyRoad';
@@ -169,6 +170,8 @@ export default function App() {
       showToast('현대 계정 연결 완료');
     }
     refresh();
+    // Spotify 로그인하고 돌아왔을 때 (?code=…&state=sp_…)
+    void handleSpotifyCallback().then((m) => { if (m) { showToast(m); setView('mycar'); } });
   }, [refresh]);
 
   useEffect(() => { window.scrollTo({ top: 0 }); }, [view]);

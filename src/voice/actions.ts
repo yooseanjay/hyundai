@@ -4,10 +4,13 @@
 //  - get_weather: 현재 위치(또는 주차 위치) 날씨 + 운전 팁
 //  - check_maintenance: 소모품 남은 거리
 //  - weekly_report: 최근 7일 운전 요약
-//  - play_music: Spotify에서 노래를 찾아 화면에 재생 카드 (키가 없으면 Spotify 검색 열기)
+//  - play_music: Spotify 계정이 연결돼 있으면 내 Spotify에서 바로 재생, 아니면 화면에 재생 카드
+//  - music_control: 멈춤 · 다시 재생 · 다음 곡 · 이전 곡 · 지금 나오는 곡
+//  - connect_spotify: Spotify 로그인 화면으로 이동해 계정 연결
 import { secureStorage } from '../security/secureStorage';
 import type { CarProfile, Trip, VehicleSnapshot } from '../api/types';
 import { recommendTrips, type TripIdea } from './gemini';
+import { clientId, connectSpotify, control, searchAndPlay, spotifyConnected, SpotifyError, type NowPlaying, type PlayedTrack, type PlayerAction } from './spotify';
 
 export interface ActionCtx { car: CarProfile; snap: VehicleSnapshot; trips: Trip[] }
 
@@ -18,7 +21,9 @@ export type ActionCard =
   | { kind: 'weather'; place: string; temp: number; text: string; max: number; min: number; rain: number; tip: string }
   | { kind: 'parts'; items: { name: string; left: number; pct: number }[] }
   | { kind: 'report'; n: number; km: number; avg: number; brakes: number; calm: number }
-  | { kind: 'music'; query: string; tracks: SpotifyTrack[]; search: string };
+  | { kind: 'music'; query: string; tracks: SpotifyTrack[]; search: string; note?: string }
+  | { kind: 'player'; action: PlayerAction | 'play'; track?: PlayedTrack; now?: NowPlaying | null; note?: string }
+  | { kind: 'spotify-connect'; ready: boolean; connected: boolean };
 
 export interface SpotifyTrack { id: string; name: string; artist: string; album: string; image: string; url: string }
 
@@ -172,6 +177,16 @@ export function musicQuery(text: string): string {
 
 export async function playMusic(query: string): Promise<ActionResult> {
   const q = musicQuery(query);
+  // 계정이 연결돼 있으면 내 Spotify에서 바로 재생
+  let note: string | undefined;
+  if (spotifyConnected()) {
+    try {
+      const { track } = await searchAndPlay(q);
+      return { card: { kind: 'player', action: 'play', track }, data: { 재생중: `${track.artist} - ${track.name}`, 기기: '사용자의 Spotify' } };
+    } catch (e) {
+      note = e instanceof Error ? e.message : undefined; // 아래 재생 카드로
+    }
+  }
   const search = `https://open.spotify.com/search/${encodeURIComponent(q)}`;
   let tracks: SpotifyTrack[] = [];
   try {
@@ -179,8 +194,36 @@ export async function playMusic(query: string): Promise<ActionResult> {
     if (r.ok) tracks = ((await r.json()) as { tracks?: SpotifyTrack[] }).tracks ?? [];
   } catch { /* 서버·키가 없으면 검색 링크만 */ }
   return {
-    card: { kind: 'music', query: q, tracks, search },
-    data: tracks.length ? { 재생할곡: `${tracks[0].artist} - ${tracks[0].name}`, 다른후보: tracks.slice(1).map((t) => `${t.artist} - ${t.name}`) } : { 검색어: q, 안내: 'Spotify 검색 버튼을 띄움' },
+    card: { kind: 'music', query: q, tracks, search, note },
+    data: note ? { 안내: note, 대신: '화면에 재생 카드를 띄움' } : tracks.length ? { 재생할곡: `${tracks[0].artist} - ${tracks[0].name}`, 다른후보: tracks.slice(1).map((t) => `${t.artist} - ${t.name}`) } : { 검색어: q, 안내: 'Spotify 검색 버튼을 띄움' },
+  };
+}
+
+const ACTION_KO: Record<PlayerAction, string> = { pause: '멈춤', resume: '다시 재생', next: '다음 곡', previous: '이전 곡', now: '지금 곡' };
+
+export async function musicControl(action: string): Promise<ActionResult> {
+  const a = (['pause', 'resume', 'next', 'previous', 'now'] as PlayerAction[]).find((x) => x === action) ?? 'now';
+  if (!spotifyConnected()) {
+    return { card: { kind: 'spotify-connect', ready: !!clientId(), connected: false }, data: { 안내: 'Spotify 계정이 아직 연결되지 않음. 연결 버튼을 띄움' } };
+  }
+  try {
+    const now = await control(a);
+    return { card: { kind: 'player', action: a, now }, data: { 한일: ACTION_KO[a], 지금곡: now ? `${now.artist} - ${now.name}` : '없음', 재생중: now?.playing ?? false } };
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : 'Spotify 제어 실패';
+    if (e instanceof SpotifyError && e.code === 'login') return { card: { kind: 'spotify-connect', ready: !!clientId(), connected: false }, data: { 안내: msg } };
+    return { card: { kind: 'player', action: a, note: msg }, data: { 실패: msg } };
+  }
+}
+
+/** 음성으로 Spotify 계정 연결: 대답을 말할 시간을 두고 로그인 화면으로 이동 */
+export function connectSpotifyByVoice(): ActionResult {
+  const ready = !!clientId();
+  const connected = spotifyConnected();
+  if (ready && !connected) window.setTimeout(() => { void connectSpotify().catch(() => { /* 카드의 버튼으로 */ }); }, 2800);
+  return {
+    card: { kind: 'spotify-connect', ready, connected },
+    data: connected ? { 안내: '이미 연결돼 있음' } : ready ? { 안내: '잠시 뒤 Spotify 로그인 화면으로 이동' } : { 안내: '설정에 Spotify Client ID가 없어 연결할 수 없음. 화면 안내를 띄움' },
   };
 }
 
@@ -193,6 +236,8 @@ export async function runTool(name: string, args: Record<string, unknown>, ctx: 
     case 'check_maintenance': return checkMaintenance(ctx);
     case 'weekly_report': return weeklyReport(ctx);
     case 'play_music': return playMusic(String(args.query ?? ''));
+    case 'music_control': return musicControl(String(args.action ?? 'now'));
+    case 'connect_spotify': return connectSpotifyByVoice();
     default: throw new Error(`모르는 도구: ${name}`);
   }
 }
@@ -201,7 +246,16 @@ export async function runTool(name: string, args: Record<string, unknown>, ctx: 
 export function detectTool(text: string): { name: string; args: Record<string, unknown> } | null {
   const q = text.replace(/\s+/g, '');
   const has = (...w: string[]) => w.some((x) => q.includes(x));
-  if (has('노래', '음악', '스포티파이', 'spotify', 'Spotify') || /(틀어|들려|재생해)/.test(q)) return { name: 'play_music', args: { query: text } };
+  const music = has('노래', '음악', '곡', '스포티파이', 'spotify', 'Spotify');
+  if (has('스포티파이', 'spotify', 'Spotify') && has('연결', '로그인', '연동')) return { name: 'connect_spotify', args: {} };
+  if (music || spotifyConnected()) {
+    if (/(다음곡|다음노래|넘겨|스킵|skip)/i.test(q)) return { name: 'music_control', args: { action: 'next' } };
+    if (/(이전곡|이전노래|앞곡|전곡)/.test(q)) return { name: 'music_control', args: { action: 'previous' } };
+    if ((music && /(멈춰|멈춤|정지|꺼|그만)/.test(q)) || /^(멈춰|정지|일시정지)/.test(q)) return { name: 'music_control', args: { action: 'pause' } };
+    if (/(다시틀|계속틀|이어서|다시재생)/.test(q)) return { name: 'music_control', args: { action: 'resume' } };
+    if (music && /(무슨노래|뭐야|지금나오|제목)/.test(q)) return { name: 'music_control', args: { action: 'now' } };
+  }
+  if (music || /(틀어|들려|재생해)/.test(q)) return { name: 'play_music', args: { query: text } };
   if (has('여행', '추천', '어디갈', '놀러', '드라이브코스', '갈만한')) {
     const mood = ['바다', '산', '카페', '맛집', '야경', '공원'].find((m) => q.includes(m)) ?? '드라이브';
     return { name: 'recommend_places', args: { mood, hours: has('하루') ? '하루' : has('한시간', '1시간', '잠깐') ? '1시간' : '반나절' } };
@@ -228,7 +282,10 @@ export const LIVE_TOOLS = [{
     { name: 'get_weather', description: '날씨나 오늘 운전하기 괜찮은지 물을 때.', parameters: { type: 'OBJECT', properties: {} } },
     { name: 'check_maintenance', description: '소모품(엔진오일, 타이어, 와이퍼, 필터, 브레이크액) 교체 시기를 물을 때.', parameters: { type: 'OBJECT', properties: {} } },
     { name: 'weekly_report', description: '이번 주 운전 기록, 운전 습관, 급정거 등을 물을 때.', parameters: { type: 'OBJECT', properties: {} } },
-    { name: 'play_music', description: '노래·음악을 틀어 달라고 할 때. Spotify에서 곡을 찾아 화면에 재생 카드를 띄운다. 가수·곡 이름이 없으면 분위기(예: 신나는 드라이브 노래)를 검색어로.',
+    { name: 'music_control', description: '지금 나오는 음악을 멈추기, 다시 재생, 다음 곡, 이전 곡, 또는 지금 나오는 곡이 뭔지 물을 때. 사용자의 Spotify 계정으로 직접 제어한다.',
+      parameters: { type: 'OBJECT', properties: { action: { type: 'STRING', description: 'pause, resume, next, previous, now 중 하나' } }, required: ['action'] } },
+    { name: 'connect_spotify', description: 'Spotify 계정을 연결(로그인, 연동)해 달라고 할 때. 잠시 뒤 Spotify 로그인 화면으로 이동한다.', parameters: { type: 'OBJECT', properties: {} } },
+    { name: 'play_music', description: '노래·음악을 틀어 달라고 할 때. Spotify 계정이 연결돼 있으면 사용자의 Spotify에서 바로 재생하고, 아니면 화면에 재생 카드를 띄운다. 가수·곡 이름이 없으면 분위기(예: 신나는 드라이브 노래)를 검색어로.',
       parameters: { type: 'OBJECT', properties: { query: { type: 'STRING', description: '검색어. 예: 아이유 밤편지, 뉴진스, 비 오는 날 잔잔한 노래' } }, required: ['query'] } },
   ],
 }];
@@ -243,7 +300,19 @@ export function summaryOf(card: ActionCard): string {
       const due = card.items.filter((i) => i.pct >= 90);
       return due.length ? `${due.map((i) => i.name).join(', ')} 교체할 때가 됐어요.` : `${card.items[0].name}이 ${card.items[0].left.toLocaleString()}km 남아서 제일 먼저예요.`;
     }
-    case 'music': return card.tracks.length ? `${card.tracks[0].artist}의 ${card.tracks[0].name}, 화면에서 재생을 눌러 주세요!` : `Spotify에서 '${card.query}'를 바로 찾을 수 있게 띄워 드렸어요.`;
+    case 'player': {
+      if (card.note) return card.note;
+      if (card.track) return `${card.track.artist}의 ${card.track.name} 틀어 드릴게요.`;
+      const n = card.now;
+      if (card.action === 'pause') return '음악을 멈췄어요.';
+      if (!n) return '지금 재생 중인 곡이 없어요.';
+      if (card.action === 'now') return `지금 나오는 곡은 ${n.artist}의 ${n.name}이에요.`;
+      return `${n.artist}의 ${n.name}이에요.`;
+    }
+    case 'spotify-connect':
+      return card.connected ? 'Spotify는 이미 연결돼 있어요.' : card.ready ? '잠시 뒤 Spotify 로그인 화면으로 넘어갈게요. 로그인하면 바로 연결돼요.' : 'Spotify를 연결하려면 내 차 탭에서 Spotify 설정을 먼저 해 주세요.';
+    case 'music': if (card.note) return `${card.note} 대신 화면에 재생 카드를 띄웠어요.`;
+      return card.tracks.length ? `${card.tracks[0].artist}의 ${card.tracks[0].name}, 화면에서 재생을 눌러 주세요!` : `Spotify에서 '${card.query}'를 바로 찾을 수 있게 띄워 드렸어요.`;
     case 'report': return card.n ? `이번 주 ${card.n}번, ${card.km}km 함께 달렸고 급정거는 ${card.brakes}번이었어요.` : '이번 주에는 아직 함께 달린 기록이 없어요.';
   }
 }
