@@ -29,6 +29,10 @@ import { wideCar } from './carScreen';
 import { SCENES, type SceneId } from './three/scenery';
 import { REAL_ROADS } from './data/realRoads';
 import { RouteMap } from './components/RouteMap';
+import { DriveControls } from './components/DriveControls';
+import { myPosition, roadNear } from './data/nearbyRoad';
+import type { RealRoad } from './data/realRoads';
+import type { DriveControl, DriveStatus } from './components/Car3D';
 
 type Tab = 'home' | 'studio' | 'diary';
 type View = Tab | 'talk';
@@ -75,6 +79,26 @@ export default function App() {
   const [driving, setDriving] = useState(false);
   const [scene, setScene] = useState<SceneId>(() => { try { return (localStorage.getItem('drive-scene') as SceneId) || 'city'; } catch { return 'city'; } });
   const [mapPos, setMapPos] = useState<[number, number] | null>(null);
+  // 주행 조작 · 상태 (3D ↔ 화면 버튼)
+  const driveCtl = useRef<DriveControl | null>(null);
+  const [driveSt, setDriveSt] = useState<DriveStatus | null>(null);
+  // 내 위치 근처 실제 도로
+  const [hereRoad, setHereRoad] = useState<RealRoad | null>(null);
+  const [hereMsg, setHereMsg] = useState<string | null>(null);
+  const findHere = async () => {
+    if (hereRoad) { setHereRoad(null); setHereMsg(null); setMapPos(null); return; }
+    setHereMsg('내 위치 근처 도로를 찾는 중…');
+    try {
+      const [la, ln] = await myPosition();
+      const r = await roadNear(la, ln);
+      setHereRoad(r);
+      setMapPos(null);
+      setHereMsg(null);
+    } catch (e) {
+      setHereMsg(e instanceof Error ? e.message : '도로를 찾지 못했어요');
+    }
+  };
+  const roadNow = hereRoad ?? REAL_ROADS[scene];
   const onCarPos = useCallback((la: number, ln: number) => setMapPos([la, ln]), []);
   const pickScene = (id: SceneId) => { setScene(id); setMapPos(null); try { localStorage.setItem('drive-scene', id); } catch { /* 저장 안 돼도 괜찮음 */ } };
   const [driveProgress, setDriveProgress] = useState(0);
@@ -314,12 +338,12 @@ export default function App() {
             <Suspense fallback={<div className="highway"><CarCharacter mood={st.mood} color={carColor} size={232} /></div>}>
               <div className="drive3d">
                 <Car3D mode="drive" mood={driving ? (live.braking ? 'sick' : 'excited') : st.mood} color={carColor} shape={carShape} style={look}
-                  speedKmh={driving ? live.speed : 0} braking={live.braking} scenery={scene} onPosition={onCarPos} height={goldH() - 56} />
+                  speedKmh={driving ? live.speed : 0} braking={live.braking} scenery={scene} road={hereRoad} control={driveCtl} onStatus={setDriveSt} onPosition={onCarPos} height={goldH() - 112} />
               </div>
               {/* 3D 화면 위에 글자를 띄우지 않고 아래 줄에 */}
               <div className="drive-bar">
                 <div className="hud">
-                  <b>{Math.round(live.speed)}</b><span>km/h</span>
+                  <b>{driveSt ? Math.abs(driveSt.kmh) : Math.round(live.speed)}</b><span>{driveSt?.reverse ? 'km/h 후진' : 'km/h'}</span>
                   {live.braking && <em>급정거!</em>}
                   {source === 'gps' && <i className="gps-tag">GPS</i>}
                 </div>
@@ -331,6 +355,7 @@ export default function App() {
                   ))}
                 </div>
               </div>
+              <DriveControls st={driveSt} ctl={driveCtl} roadName={roadNow.name} />
             </Suspense>
             ) : (
               <Show3D car={car} look={look} mood={bot?.mood ?? st.mood} height={goldH()} />
@@ -351,12 +376,18 @@ export default function App() {
           {!driving && (
             <div className="card drive-card">
               <div className="card-head"><b className="h3">함께 달려볼까요?</b><Route size={18} className="muted" /></div>
-              <div className="card-head"><b className="label">달릴 곳</b><span className="cap">📍 {REAL_ROADS[scene].name} · {REAL_ROADS[scene].region}</span></div>
+              <div className="card-head"><b className="label">달릴 곳</b><span className="cap">📍 {roadNow.name} · {roadNow.region} · 왕복 {roadNow.lanes * 2}차로</span></div>
               <div className="chip-row scene-row">
                 {SCENES.map((x) => (
                   <button key={x.id} className={`chip ${scene === x.id ? 'on' : ''}`} onClick={() => pickScene(x.id)}>{x.emoji} {x.label}</button>
                 ))}
               </div>
+              <div className="chip-row">
+                <button className={`chip ${hereRoad ? 'on' : ''}`} onClick={findHere} aria-pressed={!!hereRoad}>
+                  📍 {hereRoad ? `내 위치 도로: ${hereRoad.name}` : '내 위치 도로로 달리기'}
+                </button>
+              </div>
+              <p className="cap gps-note">{hereMsg ?? (hereRoad ? '장면은 위에서 고른 모양 그대로, 도로만 내 근처 실제 도로예요.' : '누르면 위치를 한 번 OpenStreetMap에 보내 가장 가까운 찻길을 찾아요. 저장하지 않아요.')}</p>
               <div className="card-head"><b className="label">측정 방식</b><span className="cap">{source === 'gps' ? '휴대폰 GPS로 실제 속도' : '데모 시뮬레이션'}</span></div>
               <div className="chip-row">
                 <button className={`chip ${source === 'gps' ? 'on' : ''}`} onClick={() => setSource('gps')} disabled={!gpsSupported()}>실제 GPS</button>
@@ -389,7 +420,7 @@ export default function App() {
           )}
           {driving ? (
             <>
-            <RouteMap road={REAL_ROADS[scene]} pos={mapPos} />
+            <RouteMap road={roadNow} pos={mapPos} />
             <div className="card">
               {source === 'gps' ? (
                 <>

@@ -1,11 +1,12 @@
 // 주행 배경 장면: 실제 한국 도로 모양 위를 달리며, 도로 양쪽에 장면을 계속 이어 붙인다
-//  - 도로 모양: 실제 도로(OpenStreetMap)의 굽이를 그대로 (roadPath.ts)
+//  - 도로 모양: 실제 도로(OpenStreetMap)의 굽이를 그대로 (roadPath.ts), 차로 수도 실제 값
 //  - 24단위(약 48m)씩 '조각'을 만들어 차 앞에 계속 붙이고, 지나간 조각은 치움 (끝없이 복사 → 붙여넣기)
-//  - 양쪽 보도 · 가게 · 나무 · 사람 · 놀이기구 · 바다 …
+//  - 약 290m 마다 교차로 + 신호등: 좌회전 · 우회전하면 길이 그 방향으로 이어짐
+//  - 길을 막는 물건 (라바콘 · 공사 가림막 · 멈춘 차 · 떨어진 상자)
 //  - 모두 코드로 만든 로우폴리 모양 (내려받는 파일 없음)
 import * as THREE from 'three';
-import { REAL_ROADS } from '../data/realRoads';
-import { InfiniteRoad } from './roadPath';
+import { REAL_ROADS, type RealRoad } from '../data/realRoads';
+import { InfiniteRoad, Track } from './roadPath';
 
 export type SceneId = 'city' | 'forest' | 'park' | 'sea';
 
@@ -16,17 +17,37 @@ export const SCENES: { id: SceneId; label: string; emoji: string }[] = [
   { id: 'sea', label: '바닷가', emoji: '🌊' },
 ];
 
+export type Light = 'green' | 'yellow' | 'red';
+export interface Obstacle { S: number; lat: number; hw: number; hl: number }
+export interface Junction { k: number; S: number; turn: -1 | 0 | 1; canLeft: boolean; Sdec: number; Sstop: number }
+
 export interface Scenery {
-  road: InfiniteRoad;
+  road: Track;
+  /** 한쪽 방향 차로 수 */
+  lanes: number;
+  /** 차로 i (0 = 중앙선 옆 1차로, 음수 = 반대편) 의 가운데 옆 거리 */
+  laneOff(i: number): number;
   /** S: 지금까지 달린 거리(단위), dt: 초, t: 경과 시간 */
   update(S: number, dt: number, t: number): void;
+  /** S 앞의 다음 교차로 */
+  nextJunction(S: number): Junction;
+  /** 다음 교차로에서 꺾기 (-1 좌회전 · +1 우회전). 늦었거나 못 꺾는 길이면 false */
+  requestTurn(S: number, side: -1 | 1): boolean;
+  light(k: number, t: number): Light;
+  /** 지금 만들어진 조각들의 장애물 */
+  obstacles(): Obstacle[];
   dispose(): void;
 }
 
 /** 조각 길이 (화면 단위, 1단위 = 2m) */
 export const CH = 24;
-/** 도로 가운데에서 가장자리까지 (4차로) */
-export const ROAD_HALF = 4.2;
+/** 차로 폭 (약 4m: 화면 차 크기에 맞춤) · 갓길 */
+export const LANE_W = 2.0;
+const SHOULDER = 0.35;
+/** 장면 소품이 기준으로 삼는 도로 반폭 (왕복 4차로) */
+const BASE_HALF = 4.2;
+/** 교차로 간격 (조각 수) */
+const JEVERY = 6;
 const AHEAD = 7;
 const BEHIND = 2;
 
@@ -36,16 +57,45 @@ interface MatOpt { emissive?: number; smooth?: boolean; rough?: number; metal?: 
 interface Spec {
   sky: [top: string, bottom: string, fogNear: number, fogFar: number, sun?: string];
   ground: string;
-  /** 도로 옆 띠: [옆 거리 a, b, 색, 높이] (음수 = 왼쪽) */
+  /** 도로 옆 띠: [옆 거리 a, b, 색, 높이] (음수 = 왼쪽, 왕복 4차로 기준) */
   strips: [number, number, string, number?][];
+  /** 교차로에서 꺾을 수 있는 쪽 (기본 양쪽) */
+  junction?: 'both' | 'right';
   spawn(c: Chunk): void;
 }
 
-/** 장면 만들기. scene.background · fog 도 장면에 맞게 바꾼다 */
-export function buildScenery(scene: THREE.Scene, id: SceneId): Scenery {
-  const b = new Builder(scene);
-  const road = new InfiniteRoad(REAL_ROADS[id]);
+/** 이 장면 안에서 같이 쓰는 값 */
+interface Ctx {
+  lanes: number;
+  half: number;
+  /** 왕복 4차로 기준 소품을 옮길 거리 */
+  shift: number;
+  R: number;
+  arms: { [side: number]: boolean };
+  /** 교차로 근처에서 비워 둘 옆 띠 끝 */
+  cmax: { [side: number]: number };
+  turns: Map<number, -1 | 0 | 1>;
+  strips: Spec['strips'];
+}
+
+const isJ = (k: number) => k > 0 && k % JEVERY === 0;
+
+/** 장면 만들기. scene.background · fog 도 장면에 맞게 바꾼다. road 를 주면 그 도로(내 위치 등)로 */
+export function buildScenery(scene: THREE.Scene, id: SceneId, real?: RealRoad): Scenery {
+  const roadData = real ?? REAL_ROADS[id];
   const spec = SPECS[id];
+  const lanes = Math.max(1, Math.min(4, roadData.lanes || 1));
+  const half = lanes * LANE_W + SHOULDER;
+  const shift = half - BASE_HALF;
+  const cmax = { [1]: 0, [-1]: 0 } as Ctx['cmax'];
+  for (const [a, c] of spec.strips) {
+    const far = Math.max(Math.abs(a), Math.abs(c));
+    if (far < 20) cmax[Math.sign(a || c)] = Math.max(cmax[Math.sign(a || c)], far + shift);
+  }
+  const ctx: Ctx = { lanes, half, shift, R: half + 2, arms: { [1]: true, [-1]: spec.junction !== 'right' }, cmax, turns: new Map(), strips: spec.strips };
+
+  const b = new Builder(scene, lanes);
+  const track = new Track(new InfiniteRoad(roadData));
   b.sky(...spec.sky);
   const ground = b.mesh(new THREE.PlaneGeometry(700, 700), spec.ground, 0, -0.03, 0, { smooth: true, rough: 1 });
   ground.rotation.x = -Math.PI / 2;
@@ -54,16 +104,28 @@ export function buildScenery(scene: THREE.Scene, id: SceneId): Scenery {
 
   const chunks = new Map<number, Chunk>();
   const make = (k: number) => {
-    const c = new Chunk(b, road, k);
-    c.road(spec.strips);
+    const c = new Chunk(b, track, k, ctx);
+    c.road();
     spec.spawn(c);
+    if (k % JEVERY === JEVERY - 1) junction(c);
+    obstacle(c);
     b.root.add(c.group);
     chunks.set(k, c);
   };
+  const drop = (k: number) => { const c = chunks.get(k); if (c) { b.root.remove(c.group); c.dispose(); chunks.delete(k); } };
   let first = true;
+  let hide: { k: number; side: 1 | -1; Send: number } | null = null;
+
+  const nextJunction = (S: number): Junction => {
+    const k = Math.max(JEVERY, Math.ceil((S + 0.01) / (CH * JEVERY)) * JEVERY);
+    const Sj = k * CH;
+    return { k, S: Sj, turn: ctx.turns.get(k) ?? 0, canLeft: ctx.arms[-1], Sdec: Sj - ctx.R, Sstop: Sj - half - 1.4 };
+  };
 
   return {
-    road,
+    road: track,
+    lanes,
+    laneOff: (i) => LANE_W * (i + 0.5),
     update(S, dt, t) {
       const kc = Math.floor(S / CH);
       // 차 앞 조각을 붙이고 (한 번에 2개씩, 처음엔 한꺼번에), 지나간 조각은 치움
@@ -72,18 +134,46 @@ export function buildScenery(scene: THREE.Scene, id: SceneId): Scenery {
       for (let k = Math.max(0, kc - BEHIND); k <= kc + AHEAD && budget > 0; k++) {
         if (!chunks.has(k)) { make(k); budget--; }
       }
-      chunks.forEach((c, k) => {
-        if (k < kc - BEHIND || k > kc + AHEAD) { b.root.remove(c.group); c.dispose(); chunks.delete(k); }
-      });
-      const f = road.at(S);
+      chunks.forEach((_, k) => { if (k < kc - BEHIND || k > kc + AHEAD) drop(k); });
+      // 꺾고 나면 지나온 길 그쪽 소품은 새 길과 겹치지 않게 숨김
+      if (hide && S > hide.Send) {
+        const h = hide;
+        chunks.forEach((c, k) => { if (k < h.k) c.hideSide(h.side); });
+        hide = null;
+      }
+      const f = track.at(S);
       ground.position.set(f.pos.x, -0.03, f.pos.z);
       chunks.forEach((c) => c.tick(dt, t));
+    },
+    nextJunction,
+    requestTurn(S, side) {
+      const j = nextJunction(S);
+      if (side === -1 && !ctx.arms[-1]) return false;
+      if (S + 2 > j.Sdec - 1.5) return false; // 이미 교차로에 들어섬
+      if (j.turn === side) return true;
+      track.turn(j.Sdec, side, ctx.R);
+      ctx.turns.set(j.k, side);
+      chunks.forEach((_, k) => { if (k >= j.k) drop(k); });
+      hide = { k: j.k, side, Send: j.Sdec + (Math.PI / 2) * ctx.R };
+      return true;
+    },
+    light: lightOf,
+    obstacles() {
+      const out: Obstacle[] = [];
+      chunks.forEach((c) => out.push(...c.obstacles));
+      return out;
     },
     dispose() {
       chunks.forEach((c) => c.dispose());
       b.dispose();
     },
   };
+}
+
+/** 신호: 16초 주기 (초록 8 · 노랑 2 · 빨강 6), 교차로마다 조금씩 어긋나게 */
+export function lightOf(k: number, t: number): Light {
+  const p = (t + k * 2.9) % 16;
+  return p < 8 ? 'green' : p < 10 ? 'yellow' : 'red';
 }
 
 // ───────── 재료 · 모양 창고 (장면 하나 동안 같이 씀) ─────────
@@ -94,11 +184,18 @@ class Builder {
   private geos = new Map<string, THREE.BufferGeometry>();
   private texs = new Map<string, THREE.Texture>();
   private own = new Set<Disp>();
-  roadMat: THREE.Material;
-  constructor(public scene: THREE.Scene) {
+  roadMat: THREE.MeshStandardMaterial;
+  /** 교차로 가지 (조각 도로와 겹치면 조각 도로가 보이게 뒤로) */
+  armMat: THREE.MeshStandardMaterial;
+  /** 교차로 한가운데 (선 없는 아스팔트, 위로) */
+  plazaMat: THREE.MeshStandardMaterial;
+  constructor(public scene: THREE.Scene, lanes: number) {
     scene.add(this.root);
-    this.roadMat = new THREE.MeshStandardMaterial({ map: this.tex(roadTexture()), roughness: 0.85, side: THREE.DoubleSide });
-    this.own.add(this.roadMat);
+    const tex = this.tex(roadTexture(lanes));
+    this.roadMat = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.85, side: THREE.DoubleSide });
+    this.armMat = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.85, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: 2, polygonOffsetUnits: 4 });
+    this.plazaMat = new THREE.MeshStandardMaterial({ color: '#232528', roughness: 0.9, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -4 });
+    this.own.add(this.roadMat).add(this.armMat).add(this.plazaMat);
   }
 
   mat(color: string, o: MatOpt = {}): THREE.Material {
@@ -174,23 +271,28 @@ class Builder {
   }
 }
 
-/** 한국 도로: 가운데 노란 겹선(중앙선) · 흰 차로 점선 · 가장자리 흰 선. 가로 = 길이, 세로 = 폭 */
-function roadTexture() {
+/**
+ * 한국 도로: 가운데 노란 겹선(중앙선) · 차로 사이 흰 점선 · 가장자리 흰 실선.
+ * 가로 = 길이, 세로 = 폭 (왼쪽 끝 → 오른쪽 끝)
+ */
+function roadTexture(lanes: number) {
+  const half = lanes * LANE_W + SHOULDER;
   const cv = document.createElement('canvas');
   cv.width = 512; cv.height = 256;
   const g = cv.getContext('2d')!;
+  const y = (off: number) => 128 + (off / half) * 128;
   g.fillStyle = '#1f2124';
   g.fillRect(0, 0, 512, 256);
   for (let i = 0; i < 1600; i++) { g.fillStyle = `rgba(255,255,255,${Math.random() * 0.045})`; g.fillRect(Math.random() * 512, Math.random() * 256, 2, 2); }
+  const px = 128 / half; // 1단위 = 몇 픽셀
+  const lw = Math.max(2, 0.12 * px);
   g.fillStyle = '#f2c230';
-  g.fillRect(0, 121, 512, 5);
-  g.fillRect(0, 131, 512, 5);
+  g.fillRect(0, y(-0.16) - lw / 2, 512, lw);
+  g.fillRect(0, y(0.16) - lw / 2, 512, lw);
   g.fillStyle = 'rgba(255,255,255,.8)';
-  g.fillRect(0, 62, 300, 4);
-  g.fillRect(0, 190, 300, 4);
+  for (let j = 1; j < lanes; j++) for (const s of [-1, 1]) g.fillRect(0, y(s * j * LANE_W) - lw / 2, 300, lw);
   g.fillStyle = 'rgba(255,255,255,.7)';
-  g.fillRect(0, 6, 512, 5);
-  g.fillRect(0, 245, 512, 5);
+  for (const s of [-1, 1]) g.fillRect(0, y(s * lanes * LANE_W) - lw / 2, 512, lw);
   return new THREE.CanvasTexture(cv);
 }
 
@@ -198,18 +300,48 @@ function roadTexture() {
 
 class Chunk {
   group = new THREE.Group();
+  obstacles: Obstacle[] = [];
   private own = new Set<Disp>();
   private anims: ((dt: number, t: number) => void)[] = [];
   private people: THREE.Group[] = [];
-  constructor(public b: Builder, public path: InfiniteRoad, public k: number) {}
+  private sides: { [s: number]: THREE.Object3D[] } = { [1]: [], [-1]: [] };
+  /** 교차로 바로 앞 조각 / 바로 뒤 조각 */
+  readonly before: boolean;
+  readonly after: boolean;
+  constructor(public b: Builder, public path: Track, public k: number, public ctx: Ctx) {
+    this.before = isJ(k + 1);
+    this.after = isJ(k);
+  }
 
   get S0() { return this.k * CH; }
   /** 이 조각에서 늘 같은 난수 (0~1) */
   r(n: number) { return rand(this.k * 977.13 + n * 13.7); }
 
-  /** 길이 방향 s(0~CH) · 옆 거리 off(+ 오른쪽) 에 놓기. 물건의 앞(+z)은 face=0 일 때 오른쪽을 봄 */
+  /** 교차로 근처는 비워 둠 (길이 방향 s, 옆쪽) */
+  private free(s: number, side: 1 | -1, a: number) {
+    if (a > 40) return true;
+    if (this.before && this.ctx.arms[side] && s > CH - this.ctx.cmax[side] - 1.5) return false;
+    if (this.after && s < Math.max(this.ctx.cmax[1], this.ctx.cmax[-1]) + 5) return false;
+    return true;
+  }
+
+  /**
+   * 길이 방향 s(0~CH) · 옆 거리 off(+ 오른쪽, 왕복 4차로 기준) 에 놓기.
+   * 물건의 앞(+z)은 face=0 일 때 오른쪽을 봄. 도로 폭에 맞춰 옆으로 옮겨 줌
+   */
   put<T extends THREE.Object3D>(o: T, s: number, off: number, face = 0): T {
-    const f = this.path.at(this.S0 + s);
+    const a = Math.abs(off);
+    const side = off >= 0 ? 1 : -1;
+    if (!this.free(s, side, a)) return o;
+    const real = a >= BASE_HALF ? side * (a + this.ctx.shift) : off;
+    this.place(o, this.S0 + s, real, face);
+    if (a >= BASE_HALF) this.sides[side].push(o);
+    return o;
+  }
+
+  /** 옮기지 않고 그대로 (차로 위 장애물 등) */
+  place<T extends THREE.Object3D>(o: T, S: number, off: number, face = 0): T {
+    const f = this.path.at(S);
     const y = o.position.y;
     o.position.copy(f.pos).addScaledVector(f.right, off);
     o.position.y = y;
@@ -218,25 +350,37 @@ class Chunk {
     return o;
   }
 
+  hideSide(side: 1 | -1) { this.sides[side].forEach((o) => { o.visible = false; }); }
+
   /** 양쪽에 같은 것을: side -1 = 왼쪽(길 쪽을 보도록 face 0), +1 = 오른쪽(face π) */
   both(fn: (side: 1 | -1, face: number, n: number) => void) {
     fn(-1, 0, 0);
     fn(1, Math.PI, 100);
   }
 
-  /** 도로와 옆 띠 */
-  road(strips: Spec['strips']) {
-    this.group.add(this.ribbon(-ROAD_HALF, ROAD_HALF, this.b.roadMat, 0.012, true));
-    for (const [a, c, color, y] of strips) this.group.add(this.ribbon(Math.min(a, c), Math.max(a, c), this.b.mat(color, { smooth: true, rough: 1, double: true }), y ?? 0.006));
+  /** 도로와 옆 띠 (교차로 근처에선 띠를 끊음) */
+  road() {
+    const { half, shift } = this.ctx;
+    const turned = this.after && (this.ctx.turns.get(this.k) ?? 0) !== 0;
+    const s0 = this.after ? half + 0.3 + (turned ? (Math.PI / 2 - 1) * this.ctx.R : 0) : 0;
+    this.group.add(this.ribbon(-half, half, this.b.roadMat, 0.012, true, 0, CH));
+    for (const [a0, c0, color, y] of this.ctx.strips) {
+      const side = Math.sign(a0 || c0) as 1 | -1;
+      const sh = (v: number) => Math.sign(v) * (Math.abs(v) + shift);
+      const [a, c] = [sh(a0), sh(c0)];
+      const s1 = this.before && this.ctx.arms[side] ? CH - half - 0.3 : CH;
+      const lo = this.after && Math.max(Math.abs(a), Math.abs(c)) < 40 ? s0 : 0;
+      if (s1 - lo > 0.2) this.group.add(this.ribbon(Math.min(a, c), Math.max(a, c), this.b.mat(color, { smooth: true, rough: 1, double: true }), y ?? 0.006, false, lo, s1));
+    }
   }
 
-  private ribbon(a: number, c: number, mat: THREE.Material, y: number, uv = false) {
-    const n = CH;
+  private ribbon(a: number, c: number, mat: THREE.Material, y: number, uv: boolean, s0: number, s1: number) {
+    const n = Math.max(2, Math.ceil(s1 - s0));
     const pos: number[] = [];
     const uvs: number[] = [];
     const idx: number[] = [];
     for (let i = 0; i <= n; i++) {
-      const S = this.S0 + (CH * i) / n + (i === n ? 0.06 : 0); // 이음매 틈 없게 살짝 겹침
+      const S = this.S0 + s0 + ((s1 - s0) * i) / n + (i === n && s1 === CH ? 0.06 : 0); // 이음매 틈 없게 살짝 겹침
       const f = this.path.at(S);
       const p1 = f.pos.clone().addScaledVector(f.right, a);
       const p2 = f.pos.clone().addScaledVector(f.right, c);
@@ -244,6 +388,22 @@ class Chunk {
       uvs.push(uv ? S / 8 : 0, 0, uv ? S / 8 : 0, 1);
       if (i < n) { const j = i * 2; idx.push(j, j + 2, j + 1, j + 1, j + 2, j + 3); }
     }
+    return this.mesh(pos, uvs, idx, mat);
+  }
+
+  /** 곧은 네모 띠: 원점 o 에서 axis 방향으로 l0~l1, 옆(across) w0~w1 */
+  rect(o: THREE.Vector3, axis: THREE.Vector3, across: THREE.Vector3, l0: number, l1: number, w0: number, w1: number, y: number, mat: THREE.Material, uvW?: number) {
+    const pos: number[] = [];
+    const uvs: number[] = [];
+    for (const l of [l0, l1]) for (const w of [w0, w1]) {
+      const p = o.clone().addScaledVector(axis, l).addScaledVector(across, w);
+      pos.push(p.x, y, p.z);
+      uvs.push(l / 8, uvW ? (w + uvW) / (2 * uvW) : 0);
+    }
+    return this.mesh(pos, uvs, [0, 2, 1, 1, 2, 3], mat);
+  }
+
+  private mesh(pos: number[], uvs: number[], idx: number[], mat: THREE.Material) {
     const g = new THREE.BufferGeometry();
     g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
     g.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
@@ -255,13 +415,21 @@ class Chunk {
     return m;
   }
 
-  /** 조각에서만 쓰는 모양 (조각을 치울 때 같이 치움) */
+  /** 조각에서만 쓰는 모양 · 재질 (조각을 치울 때 같이 치움) */
   geo<T extends THREE.BufferGeometry>(g: T): T { this.own.add(g); return g; }
+  ownMat<T extends THREE.Material>(m: T): T { this.own.add(m); return m; }
 
   person(seed: number, o: PersonOpt, s: number, off: number, face = 0) {
     const p = person(this.b, this.k * 31 + seed, o);
     this.people.push(p);
     return this.put(p, s, off, face);
+  }
+
+  /** 사람을 원하는 곳에 그대로 */
+  personAt(seed: number, o: PersonOpt) {
+    const p = person(this.b, this.k * 31 + seed, o);
+    this.people.push(p);
+    return p;
   }
 
   anim(fn: (dt: number, t: number) => void) { this.anims.push(fn); }
@@ -278,10 +446,186 @@ class Chunk {
   dispose() { this.own.forEach((d) => d.dispose()); }
 }
 
+// ───────── 교차로 · 신호등 ─────────
+
+/** 교차로 (다음 조각 시작점이 교차로 한가운데). 바로 앞 조각이 만든다 */
+function junction(c: Chunk) {
+  const { b, ctx } = c;
+  const { half, R, lanes } = ctx;
+  const J = c.k + 1;
+  const f = c.path.at(J * CH - R); // 꺾기 시작점 (꺾어도 여기까지는 같은 길)
+  const C = f.pos.clone().addScaledVector(f.tan, R);
+  const T = f.tan.clone();
+  const Rt = f.right.clone();
+  const L = half + Math.max(ctx.cmax[1], ctx.cmax[-1]) + 14;
+  const g = c.group;
+  // 가운데 (선 없음) + 가지 3개 (직진 · 오른쪽 · 왼쪽)
+  g.add(c.rect(C, T, Rt, -half, half, -half, half, 0.016, b.plazaMat));
+  g.add(c.rect(C, T, Rt, half, L, -half, half, 0.011, b.armMat, half));
+  g.add(c.rect(C, Rt, T.clone().negate(), half, L, -half, half, 0.011, b.armMat, half));
+  if (ctx.arms[-1]) g.add(c.rect(C, Rt.clone().negate(), T, half, L, -half, half, 0.011, b.armMat, half));
+  // 가지 옆 보도 (오른쪽 띠 모양을 양쪽에)
+  const right = ctx.strips.filter(([a, cc]) => a > 0 && Math.max(a, cc) < 20);
+  const arms: [THREE.Vector3, THREE.Vector3][] = [[T, Rt], [Rt, T.clone().negate()]];
+  if (ctx.arms[-1]) arms.push([Rt.clone().negate(), T]);
+  for (const [axis, across] of arms) {
+    for (const [a0, c0, color, y] of right) {
+      const a = a0 + ctx.shift;
+      const cc = c0 + ctx.shift;
+      for (const s of [-1, 1]) g.add(c.rect(C, axis, across, half, L, s * a, s * cc, y ?? 0.006, b.mat(color, { smooth: true, rough: 1, double: true })));
+    }
+  }
+  // 정지선 (내 차로 쪽) · 횡단보도 (앞 · 건너편)
+  const white = b.mat('#f1f3f5', { rough: 0.6 });
+  const box = (along: number, acr: number, l: number, w: number) => {
+    const m = new THREE.Mesh(b.shared(`jb-${l}-${w}`, () => new THREE.BoxGeometry(l, 0.008, w)), white);
+    m.position.copy(C).addScaledVector(T, along).addScaledVector(Rt, acr);
+    m.position.y = 0.022;
+    m.rotation.y = f.heading;
+    m.receiveShadow = true;
+    g.add(m);
+  };
+  box(-(half + 1.4), (lanes * LANE_W) / 2 + 0.08, 0.35, lanes * LANE_W - 0.1);
+  for (const along of [-(half + 0.75), half + 0.75]) {
+    for (let w = -half + 0.4; w < half - 0.2; w += 0.9) box(along, w, 1.0, 0.45);
+  }
+  // 신호등: 건너편 오른쪽 모퉁이에서 내 차로 위로 뻗은 가로형 (빨강 · 노랑 · 초록)
+  const lamps = ['#ff3b30', '#ffcc00', '#34c759'].map((col) => c.ownMat(new THREE.MeshStandardMaterial({ color: '#2a2a2a', emissive: col, emissiveIntensity: 0, roughness: 0.4 })));
+  const sig = new THREE.Group();
+  sig.add(b.mesh(b.shared('sg-pole', () => new THREE.CylinderGeometry(0.07, 0.09, 3.6, 10)), '#4a4f57', 0, 1.8, 0, { metal: 0.5, rough: 0.4 }));
+  const armLen = lanes * LANE_W + 0.9;
+  const arm = b.mesh(b.shared(`sg-arm${armLen}`, () => new THREE.BoxGeometry(armLen, 0.08, 0.08)), '#4a4f57', -armLen / 2, 3.45, 0, { metal: 0.5, rough: 0.4 });
+  sig.add(arm);
+  const head = new THREE.Group();
+  head.position.set(-armLen + 0.6, 3.3, 0);
+  head.add(b.mesh(b.shared('sg-box', () => new THREE.BoxGeometry(1.0, 0.36, 0.22)), '#22252a'));
+  ['r', 'y', 'g'].forEach((_, i) => {
+    const lamp = new THREE.Mesh(b.shared('sg-lamp', () => new THREE.CircleGeometry(0.12, 16)), lamps[i]);
+    lamp.position.set(-0.3 + i * 0.3, 0, 0.115);
+    head.add(lamp);
+    const visor = b.mesh(b.shared('sg-vis', () => new THREE.BoxGeometry(0.26, 0.02, 0.12)), '#22252a', -0.3 + i * 0.3, 0.14, 0.17);
+    head.add(visor);
+  });
+  sig.add(head);
+  // 기둥 쪽 작은 신호 (보행자 높이)
+  const small = new THREE.Group();
+  small.position.set(0, 2.2, 0.12);
+  small.add(b.mesh(b.shared('sg-sbox', () => new THREE.BoxGeometry(0.24, 0.62, 0.16)), '#22252a'));
+  ['r', 'y', 'g'].forEach((_, i) => {
+    const lamp = new THREE.Mesh(b.shared('sg-slamp', () => new THREE.CircleGeometry(0.075, 12)), lamps[i]);
+    lamp.position.set(0, 0.19 - i * 0.19, 0.081);
+    small.add(lamp);
+  });
+  sig.add(small);
+  // 앞(+z) 이 다가오는 차를 보도록: local +z → -T, local -x → 내 차로 쪽
+  sig.position.copy(C).addScaledVector(T, half + 0.7).addScaledVector(Rt, half + 0.7);
+  sig.rotation.y = f.heading - Math.PI / 2;
+  g.add(sig);
+  // 맞은편 모퉁이에도 하나 (왼쪽, 같은 신호)
+  const sig2 = sig.clone(true);
+  sig2.position.copy(C).addScaledVector(T, half + 0.7).addScaledVector(Rt, -(half + 0.7));
+  sig2.scale.x = -1;
+  g.add(sig2);
+  c.anim((_, t) => {
+    const s = lightOf(J, t);
+    const on = s === 'red' ? 0 : s === 'yellow' ? 1 : 2;
+    lamps.forEach((m, i) => { m.emissiveIntensity = i === on ? 2.6 : 0; m.color.set(i === on ? '#ffffff' : '#2a2a2a'); });
+  });
+  // 건널목에서 기다리는 사람
+  for (const [i, s] of [[0, 1], [1, -1]] as const) {
+    if (!ctx.arms[s] && s === -1) continue;
+    const p = c.personAt(90 + i, { pose: 'stand' });
+    p.position.copy(C).addScaledVector(T, -(half + 1.1)).addScaledVector(Rt, s * (half + 0.9 + i * 0.4));
+    p.rotation.y = f.heading + (s > 0 ? Math.PI : 0);
+    g.add(p);
+  }
+}
+
+// ───────── 길을 막는 물건 ─────────
+
+function obstacle(c: Chunk) {
+  const { k, b, ctx } = c;
+  // 교차로 앞 (꺾기 구간) 에는 두지 않음: 거기선 ◀ ▶ 가 좌회전 · 우회전이라 차로를 못 바꿈
+  if (k < 3 || k % JEVERY === 0 || k % JEVERY >= JEVERY - 2 || c.r(500) > 0.5) return;
+  const n = ctx.lanes;
+  // 대부분 내 쪽 차로, 가끔 반대편
+  const mine = c.r(501) < 0.82;
+  const lane = mine ? Math.floor(c.r(502) * n) : -1 - Math.floor(c.r(502) * n);
+  const lat = LANE_W * (lane + 0.5);
+  const s = 6 + c.r(503) * 12;
+  const S = c.S0 + s;
+  const type = Math.floor(c.r(504) * 4);
+  const g = new THREE.Group();
+  let hl = 0.6;
+  if (type === 0) {
+    // 라바콘 줄 (비스듬히 차로를 막음)
+    for (let i = 0; i < 4; i++) {
+      const cone = new THREE.Group();
+      cone.add(b.mesh(b.shared('cone', () => new THREE.ConeGeometry(0.16, 0.5, 12)), '#ff6a1a', 0, 0.27, 0, { smooth: true }));
+      cone.add(b.mesh(b.shared('cone-b', () => new THREE.BoxGeometry(0.34, 0.04, 0.34)), '#ff6a1a', 0, 0.02, 0));
+      cone.add(b.mesh(b.shared('cone-s', () => new THREE.CylinderGeometry(0.105, 0.125, 0.08, 12)), '#ffffff', 0, 0.3, 0, { smooth: true }));
+      cone.position.set(-0.9 + i * 0.6, 0, -0.75 + i * 0.5);
+      g.add(cone);
+    }
+    hl = 1.0;
+  } else if (type === 1) {
+    // 공사 가림막 + 화살표
+    const tex = b.canvas('barrier', 256, 64, (x) => {
+      for (let i = -2; i < 10; i++) { x.fillStyle = i % 2 ? '#ffffff' : '#e8382f'; x.beginPath(); x.moveTo(i * 32, 64); x.lineTo(i * 32 + 32, 64); x.lineTo(i * 32 + 64, 0); x.lineTo(i * 32 + 32, 0); x.fill(); }
+    });
+    [-0.35, 0.35].forEach((x) => {
+      const bd = new THREE.Mesh(b.shared('bar-b', () => new THREE.BoxGeometry(0.06, 0.32, 1.7)), b.mat('#ffffff', { map: tex, rough: 0.6 }));
+      bd.position.set(x, 0.62, 0);
+      bd.castShadow = true;
+      g.add(bd);
+      [-0.75, 0.75].forEach((z) => g.add(b.mesh(b.shared('bar-l', () => new THREE.BoxGeometry(0.05, 0.8, 0.05)), '#e9ecef', x, 0.4, z)));
+    });
+    const lamp = b.mesh(b.shared('bar-lamp', () => new THREE.SphereGeometry(0.07, 8, 6)), '#ffb000', -0.35, 0.86, 0, { emissive: 2 });
+    g.add(lamp);
+    c.anim((_, t) => { lamp.visible = Math.sin(t * 8) > 0; });
+    hl = 0.5;
+  } else if (type === 2) {
+    // 비상등 켜고 멈춘 차 + 삼각대
+    const col = pick(['#e9ecef', '#343a40', '#1c7ed6', '#c92a2a', '#868e96'], k);
+    g.add(b.mesh(b.shared('oc-body', () => new THREE.BoxGeometry(2.1, 0.5, 0.95)), col, 0, 0.42, 0, { rough: 0.35, metal: 0.3 }));
+    g.add(b.mesh(b.shared('oc-cab', () => new THREE.BoxGeometry(1.15, 0.4, 0.85)), '#2b3440', -0.1, 0.86, 0, { rough: 0.15, metal: 0.4 }));
+    [[-0.68, 0.45], [0.68, 0.45], [-0.68, -0.45], [0.68, -0.45]].forEach(([x, z]) => {
+      const w = b.mesh(b.shared('oc-wheel', () => new THREE.CylinderGeometry(0.2, 0.2, 0.14, 14)), '#1a1a1a', x, 0.2, z, { smooth: true });
+      w.rotation.x = Math.PI / 2;
+      g.add(w);
+    });
+    const haz = c.ownMat(new THREE.MeshStandardMaterial({ color: '#ffb000', emissive: '#ffb000', emissiveIntensity: 2 }));
+    [[-1.06, 0.36], [-1.06, -0.36], [1.06, 0.36], [1.06, -0.36]].forEach(([x, z]) => {
+      const h = new THREE.Mesh(b.shared('oc-haz', () => new THREE.BoxGeometry(0.03, 0.1, 0.16)), haz);
+      h.position.set(x, 0.55, z);
+      g.add(h);
+    });
+    c.anim((_, t) => { haz.emissiveIntensity = Math.sin(t * 7) > 0 ? 2.4 : 0; });
+    const tri = b.mesh(b.shared('oc-tri', () => new THREE.ConeGeometry(0.22, 0.4, 3)), '#e8382f', -2.4, 0.2, 0, { emissive: 0.4 });
+    g.add(tri);
+    hl = 1.3;
+  } else {
+    // 떨어진 짐 상자
+    for (let i = 0; i < 4; i++) {
+      const bx = b.mesh(b.shared('box', () => new THREE.BoxGeometry(0.5, 0.42, 0.5)), i % 2 ? '#c99a5b' : '#b5854a', -0.4 + c.r(510 + i) * 0.8, 0.21, -0.6 + i * 0.4);
+      bx.rotation.y = c.r(520 + i) * 2;
+      g.add(bx);
+    }
+    hl = 0.6;
+  }
+  // 앞(+x)이 길 방향
+  c.place(g, S, lat);
+  c.obstacles.push({ S, lat, hw: 0.95, hl });
+}
+
 /** 늘 같은 배치가 나오도록 하는 의사 난수 (0~1) */
 function rand(n: number) {
-  const s = Math.sin(n * 127.1 + 311.7) * 43758.5453;
-  return s - Math.floor(s);
+  // 정수 해시 (이웃한 값끼리도 잘 섞이게)
+  let h = Math.round(n * 1000) ^ 0x9e3779b9;
+  h = Math.imul(h ^ (h >>> 16), 0x85ebca6b);
+  h = Math.imul(h ^ (h >>> 13), 0xc2b2ae35);
+  h ^= h >>> 16;
+  return (h >>> 0) / 4294967296;
 }
 const pick = <T,>(a: T[], n: number) => a[Math.floor(rand(n) * a.length) % a.length];
 
@@ -559,23 +903,6 @@ const SPECS: Record<SceneId, Spec> = {
         for (let j = 0; j < 3; j++) c.person(n + j, { backpack: c.r(n + 40 + j) > 0.75 ? '#495057' : undefined }, c.r(n + 50 + j) * CH, side * (6.4 + c.r(n + 60 + j) * 2.2));
         if (c.r(n + 70) > 0.6) c.person(n + 9, { pose: 'wave' }, c.r(n + 71) * CH, side * 8.6, face);
       });
-      // 횡단보도 + 신호등
-      if (c.k % 6 === 3) {
-        for (let j = 0; j < 9; j++) {
-          const z = b.mesh(b.shared('zebra', () => new THREE.BoxGeometry(2.2, 0.006, 0.5)), '#f1f3f5', 0, 0.02, 0);
-          z.castShadow = false;
-          c.put(z, 12, -3.6 + j * 0.9);
-        }
-        c.both((side, face) => {
-          const g = new THREE.Group();
-          g.add(b.mesh(b.shared('tl-p', () => new THREE.CylinderGeometry(0.05, 0.05, 2.4, 8)), '#3d4148', 0, 1.2, 0));
-          g.add(b.mesh(b.shared('tl-b', () => new THREE.BoxGeometry(0.22, 0.5, 0.18)), '#2b2e33', 0, 2.6, 0));
-          g.add(b.mesh(b.shared('tl-l', () => new THREE.SphereGeometry(0.06, 10, 8)), '#3ee07a', 0, 2.48, 0.1, { emissive: 2.5, smooth: true }));
-          g.add(b.mesh(b.shared('tl-l', () => new THREE.SphereGeometry(0.06, 10, 8)), '#5a2020', 0, 2.72, 0.1, { smooth: true }));
-          c.put(g, 13.5, side * 4.8, face);
-          c.person(side + 50, { pose: 'stand' }, 11, side * 5.2, face);
-        });
-      }
       // 버스 정류장 (오른쪽)
       if (c.k % 5 === 1) {
         const g = new THREE.Group();
@@ -834,6 +1161,7 @@ const SPECS: Record<SceneId, Spec> = {
       [-4.2, -4.45, '#d3d6db', 0.03], [-4.45, -11, '#dcc28a'], [-11, -11.7, '#e6f4ff'], [-11.7, -130, '#1667b5', -0.012],
       [4.2, 4.45, '#d3d6db', 0.03], [4.45, 6.2, '#b8bbbf'],
     ],
+    junction: 'right', // 왼쪽은 바다라 오른쪽으로만 꺾는 길
     spawn(c) {
       const b = c.b;
       // 가드레일 (왼쪽)

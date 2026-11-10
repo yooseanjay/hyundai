@@ -26,6 +26,7 @@ export const CSP = {
     'https://generativelanguage.googleapis.com',
     'wss://generativelanguage.googleapis.com',
     'https://api.open-meteo.com',
+    'https://nominatim.openstreetmap.org', 'https://api.openstreetmap.org',
     'https://*.map.naver.com', 'https://*.pstatic.net', 'https://*.naver.net',
     'https://api.bigdatacloud.net',
     'https://cdn.jsdelivr.net',

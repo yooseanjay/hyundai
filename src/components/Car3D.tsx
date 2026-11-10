@@ -10,7 +10,32 @@ import type { Mood } from '../game/character';
 import type { CharStyle } from '../game/style';
 import { buildCar, type CarRig } from '../three/carModel';
 import { shapeOf } from '../three/shapes';
-import { buildScenery, type SceneId, type Scenery } from '../three/scenery';
+import { buildScenery, type Light, type SceneId, type Scenery } from '../three/scenery';
+import type { RealRoad } from '../data/realRoads';
+import { canTurn, newDrive, steer, stepDrive } from '../three/drive';
+
+/** 주행 조작 (화면 버튼 → 3D) */
+export interface DriveControl {
+  /** -1 왼쪽 · +1 오른쪽: 교차로 앞이면 좌회전 · 우회전, 아니면 차로 바꾸기 */
+  steer(side: -1 | 1): void;
+  setReverse(on: boolean): void;
+}
+
+/** 3D 주행 상태 (화면 표시용, 바뀔 때만) */
+export interface DriveStatus {
+  /** 한쪽 방향 차로 수 */
+  lanes: number;
+  /** 지금 차로 (1 = 중앙선 옆, 0 이하 = 중앙선 넘음) */
+  lane: number;
+  /** 화면 속 차 속도 (km/h, 후진은 음수) */
+  kmh: number;
+  stop: 'red' | 'yellow' | 'obstacle' | null;
+  /** 다음 교차로 (가까울 때만, dist 는 m) */
+  junction: { dist: number; light: Light; turn: -1 | 0 | 1; canLeft: boolean; canTurn: boolean } | null;
+  reverse: boolean;
+  /** 방금 한 조작 */
+  last: string | null;
+}
 
 interface Props {
   mood: Mood;
@@ -29,16 +54,16 @@ interface Props {
   scenery?: SceneId;
   /** 주행 중 지금 위치 (실제 위도 · 경도, 약 1초마다) */
   onPosition?: (lat: number, lng: number) => void;
+  /** 이 도로로 달리기 (내 위치 근처 도로 등). 없으면 장면 기본 도로 */
+  road?: RealRoad | null;
+  control?: { current: DriveControl | null };
+  onStatus?: (s: DriveStatus) => void;
   height: number;
 }
 
 /** 화면 속도감: 실제 속도(m/s)에 곱하는 값 (100km/h ≈ 초당 도로 9.7m 흐름) */
 const VISUAL = 0.35;
 
-/** 차가 달리는 차로: 도로 가운데에서 오른쪽으로 */
-const LANE = 1.2;
-/** 출발 위치: 차 뒤에도 길이 이어져 보이도록 조금 들어가서 시작 */
-const START = 50;
 
 function glowTexture() {
   const cv = document.createElement('canvas');
@@ -53,7 +78,7 @@ function glowTexture() {
   return new THREE.CanvasTexture(cv);
 }
 
-export default function Car3D({ mood, color, shape, style, mode = 'show', speedKmh = 0, braking = false, talking = false, scenery = 'city', onPosition, height }: Props) {
+export default function Car3D({ mood, color, shape, style, mode = 'show', speedKmh = 0, braking = false, talking = false, scenery = 'city', onPosition, road, control, onStatus, height }: Props) {
   const host = useRef<HTMLDivElement>(null);
   const rig = useRef<CarRig | null>(null);
   const sceneRef = useRef<THREE.Scene | null>(null);
@@ -62,8 +87,13 @@ export default function Car3D({ mood, color, shape, style, mode = 'show', speedK
   sceneryId.current = scenery;
   const posCb = useRef(onPosition);
   posCb.current = onPosition;
-  /** 지금까지 달린 거리 (장면을 바꾸면 처음부터) */
-  const dist = useRef(START);
+  const statusCb = useRef(onStatus);
+  statusCb.current = onStatus;
+  const roadRef = useRef(road);
+  roadRef.current = road;
+  /** 조작 상태: 차로 · 옆 위치 · 화면 속도 · 후진 · 방금 한 조작 */
+  const drv = useRef(newDrive());
+  const said = useRef({ last: null as string | null, at: 0, now: 0 });
   const look = useRef({ mood, color, style });
   look.current = { mood, color, style };
   const live = useRef({ speed: speedKmh, braking, talking });
@@ -165,7 +195,7 @@ export default function Car3D({ mood, color, shape, style, mode = 'show', speedK
       extra.push(glow, disc.geometry, disc.material as THREE.Material);
     } else {
       // 실제 도로 모양 + 양쪽 배경 장면 (한국 도로 · 숲속 · 놀이공원 · 바닷가)
-      sceneryRef.current = buildScenery(scene, sceneryId.current);
+      sceneryRef.current = buildScenery(scene, sceneryId.current, roadRef.current ?? undefined);
     }
 
     // 크기 맞추기
@@ -189,6 +219,8 @@ export default function Car3D({ mood, color, shape, style, mode = 'show', speedK
 
     const clock = new THREE.Clock();
     let lastPos = -1;
+    let lastStatus = -1;
+    let lastStatusKey = '';
     const camGoal = new THREE.Vector3();
     const lookGoal = new THREE.Vector3();
     const lookAt = new THREE.Vector3();
@@ -211,19 +243,22 @@ export default function Car3D({ mood, color, shape, style, mode = 'show', speedK
       car.wheels.forEach((w) => { w.rotation.z -= (v / car.wheelR) * dt; });
       const sc = sceneryRef.current;
       if (mode === 'drive' && sc) {
-        dist.current += v * dt;
-        const S = dist.current;
-        sc.update(S, dt, t);
-        // 차: 실제 도로 굽이를 따라 오른쪽 차로로
+        const d = drv.current;
+        said.current.now = t;
+        const { stop, j, lt, dl } = stepDrive(sc, d, speed > 0 ? v : 0, dt, t);
+        const S = d.S;
+        car.wheels.forEach((w) => { w.rotation.z -= ((d.v - v) / car.wheelR) * dt; }); // 위에서 v 만큼 이미 돌렸으니 차이만
+        // 차: 실제 도로 굽이를 따라 (차로 바꿀 땐 그쪽으로 살짝 고개)
         const f = sc.road.at(S);
-        car.group.position.set(f.pos.x + f.right.x * LANE, 0, f.pos.z + f.right.z * LANE);
-        car.group.rotation.y = f.heading;
-        // 카메라: 차 뒤 · 오른쪽 위에서 부드럽게 따라옴 (조금 앞 길을 바라봄)
+        car.group.position.set(f.pos.x + f.right.x * d.lat, 0, f.pos.z + f.right.z * d.lat);
+        const yaw = Math.atan2(dl / Math.max(dt, 1e-3), Math.max(1.5, Math.abs(d.v))) * (d.v < 0 ? -1 : 1);
+        car.group.rotation.y = f.heading - Math.max(-0.35, Math.min(0.35, yaw));
+        // 카메라: 차 뒤에서 부드럽게 따라옴 (조금 앞 길을 바라봄)
         const p = car.group.position;
-        camGoal.copy(p).addScaledVector(f.tan, -7).addScaledVector(f.right, 1.3); // 같은 차로 뒤 조금 오른쪽 (가로등에 안 가림)
+        camGoal.copy(p).addScaledVector(f.tan, -7).addScaledVector(f.right, 0.3);
         camGoal.y = 2.9;
         const ahead = sc.road.at(S + 6);
-        lookGoal.copy(ahead.pos).addScaledVector(ahead.right, LANE);
+        lookGoal.copy(ahead.pos).addScaledVector(ahead.right, d.lat);
         lookGoal.y = 0.9;
         const k = camReady ? Math.min(1, dt * 3) : 1;
         camReady = true;
@@ -238,6 +273,24 @@ export default function Car3D({ mood, color, shape, style, mode = 'show', speedK
           lastPos = t;
           const [la, ln] = sc.road.latLngAt(S);
           posCb.current(la, ln);
+        }
+        // 화면 표시 (바뀔 때만, 초당 4번까지)
+        if (statusCb.current && t - lastStatus > 0.25) {
+          lastStatus = t;
+          const sd = said.current;
+          if (sd.last && t - sd.at > 2.2) sd.last = null;
+          const jd = j.S - S;
+          const st: DriveStatus = {
+            lanes: sc.lanes,
+            lane: d.lane + 1,
+            kmh: Math.round((d.v / VISUAL) * 3.6),
+            stop,
+            junction: jd > 0.5 && jd < 70 ? { dist: Math.round(jd * 2), light: lt, turn: j.turn, canLeft: j.canLeft, canTurn: canTurn(S, j) } : null,
+            reverse: d.reverse,
+            last: sd.last,
+          };
+          const sk = JSON.stringify(st);
+          if (sk !== lastStatusKey) { lastStatusKey = sk; statusCb.current(st); }
         }
       }
 
@@ -294,9 +347,19 @@ export default function Car3D({ mood, color, shape, style, mode = 'show', speedK
     const scene = sceneRef.current;
     if (!scene || mode !== 'drive') return;
     sceneryRef.current?.dispose();
-    dist.current = START;
-    sceneryRef.current = buildScenery(scene, scenery);
-  }, [scenery, mode]);
+    drv.current = newDrive();
+    sceneryRef.current = buildScenery(scene, scenery, road ?? undefined);
+  }, [scenery, road, mode]);
+  // 화면 버튼 → 조작
+  useEffect(() => {
+    if (!control) return;
+    const say = (m: string) => { said.current.last = m; said.current.at = said.current.now; };
+    control.current = {
+      steer(side) { const sc = sceneryRef.current; if (sc) say(steer(sc, drv.current, side)); },
+      setReverse(on) { drv.current.reverse = on; say(on ? '후진 기어' : '전진 기어'); },
+    };
+    return () => { control.current = null; };
+  }, [control]);
   useEffect(() => { if (style) rig.current?.setStyle(style); }, [style]);
   useEffect(() => { rig.current?.setMood(mood); }, [mood]);
   useEffect(() => { rig.current?.setColor(color); }, [color]);

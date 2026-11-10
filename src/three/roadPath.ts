@@ -93,3 +93,76 @@ export class InfiniteRoad {
 export function headingOf(d: THREE.Vector3) {
   return Math.atan2(-d.z, d.x);
 }
+
+interface RoadSeg { kind: 'road'; S0: number; S1: number; u0: number; M: THREE.Matrix4 }
+interface ArcSeg { kind: 'arc'; S0: number; S1: number; u: number; P0: THREE.Vector3; t0: THREE.Vector3; r0: THREE.Vector3; side: 1 | -1; R: number }
+
+/**
+ * 실제 차가 달리는 길: 실제 도로(InfiniteRoad)를 따라가다가,
+ * 교차로에서 좌회전 · 우회전하면 90° 돌아서 같은 도로 모양을 새 방향으로 이어 붙인다.
+ * S = 지금까지 달린 거리 (뒤로 가면 줄어듦)
+ */
+export class Track {
+  private segs: (RoadSeg | ArcSeg)[] = [{ kind: 'road', S0: 0, S1: Infinity, u0: 0, M: new THREE.Matrix4() }];
+  constructor(public readonly base: InfiniteRoad) {}
+
+  private seg(S: number) {
+    for (let i = this.segs.length - 1; i >= 0; i--) if (S >= this.segs[i].S0) return this.segs[i];
+    return this.segs[0];
+  }
+
+  at(S: number): RoadFrame {
+    const s = this.seg(Math.max(0, S));
+    const d = Math.max(0, S) - s.S0;
+    if (s.kind === 'road') {
+      const f = this.base.at(s.u0 + d);
+      f.pos.applyMatrix4(s.M);
+      f.tan.transformDirection(s.M);
+      f.right.crossVectors(f.tan, UP).normalize();
+      f.heading = headingOf(f.tan);
+      return f;
+    }
+    const a = Math.min(d, s.S1 - s.S0) / s.R;
+    const pos = s.P0.clone().addScaledVector(s.r0, s.side * s.R * (1 - Math.cos(a))).addScaledVector(s.t0, s.R * Math.sin(a));
+    const tan = s.t0.clone().multiplyScalar(Math.cos(a)).addScaledVector(s.r0, s.side * Math.sin(a)).normalize();
+    const right = new THREE.Vector3().crossVectors(tan, UP).normalize();
+    return { pos, tan, right, heading: headingOf(tan) };
+  }
+
+  latLngAt(S: number): [number, number] {
+    const s = this.seg(Math.max(0, S));
+    return this.base.latLngAt(s.kind === 'road' ? s.u0 + Math.max(0, S) - s.S0 : s.u);
+  }
+
+  /** 실제 도로 위 위치 (S 지점) */
+  private uAt(S: number) {
+    const s = this.seg(S);
+    return s.kind === 'road' ? s.u0 + S - s.S0 : s.u;
+  }
+
+  /** Sdec 에서 회전(side: -1 좌 · +1 우 · 0 직진), 반지름 R. Sdec 뒤의 길은 새로 */
+  turn(Sdec: number, side: -1 | 0 | 1, R: number) {
+    const u = this.uAt(Sdec);
+    const f = this.at(Sdec);
+    // Sdec 뒤 조각 버리기
+    this.segs = this.segs.filter((x) => x.S0 < Sdec);
+    this.segs[this.segs.length - 1].S1 = Sdec;
+    let S = Sdec;
+    let P = f.pos;
+    let T = f.tan;
+    if (side !== 0) {
+      const len = (Math.PI / 2) * R;
+      this.segs.push({ kind: 'arc', S0: S, S1: S + len, u, P0: f.pos.clone(), t0: f.tan.clone(), r0: f.right.clone(), side, R });
+      S += len;
+      const e = this.at(S - 1e-6);
+      P = f.pos.clone().addScaledVector(f.right, side * R).addScaledVector(f.tan, R);
+      T = e.tan;
+    }
+    // 같은 실제 도로를 u 부터, 위치 P · 방향 T 에 맞춰 이어 붙이기
+    const b = this.base.at(u);
+    const M = new THREE.Matrix4().makeTranslation(P.x, 0, P.z)
+      .multiply(new THREE.Matrix4().makeRotationY(headingOf(T) - b.heading))
+      .multiply(new THREE.Matrix4().makeTranslation(-b.pos.x, 0, -b.pos.z));
+    this.segs.push({ kind: 'road', S0: S, S1: Infinity, u0: u, M });
+  }
+}

@@ -716,3 +716,19 @@ body { word-break: keep-all; overflow-wrap: anywhere; } /* 한국어: 단어 중
 .route-map .rm-link { color: #03c75a; font-weight: 600; text-decoration: none; white-space: nowrap; }
 .route-map .rm-attr { display: block; opacity: .6; font-size: 11px; }
 .rm-car { width: 18px; height: 18px; border-radius: 50%; background: #ff4f5e; border: 3px solid #fff; box-shadow: 0 1px 4px rgba(0,0,0,.35); }
+
+/* 주행 조작 줄: 좌회전/차로 · 상태 · 후진 · 우회전/차로 */
+.drive-ctl { display: grid; grid-template-columns: auto 1fr auto auto; gap: 6px; align-items: center; margin-top: 6px; }
+.drive-ctl .btn.ctl { display: inline-flex; align-items: center; justify-content: center; gap: 5px; min-height: 44px; padding: 0 12px; border-radius: 14px; font-weight: 700; white-space: nowrap; background: rgba(127,127,127,.16); color: inherit; border: 0; }
+.drive-ctl .btn.ctl span { font-size: 18px; line-height: 1; }
+.drive-ctl .btn.ctl.on { background: #3b82f6; color: #fff; }
+.drive-ctl .btn.ctl.rev { background: #f59f00; color: #1a1a1a; }
+.drive-ctl .btn.ctl:disabled { opacity: .4; }
+.drive-ctl .ctl-msg { display: flex; align-items: center; gap: 8px; min-width: 0; font-size: 13px; padding: 0 4px; }
+.drive-ctl .ctl-msg.warn { color: #ff6b6b; font-weight: 700; }
+.drive-ctl .ctl-msg .txt { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.drive-ctl .lane-dots { display: inline-flex; gap: 2px; flex: none; }
+.drive-ctl .lane-dots i { width: 7px; height: 16px; border-radius: 2px; background: rgba(127,127,127,.35); }
+.drive-ctl .lane-dots i.opp { background: rgba(127,127,127,.18); }
+.drive-ctl .lane-dots i.me { background: #3b82f6; }
+@media (max-width: 420px) { .drive-ctl .btn.ctl { padding: 0 9px; } .drive-ctl .ctl-msg .lane-dots { display: none; } }
