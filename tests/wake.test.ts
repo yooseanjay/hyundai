@@ -15,9 +15,15 @@ class FakeSR {
   }
 }
 
+const listeners = new Map<string, (() => void)[]>();
 async function load() {
   vi.resetModules();
-  (globalThis as any).window = Object.assign(globalThis, { isSecureContext: true, SpeechRecognition: FakeSR, addEventListener() {}, dispatchEvent() {} });
+  listeners.clear();
+  (globalThis as any).window = Object.assign(globalThis, {
+    isSecureContext: true, SpeechRecognition: FakeSR, dispatchEvent() { return true; },
+    addEventListener(t: string, h: () => void) { listeners.set(t, [...(listeners.get(t) ?? []), h]); },
+    removeEventListener(t: string, h: () => void) { listeners.set(t, (listeners.get(t) ?? []).filter((x) => x !== h)); },
+  });
   return import('../src/voice/wakeWord');
 }
 
@@ -63,5 +69,34 @@ describe('호출어 듣기', () => {
     await vi.advanceTimersByTimeAsync(3200);
     expect(woke).toEqual(['']);
     await w.stop('off');
+  });
+
+  it('휴대폰: 처음엔 권한이 막혀도 화면을 누르면 다시 듣기', async () => {
+    vi.useFakeTimers();
+    const m = await load();
+    const states: string[] = [];
+    const w = new m.WakeWord(() => {}, (s) => states.push(s));
+    m.setWakeInstance(w);
+    FakeSR.last!.onerror?.({ error: 'not-allowed' });
+    FakeSR.last!.onend?.();
+    expect(m.wakeState()).toBe('blocked');
+    const before = FakeSR.starts;
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(FakeSR.starts).toBe(before); // 혼자서는 다시 안 켬
+    listeners.get('pointerdown')!.forEach((h) => h()); // 화면 누름
+    expect(FakeSR.starts).toBe(before + 1);
+    expect(m.wakeState()).toBe('listening');
+    expect(listeners.get('pointerdown')).toHaveLength(0);
+    const p = w.stop('off');
+    await vi.advanceTimersByTimeAsync(700);
+    await p;
+  });
+
+  it('음성 인식이 조금 다르게 적어도 알아들음', async () => {
+    const m = await load();
+    expect(m.afterWake('현 대 노래 틀어 줘')).toBe('노래 틀어 줘');
+    expect(m.afterWake('Hyundai 날씨')).toBe('날씨');
+    expect(m.afterWake('현대야')).toBe('');
+    expect(m.afterWake('오늘 저녁 뭐 먹지')).toBeNull();
   });
 });

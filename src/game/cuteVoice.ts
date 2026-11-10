@@ -1,4 +1,5 @@
 import { pushLevel, rms } from '../voice/level';
+import { voiceEnded, voiceStarted } from '../voice/echoGate';
 // 캐릭터 목소리 · 효과음 (브라우저 내장 기능만 사용 → 무료)
 //  1) 음성: 한국어 음성 중 가장 자연스러운 것(Neural)을 고르고, 음높이를 살짝만 올려 아이 목소리처럼
 //  2) 말투: 문장 끝을 귀엽게 늘이고 기분에 맞는 의성어를 붙임 (화면 글자는 그대로, 읽을 때만)
@@ -127,14 +128,18 @@ export function cleanForSpeech(text: string) {
   return text.replace(/[\p{Extended_Pictographic}‍️]/gu, '').replace(/["“”]/g, '').replace(/[~…]+/g, ', ').replace(/\s{2,}/g, ' ').trim();
 }
 
-let current: AudioBufferSourceNode | null = null;
+/** 재생 중(또는 재생 예약된) 목소리 조각 전부: 하나만 멈추면 나머지가 이어서 나와 겹쳐 들림 */
+const sources = new Set<AudioBufferSourceNode>();
+function track(src: AudioBufferSourceNode) {
+  sources.add(src);
+  voiceStarted();
+  src.addEventListener('ended', () => { if (sources.delete(src)) voiceEnded(); });
+}
 
-/** 재생 중인 목소리 멈추기 */
+/** 재생 중인 목소리 멈추기 (예약된 조각까지 전부) */
 export function stopVoice() {
-  try {
-    current?.stop();
-  } catch {
-    /* 이미 멈춤 */
+  for (const s of [...sources]) {
+    try { s.stop(); } catch { /* 이미 멈춤 */ }
   }
 }
 
@@ -144,11 +149,11 @@ export async function playPcm(wav: Float32Array, sampleRate: number, onStart: ()
   if (!a) throw new Error('오디오를 재생할 수 없어요');
   const buf = a.createBuffer(1, wav.length, sampleRate);
   buf.copyToChannel(wav, 0);
-  current?.stop();
+  stopVoice();
   const src = a.createBufferSource();
   src.buffer = buf;
   src.connect(a.destination);
-  current = src;
+  track(src);
   await new Promise<void>((done) => {
     src.onended = () => done();
     src.start();
@@ -161,11 +166,11 @@ export async function playAudioFile(data: ArrayBuffer, onStart: () => void): Pro
   const a = ctx();
   if (!a) throw new Error('오디오를 재생할 수 없어요');
   const buf = await a.decodeAudioData(data.slice(0));
-  current?.stop();
+  stopVoice();
   const src = a.createBufferSource();
   src.buffer = buf;
   src.connect(a.destination);
-  current = src;
+  track(src);
   await new Promise<void>((done) => {
     src.onended = () => done();
     src.start();
@@ -177,7 +182,7 @@ export async function playAudioFile(data: ArrayBuffer, onStart: () => void): Pro
 export function pcmStreamPlayer(sampleRate: number, onStart: () => void) {
   const a = ctx();
   if (!a) throw new Error('오디오를 재생할 수 없어요');
-  current?.stop();
+  stopVoice();
   let at = 0;
   let started = false;
   let last: AudioBufferSourceNode | null = null;
@@ -202,7 +207,7 @@ export function pcmStreamPlayer(sampleRate: number, onStart: () => void) {
       window.setTimeout(() => pushLevel(lv), Math.max(0, at - a.currentTime) * 1000);
       at += buf.duration;
       last = src;
-      current = src;
+      track(src);
       if (!started) { started = true; onStart(); }
     },
     /** 다 받은 뒤 재생이 끝날 때까지 기다림 */

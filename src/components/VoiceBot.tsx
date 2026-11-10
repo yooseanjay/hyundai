@@ -15,7 +15,8 @@ import { LiveSession } from '../voice/live';
 import { detectTool, runTool, summaryOf, type ActionCard } from '../voice/actions';
 import { ActionCardView } from './ActionCardView';
 import { VoiceOrb } from './VoiceOrb';
-import { pauseWakeBriefly, setVoiceBusy, setWakeInstance, setWakePref, WakeWord, wakePref, wakeSupported, type WakeState } from '../voice/wakeWord';
+import { mergeTranscripts } from '../voice/echoGate';
+import { pauseWakeBriefly, setVoiceBusy, setWakeInstance, setWakePref, WakeWord, wakePref, wakeState as wakeStateNow, wakeSupported, type WakeState } from '../voice/wakeWord';
 
 type Phase = 'idle' | 'listening' | 'thinking' | 'speaking';
 
@@ -234,7 +235,8 @@ export function VoiceBot({ ctx, onLine, variant = 'screen' }: {
     let final = '';
     rec.onstart = () => { if (!muted) sfx.listen(); setPhase('listening'); setHeard(''); onLine('듣고 있어요', 'calm'); };
     rec.onresult = (e: any) => {
-      const t = Array.from(e.results).map((x: any) => x[0].transcript).join('');
+      // 안드로이드는 같은 말을 누적해 여러 번 줌 → 겹친 부분은 합쳐서 한 번만
+      const t = mergeTranscripts(Array.from(e.results).map((x: any) => String(x[0].transcript ?? '')));
       setHeard(t);
       if (e.results[e.results.length - 1].isFinal) final = t;
     };
@@ -422,6 +424,13 @@ export function VoiceBot({ ctx, onLine, variant = 'screen' }: {
   // ================= 호출어: "현대" 라고 부르면 화면을 누르지 않아도 듣기 시작 =================
   const [wakeOn, setWakeOn] = useState(wakePref);
   const [wakeState, setWakeState] = useState<WakeState>('off');
+  // 호출어는 하단 마이크가 맡으므로, 다른 화면에선 전체 상태를 받아 보여 줌
+  const [wakeAll, setWakeAll] = useState<WakeState>(wakeStateNow);
+  useEffect(() => {
+    const h = () => setWakeAll(wakeStateNow());
+    window.addEventListener('wake-state', h);
+    return () => window.removeEventListener('wake-state', h);
+  }, []);
   const listenRef = useRef(listen);
   listenRef.current = listen;
   const answerRef = useRef(answer);
@@ -501,7 +510,7 @@ export function VoiceBot({ ctx, onLine, variant = 'screen' }: {
           onClick={() => void listen()}
           disabled={busy && !liveMic}
           aria-label={active ? '듣기 멈추기' : `${name}에게 말 걸기${wakeState === 'listening' ? ' (“현대”라고 불러도 돼요)' : ''}`}
-          title={wakeState === 'listening' ? '“현대”라고 부르면 들어요' : wakeState === 'blocked' ? '마이크 권한이 없어 호출어를 못 들어요' : undefined}
+          title={wakeState === 'listening' ? '“현대”라고 부르면 들어요' : wakeState === 'blocked' ? '화면을 한 번 누르면 “현대” 듣기를 다시 시작해요' : undefined}
         >
           <VoiceOrb size={50} phase={phase} active={active} />
           {active ? <Square size={14} fill="currentColor" className="dock-icon" /> : <Mic size={20} className="dock-icon" />}
@@ -549,7 +558,10 @@ export function VoiceBot({ ctx, onLine, variant = 'screen' }: {
           <button className="set-row" onClick={() => setWakePref(!wakeOn)} role="switch" aria-checked={wakeOn}>
             <span className="set-txt">
               <b>“현대”로 호출</b>
-              <span>{wakeOn ? '“현대”라고 부르면 음성 인식이 시작돼요' : '마이크 버튼을 눌러야 음성 인식이 시작돼요'}</span>
+              <span>{!wakeOn ? '마이크 버튼을 눌러야 음성 인식이 시작돼요'
+                : wakeAll === 'blocked' ? '마이크를 허용하고 화면을 한 번 누르면 듣기 시작해요'
+                : wakeAll === 'listening' ? '듣는 중이에요. “현대”라고 불러 보세요'
+                : '“현대”라고 부르면 음성 인식이 시작돼요'}</span>
             </span>
             <span className={`switch ${wakeOn ? 'on' : ''}`} aria-hidden />
           </button>

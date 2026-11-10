@@ -4,6 +4,7 @@
 // - 글자 보내기, 또는 마이크 소리를 그대로 보내기(16kHz PCM) → 24kHz PCM 음성 + 자막을 받음
 
 import { pushLevel, rms } from './level';
+import { botSpeaking } from './echoGate';
 import { redactText } from '../security/redact';
 
 const WS = 'wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContentConstrained';
@@ -137,11 +138,13 @@ export class LiveSession {
     proc.onaudioprocess = (e) => {
       if (ws.readyState !== WebSocket.OPEN) return;
       const input = e.inputBuffer.getChannelData(0);
-      pushLevel(rms(input) * 6);
+      // 봇이 말하는 중엔 무음을 보냄: 스피커 소리가 마이크로 다시 들어가 울리거나 제 말에 또 대답하지 않게
+      const gated = botSpeaking();
+      pushLevel(gated ? 0 : rms(input) * 6);
       // 16kHz로 줄이고 16비트 정수로
       const n = Math.floor(input.length / ratio);
       const pcm = new Int16Array(n);
-      for (let i = 0; i < n; i++) {
+      if (!gated) for (let i = 0; i < n; i++) {
         const v = input[Math.floor(i * ratio)];
         pcm[i] = Math.max(-1, Math.min(1, v)) * 0x7fff;
       }

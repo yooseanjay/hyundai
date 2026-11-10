@@ -10,7 +10,7 @@ const SR: any = typeof window !== 'undefined' && window.isSecureContext ? (windo
 export const wakeSupported = () => !!SR;
 
 /** 호출어로 알아듣는 말 (음성 인식이 조금 다르게 적어도) */
-const WAKE = /(현대|헌대|현데|형대|hyundai|휸다이)/i;
+const WAKE = /(현\s?대|헌대|현데|형대|현때|현다이|휸다이|hyundai|hyundae|hyun\s?dai)/i;
 
 /** 들린 말에서 호출어를 찾아 뒤에 이어진 말을 돌려줌. 호출어가 없으면 null */
 export function afterWake(text: string): string | null {
@@ -31,6 +31,14 @@ export const setWakePref = (on: boolean) => {
 
 export type WakeState = 'off' | 'listening' | 'paused' | 'blocked' | 'unsupported';
 
+/** 지금 호출어 상태 (화면 어디서든 보여 주려고) */
+let lastState: WakeState = 'off';
+export const wakeState = () => lastState;
+function report(s: WakeState) {
+  lastState = s;
+  try { window.dispatchEvent(new Event('wake-state')); } catch { /* 괜찮음 */ }
+}
+
 /**
  * 계속 듣다가 호출어가 들리면 onWake(이어진 말).
  * 인식은 몇 초~1분마다 저절로 끝나므로 끝나면 다시 시작한다.
@@ -42,18 +50,42 @@ export class WakeWord {
   private timer = 0;
   private fired = false;
   private ended: (() => void) | null = null;
-  constructor(private onWake: (rest: string) => void, private onState: (s: WakeState) => void) {}
+  private gesture: (() => void) | null = null;
+  private onState: (s: WakeState) => void;
+  constructor(private onWake: (rest: string) => void, onState: (s: WakeState) => void) {
+    this.onState = (s) => { report(s); onState(s); };
+  }
 
   start() {
     if (!SR) { this.onState('unsupported'); return; }
     if (this.want) return;
     this.want = true;
+    this.retry = 0;
     this.run();
+  }
+
+  /** 마이크 권한이 막혔거나(화면을 누르기 전엔 못 켜는 휴대폰) → 다음에 화면을 누르면 다시 시작 */
+  private armGesture() {
+    if (this.gesture || typeof window === 'undefined') return;
+    const h = () => {
+      this.disarm();
+      if (busy.size === 0) this.start();
+    };
+    this.gesture = h;
+    window.addEventListener('pointerdown', h, true);
+    window.addEventListener('keydown', h, true);
+  }
+  private disarm() {
+    if (!this.gesture) return;
+    window.removeEventListener('pointerdown', this.gesture, true);
+    window.removeEventListener('keydown', this.gesture, true);
+    this.gesture = null;
   }
 
   /** 멈춤 (마이크를 다른 곳에서 쓰기 전). 완전히 끝나면 resolve */
   stop(state: WakeState = 'paused'): Promise<void> {
     this.want = false;
+    if (state === 'off') this.disarm();
     window.clearTimeout(this.timer);
     this.onState(state);
     const r = this.rec;
@@ -95,6 +127,7 @@ export class WakeWord {
       if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
         this.want = false;
         this.onState('blocked');
+        this.armGesture();
       }
     };
     rec.onend = () => {
@@ -106,7 +139,13 @@ export class WakeWord {
       this.retry = Math.min(this.retry + 1, 6);
       this.timer = window.setTimeout(() => this.run(), this.retry > 2 ? 1500 * this.retry : 250);
     };
-    try { rec.start(); } catch { this.timer = window.setTimeout(() => this.run(), 1500); }
+    try { rec.start(); } catch {
+      this.rec = null;
+      this.retry = Math.min(this.retry + 1, 6);
+      // 계속 못 켜면(화면을 누르기 전엔 막는 브라우저) 화면을 누를 때 다시
+      if (this.retry >= 3) { this.want = false; this.onState('blocked'); this.armGesture(); return; }
+      this.timer = window.setTimeout(() => this.run(), 1500);
+    }
   }
 
   private fire(rest: string) {
@@ -124,7 +163,19 @@ let resumeTimer = 0;
 /** 호출어 듣기를 맡을 하나 (없으면 null) */
 export function setWakeInstance(w: WakeWord | null) {
   current = w;
+  watchVisibility();
   if (w && busy.size === 0) w.start();
+}
+
+// 휴대폰은 화면을 끄거나 다른 앱으로 가면 인식이 끊김 → 돌아오면 바로 다시 듣기
+let watching = false;
+function watchVisibility() {
+  if (watching || typeof document === 'undefined' || !document.addEventListener) return;
+  watching = true;
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) void current?.stop('paused');
+    else if (busy.size === 0) current?.start();
+  });
 }
 
 /** id 쪽에서 마이크 · 스피커를 쓰는 중인지 알려 줌 */
