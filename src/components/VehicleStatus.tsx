@@ -23,7 +23,8 @@ function tires(snap: VehicleSnapshot, live?: LiveDrive) {
   ] as [string, number][];
 }
 
-export function VehicleStatus({ car, snap, live, compact }: { car: CarProfile; snap: VehicleSnapshot; live?: LiveDrive; compact?: boolean }) {
+/** demo: 시뮬레이터일 때만 온도·타이어 공기압 예시 값을 보여 줌 (실제 차에서는 받을 수 없는 값이라 숨김) */
+export function VehicleStatus({ car, snap, live, compact, demo }: { car: CarProfile; snap: VehicleSnapshot; live?: LiveDrive; compact?: boolean; demo?: boolean }) {
   const ev = car.fuelType === 'ev';
   const energyName = ev ? '배터리' : car.fuelType === 'hydrogen' ? '수소' : '연료';
   // 주행 중 에너지·주행 가능 거리 실시간 감소 (현재 연비 비율 그대로)
@@ -69,14 +70,14 @@ export function VehicleStatus({ car, snap, live, compact }: { car: CarProfile; s
           <b className="num">{dte}<small>km</small></b>
           <span className="cap">누적 {(snap.odometerKm + used).toLocaleString(undefined, { maximumFractionDigits: 1 })}km</span>
         </div>
-        <div className="vs-cell">
+        {demo && <div className="vs-cell">
           <span className="cap"><Thermometer size={11} /> {ev ? '배터리 온도' : '냉각수 온도'}</span>
           <b className={`num ${tempHot ? 'warn' : ''}`}>{temp}<small>°C</small></b>
           <span className="cap">{tempHot ? '조금 뜨거워요' : '정상'}</span>
-        </div>
+        </div>}
       </div>
 
-      <div className="vs-tires">
+      {demo && <div className="vs-tires">
         <div className="cap vs-title"><GaugeIcon size={12} /> 타이어 공기압 (psi)</div>
         <div className="tire-map">
           <svg viewBox="0 0 60 110" className="tire-car" aria-hidden>
@@ -89,7 +90,7 @@ export function VehicleStatus({ car, snap, live, compact }: { car: CarProfile; s
             </span>
           ))}
         </div>
-      </div>
+      </div>}
 
       <div className={`vs-warn ${warns.length ? 'has' : ''}`}>
         <TriangleAlert size={14} />

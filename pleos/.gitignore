@@ -1,0 +1,7 @@
+.gradle/
+build/
+local.properties
+*.iml
+.idea/
+# npm run build:pleos 결과 (웹 앱 빌드물)
+app/src/main/assets/web/

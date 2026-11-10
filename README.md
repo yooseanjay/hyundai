@@ -45,6 +45,28 @@
 - 대화: Google Gemini (서버가 대신 호출, 키는 브라우저에 오지 않음). 키가 없거나 무료 사용량을 넘으면 기본 대답으로 자동 전환
 - 목소리: Gemini TTS (여자·남자 목소리 선택), 브라우저 안에서 도는 오픈소스 Supertonic 2
 
+## 🚘 Pleos Connect 차 안 앱 (`pleos/`)
+
+현대자동차그룹 차량용 OS **Pleos Connect**(Android Automotive)에서 도는 앱. 지금 웹 앱을 그대로 앱 안에 넣고, 차 데이터는 **Pleos Vehicle SDK**로 직접 읽습니다 — 로그인 없이 시동만 걸면 내 차가 캐릭터가 됩니다.
+
+| Vehicle SDK 값 | 앱에서 |
+|---|---|
+| `EvBattery` 배터리 % · 충전 중 / `Fuel` 연료 % | 배고픔 · 충전하면 "냠냠" |
+| `Odometer` 누적 주행거리 · 주행 가능 거리 | 소모품 교체 시기 · 남은 거리 안의 추천 장소 |
+| `Safety` 엔진오일 · 브레이크액 · 워셔액 부족 | 아픈 표정 · 경고 카드 |
+
+- **읽기 전용**: 웹에는 `window.PleosVehicle.snapshot()` 하나만 열어 둠. 문·창문·공조 같은 차 제어 기능은 넣지 않음
+- **오프라인 화면**: 웹 앱 파일을 앱 안에 넣고 `https://yooseanjay.github.io/hyundai/` 주소로 띄움 (대화 AI 서버가 이미 허용한 주소)
+- **주행 중 안전**: `distractionOptimized`를 선언하지 않아 주행 중에는 시스템이 화면을 가림
+- 링크(카카오맵 · 네이버 지도 · Spotify)는 앱 밖에서 열고, 마이크는 말 걸기 버튼을 누를 때만 요청
+- 운행 기록은 차 GPS로 재고 기기 안에 암호화 저장 (Vehicle SDK에 운행 기록 목록이 없음)
+
+```bash
+npm run build:pleos   # 웹 앱을 pleos/app/src/main/assets/web 에 빌드 (키 미포함 검사)
+```
+
+그다음 `pleos/` 폴더를 Android Studio로 열고 **Pleos Connect Emulator**(Android 14, API 34)에서 실행합니다. 에뮬레이터 설치와 SDK 사용 신청은 [Pleos 개발자 문서](https://document.pleos.ai/docs/connect/guide/getting-started/application-development/setup-connect-sdk-emulator) 참고. Vehicle SDK `ai.pleos.playground:Vehicle:2.3.2`는 공개 Maven 저장소에서 받습니다.
+
 ## 실행
 
 ```bash
@@ -72,19 +94,20 @@ npm run dev     # http://localhost:5173  (?demo 를 붙이면 데모 모드)
 | 3 · 내 기기 금고 | 저장 데이터 AES-256-GCM 암호화, PIN(PBKDF2 310,000회) 잠금·자동 잠금, AI 전송 전 개인정보 가리기 |
 
 ```bash
-npm run verify   # 타입 검사 + 테스트 54개 + 비밀값·헤더·의존성 검사
+npm run verify   # 타입 검사 + 테스트 56개 + 비밀값·헤더·의존성 검사
 ```
 
 ## 구조
 
 ```
 src/
-  api/          데이터 소스 (mockVehicle = 시뮬레이터, hyundaiClient = 실제 API)
+  api/          데이터 소스 (mockVehicle = 시뮬레이터, hyundaiClient = 실제 API, pleosVehicle = 차 안 Vehicle SDK)
   game/         character.ts (차 데이터 → 표정·대사), diary.ts (오늘의 일기), gpsTrip.ts (실제 GPS 주행)
   three/        3D 차량 모델 · 앞면 얼굴 스크린
   voice/        대화 AI · 음성 · 말로 하는 기능(지도·날씨·음악 등)
   components/   화면 구성 요소
   security/     기기 저장 암호화 · PIN 잠금 · 개인정보 가리기
+pleos/          Pleos Connect 차 안 앱 (Android Automotive · WebView · Vehicle SDK)
 api/            배포 서버 함수 (현대 OAuth · 차량 API 중계 · Gemini · Spotify)
 ```
 

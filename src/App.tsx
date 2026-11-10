@@ -27,6 +27,8 @@ import type { Trip as TripT } from './api/types';
 import { loadProgress, saveProgress, type Progress } from './game/progress';
 
 type Tab = 'home' | 'studio' | 'diary';
+/** 주행을 재는 기기 이름 (차 안 앱이면 차, 아니면 휴대폰) */
+const DEVICE = dataSource.kind === 'pleos' ? '차' : '휴대폰';
 type View = Tab | 'talk';
 type Style = 'calm' | 'normal' | 'sporty';
 
@@ -141,6 +143,14 @@ export default function App() {
   }, [refresh]);
 
   useEffect(() => { window.scrollTo({ top: 0 }); }, [view]);
+  // 차 안(Pleos)에서는 10초마다 차 상태를 다시 읽음 (충전·경고 해결도 바로 반영)
+  const snapRef = useRef(snap);
+  snapRef.current = snap;
+  useEffect(() => {
+    if (dataSource.kind !== 'pleos') return;
+    const id = window.setInterval(() => { if (!document.hidden) refresh(snapRef.current); }, 10_000);
+    return () => window.clearInterval(id);
+  }, [refresh]);
   /** 주행 시뮬레이션: 0.1초마다 속도·거리 계산 (화면 1초 = 실제 1.5분, 90배속) */
   const TIME_SCALE = 90;
   const startGps = () => {
@@ -221,6 +231,7 @@ export default function App() {
           durationMin: Math.max(1, Math.round((ended.getTime() - tripStart.current) / 60000)),
           avgSpeedKmh: avg, maxSpeedKmh: Math.round(g2.maxSpeed), hardBrakes: g2.hardBrakes,
         };
+        await dataSource.recordTrip?.(trip);
       }
     } else {
       if (!simulator) return;
@@ -287,7 +298,7 @@ export default function App() {
   const careCount = st.activeWarnings.length + dueParts.length + (st.energy < 50 ? 1 : 0);
   return (
     <main className={`app view-${view}`}>
-      <Brand live={dataSource.kind === 'hyundai'} />
+      <Brand live={dataSource.kind !== 'mock'} />
 
       {/* ---------- 홈: Future Mobility · Premium Minimal · AI Mobility ---------- */}
       {view === 'home' && (
@@ -300,7 +311,7 @@ export default function App() {
                 <h1 className="hero-name">{car.nickname}</h1>
                 <span className="model-link">{car.model} · {snap.odometerKm.toLocaleString()}km</span>
               </div>
-              <span className="ready"><i className="dot good pulse" />{driving ? '주행 중' : dataSource.kind === 'hyundai' ? '차량 연결됨' : '출발 준비 완료'}</span>
+              <span className="ready"><i className="dot good pulse" />{driving ? '주행 중' : dataSource.kind !== 'mock' ? '차량 연결됨' : '출발 준비 완료'}</span>
             </div>
             {driving ? (
             <Suspense fallback={<div className="highway"><CarCharacter mood={st.mood} color={carColor} size={232} /></div>}>
@@ -333,7 +344,7 @@ export default function App() {
           {!driving && (
             <div className="card drive-card">
               <div className="card-head"><b className="h3">함께 달려볼까요?</b><Route size={18} className="muted" /></div>
-              <div className="card-head"><b className="label">측정 방식</b><span className="cap">{source === 'gps' ? '휴대폰 GPS로 실제 속도' : '데모 시뮬레이션'}</span></div>
+              <div className="card-head"><b className="label">측정 방식</b><span className="cap">{source === 'gps' ? `${DEVICE} GPS로 실제 속도` : '데모 시뮬레이션'}</span></div>
               <div className="chip-row">
                 <button className={`chip ${source === 'gps' ? 'on' : ''}`} onClick={() => setSource('gps')} disabled={!gpsSupported()}>실제 GPS</button>
                 {simulator && <button className={`chip ${source === 'sim' ? 'on' : ''}`} onClick={() => setSource('sim')}>시뮬레이션</button>}
@@ -342,10 +353,12 @@ export default function App() {
                 <>
                   <p className="cap gps-note">
                     {gpsSupported()
-                      ? '휴대폰을 차에 두고 시동을 걸면 실제 속도·거리·급정거를 측정해요. 위치는 이 휴대폰 안에서만 계산하고 어디에도 보내지 않아요.'
+                      ? dataSource.kind === 'pleos'
+                        ? '출발할 때 누르면 차의 GPS로 실제 속도·거리·급정거를 측정해요. 위치는 이 차 안에서만 계산하고 어디에도 보내지 않아요.'
+                        : '휴대폰을 차에 두고 시동을 걸면 실제 속도·거리·급정거를 측정해요. 위치는 이 휴대폰 안에서만 계산하고 어디에도 보내지 않아요.'
                       : '이 주소에서는 GPS를 쓸 수 없어요. https 주소(배포 링크)에서 열어 주세요.'}
                   </p>
-                  <p className="safety">운전 중에는 화면을 조작하지 마세요. 거치대에 두거나 동승자가 사용해 주세요.</p>
+                  <p className="safety">운전 중에는 화면을 조작하지 마세요.{dataSource.kind === 'pleos' ? '' : ' 거치대에 두거나 동승자가 사용해 주세요.'}</p>
                 </>
               ) : (
                 <>
@@ -360,7 +373,7 @@ export default function App() {
                 </>
               )}
               <button className="btn primary block" onClick={startDrive} disabled={source === 'gps' && !gpsSupported()}>{source === 'gps' ? '시동 걸기 · GPS 측정 시작' : '시동 걸기'}</button>
-              {!simulator && <button className="btn text" onClick={() => refresh(snap)}>현대 운행 기록 새로고침</button>}
+              {dataSource.kind === 'hyundai' && <button className="btn text" onClick={() => refresh(snap)}>현대 운행 기록 새로고침</button>}
             </div>
           )}
           {driving ? (
@@ -386,7 +399,7 @@ export default function App() {
             </div>
             <div className="card">
               <div className="card-head"><b className="label">실시간 차량 상태</b><span className="cap">{source === 'gps' ? 'GPS 실측' : STYLE_DESC[style]}</span></div>
-              <VehicleStatus car={car} snap={snap} live={live} />
+              <VehicleStatus car={car} snap={snap} live={live} demo={!!simulator} />
             </div>
             </>
           ) : null}
@@ -399,7 +412,7 @@ export default function App() {
               <b className="label vs-title"><GaugeIcon size={18} strokeWidth={1.8} />차량 상태</b>
               <span className="cap">마지막 수신 {hhmm(new Date(snap.updatedAt))}</span>
             </div>
-            <VehicleStatus car={car} snap={snap} compact />
+            <VehicleStatus car={car} snap={snap} compact demo={!!simulator} />
           </div>
 
           {careCount > 0 && (
@@ -452,7 +465,7 @@ export default function App() {
         <section className="screen">
           <div className="title-row">
             <h1 className="h1">{car.nickname}와 대화</h1>
-            <span className="cap conn"><i className="dot good" />{dataSource.kind === 'hyundai' ? '차량 연결됨' : '데모 차량 연결됨'}</span>
+            <span className="cap conn"><i className="dot good" />{dataSource.kind !== 'mock' ? '차량 연결됨' : '데모 차량 연결됨'}</span>
           </div>
           <Show3D car={car} look={look} mood={bot?.mood ?? st.mood} talking={!!bot?.speaking} height={goldH()} />
           <VoiceBot ctx={{ car, snap, status: st, trips, progress }} onLine={(line, mood, speaking) => setBot(line ? { line, mood, speaking } : null)} />

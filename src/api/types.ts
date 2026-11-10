@@ -49,12 +49,14 @@ export interface VehicleSnapshot {
   updatedAt: string;
 }
 
-/** 앱이 의존하는 데이터 소스 인터페이스. mock(시뮬레이터)과 실제 API가 같은 모양을 구현한다. */
+/** 앱이 의존하는 데이터 소스 인터페이스. mock(시뮬레이터) · 현대 Open API · Pleos Connect 차 안 앱이 같은 모양을 구현한다. */
 export interface VehicleDataSource {
-  readonly kind: 'mock' | 'hyundai';
+  readonly kind: 'mock' | 'hyundai' | 'pleos';
   getCars(): Promise<CarProfile[]>;
   getSnapshot(carId: string): Promise<VehicleSnapshot>;
   getRecentTrips(carId: string): Promise<Trip[]>;
+  /** 앱에서 끝낸 주행을 저장 (기록 API가 없는 소스만: Pleos) */
+  recordTrip?(t: Trip): Promise<void>;
 }
 
 export const WARNING_LABELS: Record<WarningKey, string> = {

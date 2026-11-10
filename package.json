@@ -11,7 +11,8 @@
     "test": "vitest run",
     "typecheck": "tsc -b && tsc -p tsconfig.api.json",
     "security:check": "node scripts/scan-secrets.mjs && node scripts/sync-headers.mjs --check && npm audit --omit=dev --audit-level=high",
-    "verify": "npm run typecheck && npm test && npm run security:check"
+    "verify": "npm run typecheck && npm test && npm run security:check",
+    "build:pleos": "node scripts/build-pleos.mjs"
   },
   "dependencies": {
     "lucide-react": "^0.460.0",

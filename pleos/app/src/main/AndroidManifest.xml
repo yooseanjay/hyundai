@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- 차 안 화면(Android Automotive) 앱. 일반 휴대폰 에뮬레이터에서도 시험할 수 있게 필수는 아님 -->
+    <uses-feature android:name="android.hardware.type.automotive" android:required="false" />
+    <uses-feature android:name="android.hardware.microphone" android:required="false" />
+
+    <!-- Pleos Vehicle SDK: 앱이 실제로 읽는 값만 (모두 읽기 전용, 차 제어 권한 없음) -->
+    <uses-permission android:name="pleos.car.permission.CAR_DRIVE" />   <!-- 누적 주행거리 · 주행 가능 거리 -->
+    <uses-permission android:name="pleos.car.permission.CAR_MILEAGE" />
+    <uses-permission android:name="pleos.car.permission.CAR_ENERGY" />  <!-- 배터리 % · 연료 % · 충전 상태 -->
+    <uses-permission android:name="pleos.car.permission.CAR_SAFETY" />  <!-- 엔진오일 · 브레이크액 · 워셔액 -->
+
+    <!-- 대화 AI · 날씨 · 지도 링크 -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <!-- 말 걸기 (사용자가 마이크 버튼을 누를 때만 요청) -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+    <!-- 주행 기록 · 날씨 · 근처 찾기 -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+
+    <application
+        android:allowBackup="false"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:supportsRtl="true"
+        android:networkSecurityConfig="@xml/network_security_config"
+        android:theme="@style/Theme.OurCar">
+        <!--
+          distractionOptimized 를 선언하지 않음 → 주행 중에는 시스템이 이 앱 화면을 가림(안전).
+          대화·일기·꾸미기는 정차 중에 쓰는 기능.
+        -->
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:launchMode="singleTask"
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|density|uiMode"
+            android:screenOrientation="unspecified">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>
