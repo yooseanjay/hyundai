@@ -36,11 +36,6 @@ import type { DriveControl, DriveStatus } from './components/Car3D';
 
 type Tab = 'home' | 'studio' | 'diary';
 type View = Tab | 'talk';
-type Style = 'calm' | 'normal' | 'sporty';
-
-const STYLE_LABEL: Record<Style, string> = { calm: '에코', normal: '컴포트', sporty: '스포츠' };
-const STYLE_DESC: Record<Style, string> = { calm: '에코 모드', normal: '컴포트 모드', sporty: '스포츠 모드' };
-const AVG_SPEED: Record<Style, number> = { calm: 38, normal: 52, sporty: 74 };
 // 하단: 음성(빛나는 구) · 홈(운전 포함) · 꾸미기 · 일기. 여행·날씨·주변 찾기는 음성으로
 const TABS: [Tab, LucideIcon, string][] = [['home', House, '홈'], ['studio', Sparkles, '꾸미기'], ['diary', BookOpen, '기록']];
 const WARNING_TITLE: Record<WarningKey, string> = {
@@ -85,15 +80,13 @@ export default function App() {
   // 내 위치 근처 실제 도로
   const [hereRoad, setHereRoad] = useState<RealRoad | null>(null);
   const [hereMsg, setHereMsg] = useState<string | null>(null);
-  /** 현 위치 실제 도로로 달리기 (기본 켜짐, 끄면 장면 기본 도로) */
-  const [autoHere, setAutoHere] = useState(() => { try { return localStorage.getItem('here-road') !== '0'; } catch { return true; } });
   const hereBusy = useRef(false);
   const hereRoadRef = useRef(hereRoad);
   hereRoadRef.current = hereRoad;
   const hereAt = useRef(0);
   /** 위치(없으면 지금 위치를 한 번 물어봄) 근처 실제 도로 불러오기 */
-  const loadHere = async (at?: [number, number]) => {
-    if (hereBusy.current) return;
+  const loadHere = async (at?: [number, number]): Promise<boolean> => {
+    if (hereBusy.current) return false;
     hereBusy.current = true;
     hereAt.current = Date.now();
     setHereMsg((m) => m ?? '현재 위치 도로를 찾는 중…');
@@ -104,37 +97,24 @@ export default function App() {
       setHereRoad(r);
       setMapPos(null);
       setHereMsg(null);
+      return true;
     } catch (e) {
-      setHereMsg(`${e instanceof Error ? e.message : '도로를 찾지 못했어요'} · 기본 도로로 주행해요`);
+      setHereMsg(e instanceof Error ? e.message : '도로를 찾지 못했어요');
+      return false;
     } finally {
       hereBusy.current = false;
     }
   };
-  const toggleHere = () => {
-    const on = !autoHere;
-    setAutoHere(on);
-    try { localStorage.setItem('here-road', on ? '1' : '0'); } catch { /* 괜찮음 */ }
-    if (on) void loadHere();
-    else { setHereRoad(null); setHereMsg(null); setMapPos(null); }
-  };
+  // 주행 중에는 늘 현재 위치 실제 도로 (주행 시작 전 기본값만 장면 도로)
   const roadNow = hereRoad ?? REAL_ROADS[scene];
-  const sourceRef = useRef<'sim' | 'gps'>('sim');
-  const onCarPos = useCallback((la: number, ln: number) => { if (sourceRef.current !== 'gps') setMapPos([la, ln]); }, []);
-  const pickScene = (id: SceneId) => { setScene(id); setMapPos(null); try { localStorage.setItem('drive-scene', id); } catch { /* 저장 안 돼도 괜찮음 */ } };
-  const [driveProgress, setDriveProgress] = useState(0);
+  const pickScene = (id: SceneId) => { setScene(id); try { localStorage.setItem('drive-scene', id); } catch { /* 저장 안 돼도 괜찮음 */ } };
   const [live, setLive] = useState<LiveDrive & { braking: boolean }>({ speed: 0, km: 0, hardBrakes: 0, maxSpeed: 0, braking: false });
-  const sim = useRef({ t: 0, speed: 0, km: 0, hardBrakes: 0, maxSpeed: 0, sum: 0, n: 0, brakeUntil: 0 });
-  // 주행 측정 방식: 시뮬레이션(데모) 또는 실제 휴대폰 GPS
-  const [source, setSource] = useState<'sim' | 'gps'>(() => (simulator ? 'sim' : 'gps'));
+  // 주행은 실제 휴대폰 GPS 측정만 (가상 시뮬레이션 없음)
   const [gps, setGps] = useState<GpsUpdate | null>(null);
-  sourceRef.current = source;
   const [gpsMsg, setGpsMsg] = useState<string | null>(null);
   const gpsStop = useRef<(() => void) | null>(null);
   const tripStart = useRef(0);
   useEffect(() => () => gpsStop.current?.(), []);
-  const [style, setStyle] = useState<Style>('calm');
-  const [distance, setDistance] = useState(30);
-  const timer = useRef<number | null>(null);
 
   const showToast = (m: string) => {
     setToast(m);
@@ -188,14 +168,9 @@ export default function App() {
       showToast('현대 계정 연결 완료');
     }
     refresh();
-    return () => {
-      if (timer.current) window.clearInterval(timer.current);
-    };
   }, [refresh]);
 
   useEffect(() => { window.scrollTo({ top: 0 }); }, [view]);
-  /** 주행 시뮬레이션: 0.1초마다 속도·거리 계산 (화면 1초 = 실제 1.5분, 90배속) */
-  const TIME_SCALE = 90;
   const startGps = () => {
     setGpsMsg(null);
     setGps(null);
@@ -213,58 +188,32 @@ export default function App() {
 
   // 실제 GPS로 달릴 때: 지금 도로에서 벗어나면 (다른 길로 꺾으면) 그 도로를 새로 불러와 이어 달림
   useEffect(() => {
-    if (!driving || source !== 'gps' || !autoHere || !gps?.pos) return;
+    if (!driving || !gps?.pos) return;
     setMapPos(gps.pos);
     const [la, ln] = gps.pos;
     const off = hereRoad ? distToRoad(hereRoad.pts, la, ln) : Infinity;
     if (off > 45 && Date.now() - hereAt.current > 20000) void loadHere([la, ln]);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [gps?.pos?.[0], gps?.pos?.[1], driving, source, autoHere]);
+  }, [gps?.pos?.[0], gps?.pos?.[1], driving]);
 
-  const startDrive = () => {
-    if (autoHere && !hereRoad) void loadHere();
-    if (source === 'gps') return startGps();
-    setDriving(true);
-    setDriveProgress(0);
-    sim.current = { t: 0, speed: 0, km: 0, hardBrakes: 0, maxSpeed: 0, sum: 0, n: 0, brakeUntil: 0 };
-    const base = { calm: 52, normal: 72, sporty: 98 }[style];
-    const swing = { calm: 6, normal: 12, sporty: 22 }[style];
-    timer.current = window.setInterval(() => {
-      const m = sim.current;
-      m.t += 0.1;
-      const remain = distance - m.km;
-      // 목표 속도: 스타일 기본 + 흐름(오르락내리락), 도착 직전에는 감속
-      let target = base + Math.sin(m.t * 0.7) * swing + Math.sin(m.t * 2.3) * swing * 0.3;
-      if (remain < 0.8) target = Math.max(8, target * (remain / 0.8));
-      // 신나게 달리면 가끔 급정거
-      if (style === 'sporty' && m.speed > 60 && m.t > m.brakeUntil + 2 && Math.random() < 0.025) {
-        m.speed *= 0.45;
-        m.hardBrakes += 1;
-        m.brakeUntil = m.t + 0.8;
-      }
-      const accel = m.t < m.brakeUntil ? 0 : style === 'sporty' ? 0.12 : 0.07;
-      m.speed = Math.max(0, m.speed + (target - m.speed) * accel);
-      m.km = Math.min(distance, m.km + (m.speed / 3600) * 0.1 * TIME_SCALE);
-      m.maxSpeed = Math.max(m.maxSpeed, m.speed);
-      m.sum += m.speed;
-      m.n += 1;
-      if (m.km >= distance) {
-        m.speed = 0;
-        if (timer.current) window.clearInterval(timer.current);
-      }
-      setLive({ speed: m.speed, km: m.km, hardBrakes: m.hardBrakes, maxSpeed: m.maxSpeed, braking: m.t < m.brakeUntil });
-      setDriveProgress(Math.round((m.km / distance) * 100));
-    }, 100);
+  /** 주행 시작: 현재 위치의 실제 도로를 찾은 뒤 GPS 측정 시작 (못 찾으면 시작하지 않음) */
+  const [starting, setStarting] = useState(false);
+  const startDrive = async () => {
+    if (starting) return;
+    if (!gpsSupported()) { setHereMsg('이 기기에서는 GPS를 쓸 수 없어요'); return; }
+    setStarting(true);
+    const ok = await loadHere();
+    setStarting(false);
+    if (ok) startGps();
   };
 
   const getOff = async () => {
     if (!snap || !car) return;
-    if (timer.current) window.clearInterval(timer.current);
     gpsStop.current?.();
     gpsStop.current = null;
     const before = snap;
     let trip: TripT;
-    if (source === 'gps') {
+    {
       // 실제 GPS 측정값 그대로
       const g = gps;
       const km = Math.round((g?.km ?? 0) * 10) / 10;
@@ -286,16 +235,10 @@ export default function App() {
           avgSpeedKmh: avg, maxSpeedKmh: Math.round(g2.maxSpeed), hardBrakes: g2.hardBrakes,
         };
       }
-    } else {
-      if (!simulator) return;
-      const m = sim.current;
-      const km = Math.max(1, Math.round(m.km));
-      trip = simulator.simulateTrip({ distanceKm: km, style, avgSpeedKmh: m.n ? m.sum / m.n : undefined, maxSpeedKmh: m.maxSpeed || undefined, hardBrakes: m.hardBrakes });
     }
     const after = await refresh();
     setDriving(false);
     setGps(null);
-    setDriveProgress(0);
     setLive({ speed: 0, km: 0, hardBrakes: 0, maxSpeed: 0, braking: false });
     if (!after) return;
     const newWarnings = (Object.keys(after.warnings) as WarningKey[]).filter((k) => after.warnings[k] && !before.warnings[k]);
@@ -340,7 +283,6 @@ export default function App() {
 
   const st = computeStatus(snap, trips, driving);
   const kmNow = Math.round(live.km * 10) / 10;
-  const etaMin = Math.round(((distance - live.km) / Math.max(20, live.speed || AVG_SPEED[style])) * 60);
   const tab: Tab = view === 'talk' ? 'home' : view;
   const carColor = colorOf(look, car.bodyColor, car.modelId);
   const carShape = findModelById(car.modelId ?? '')?.shape;
@@ -369,14 +311,14 @@ export default function App() {
             <Suspense fallback={<div className="highway"><CarCharacter mood={st.mood} color={carColor} size={232} /></div>}>
               <div className="drive3d">
                 <Car3D mode="drive" mood={driving ? (live.braking ? 'sick' : 'excited') : st.mood} color={carColor} shape={carShape} style={look}
-                  speedKmh={driving ? live.speed : 0} braking={live.braking} scenery={scene} road={hereRoad} control={driveCtl} onStatus={setDriveSt} onPosition={onCarPos} height={goldH() - 112} />
+                  speedKmh={driving ? live.speed : 0} braking={live.braking} scenery={scene} road={hereRoad} control={driveCtl} onStatus={setDriveSt} height={goldH() - 112} />
               </div>
               {/* 3D 화면 위에 글자를 띄우지 않고 아래 줄에 */}
               <div className="drive-bar">
                 <div className="hud">
                   <b>{driveSt ? Math.abs(driveSt.kmh) : Math.round(live.speed)}</b><span>{driveSt?.reverse ? 'km/h 후진' : 'km/h'}</span>
                   {live.braking && <em>급정거!</em>}
-                  {source === 'gps' && <i className="gps-tag">GPS</i>}
+                  <i className="gps-tag">GPS</i>
                 </div>
                 <div className="scene-pick" role="radiogroup" aria-label="주행 장면">
                   {SCENES.map((x) => (
@@ -409,14 +351,13 @@ export default function App() {
               <b className="h3">주행</b>
               <div className="field">
                 <span className="field-label">도로</span>
-                <button className="set-row" onClick={toggleHere} role="switch" aria-checked={autoHere}>
+                <div className="set-row static">
                   <span className="set-ic" aria-hidden><MapPin size={20} /></span>
                   <span className="set-txt">
-                    <b>현재 위치 도로</b>
-                    <span>{hereMsg ?? `${roadNow.name} · ${roadNow.region} · 왕복 ${roadNow.lanes * 2}차로`}</span>
+                    <b>{hereRoad ? hereRoad.name : '현재 위치 도로'}</b>
+                    <span>{hereMsg ?? (hereRoad ? `${hereRoad.region} · 왕복 ${hereRoad.lanes * 2}차로` : '주행을 시작하면 현재 위치에서 가장 가까운 도로를 찾아요')}</span>
                   </span>
-                  <span className={`switch ${autoHere ? 'on' : ''}`} aria-hidden />
-                </button>
+                </div>
               </div>
               <div className="field">
                 <span className="field-label">배경</span>
@@ -426,40 +367,13 @@ export default function App() {
                   ))}
                 </div>
               </div>
-              <div className="field">
-                <span className="field-label">측정</span>
-                <div className="seg seg-n" role="radiogroup" aria-label="측정">
-                  <button role="radio" aria-checked={source === 'gps'} className={source === 'gps' ? 'on' : ''} onClick={() => setSource('gps')} disabled={!gpsSupported()}>GPS</button>
-                  {simulator && <button role="radio" aria-checked={source === 'sim'} className={source === 'sim' ? 'on' : ''} onClick={() => setSource('sim')}>시뮬레이션</button>}
-                </div>
-              </div>
-              {source === 'gps' ? (
-                <>
-                  <p className="cap gps-note">
-                    {gpsSupported()
-                      ? '휴대폰 GPS로 실제 속도와 거리를 측정해요. 측정값은 이 기기에만 저장돼요.'
-                      : 'GPS는 https 주소에서만 쓸 수 있어요.'}
-                  </p>
-                  <p className="safety">운전 중에는 화면을 조작하지 마세요.</p>
-                </>
-              ) : (
-                <>
-                  <div className="field">
-                    <span className="field-label">주행 모드</span>
-                    <div className="seg seg-n" role="radiogroup" aria-label="주행 모드">
-                      {(Object.keys(STYLE_LABEL) as Style[]).map((st2) => (
-                        <button key={st2} role="radio" aria-checked={style === st2} className={style === st2 ? 'on' : ''} onClick={() => setStyle(st2)}>{STYLE_LABEL[st2]}</button>
-                      ))}
-                    </div>
-                  </div>
-                  <div className="field">
-                    <div className="card-head"><span className="field-label">목표 거리</span><b className="label">{distance}km</b></div>
-                    <input className="range" type="range" min={5} max={150} step={5} value={distance}
-                      style={{ ['--p' as string]: `${((distance - 5) / 145) * 100}%` }} onChange={(e) => setDistance(Number(e.target.value))} aria-label="목표 거리" />
-                  </div>
-                </>
-              )}
-              <button className="btn primary block" onClick={startDrive} disabled={source === 'gps' && !gpsSupported()}>주행 시작</button>
+              <p className="cap gps-note">
+                {gpsSupported()
+                  ? '휴대폰 GPS로 실제 위치·속도·거리를 측정해요. 위치는 도로 검색(OpenStreetMap)에만 쓰고 저장하지 않아요.'
+                  : 'GPS는 https 주소의 휴대폰·차량 화면에서만 쓸 수 있어요.'}
+              </p>
+              <p className="safety">운전 중에는 화면을 조작하지 마세요.</p>
+              <button className="btn primary block" onClick={startDrive} disabled={starting || !gpsSupported()}>{starting ? '위치 확인 중…' : '주행 시작'}</button>
               {dataSource.kind === 'hyundai' && <button className="btn text" onClick={() => refresh(snap)}>운행 기록 새로고침</button>}
             </div>
           )}
@@ -467,26 +381,16 @@ export default function App() {
             <>
             <RouteMap road={roadNow} pos={mapPos} />
             <div className="card">
-              {source === 'gps' ? (
-                <>
-                  <div className="card-head">
-                    <span className="label run"><i className={`dot ${gps?.fix ? 'good' : 'warn'} pulse`} />{gps?.fix ? '측정 중' : 'GPS 연결 중…'}</span>
-                    <span className="cap">{gps?.accuracy != null ? `정확도 ±${gps.accuracy}m` : ''}</span>
-                  </div>
-                  <div className="card-head"><b className="big">{kmNow.toFixed(1)} km</b><span className="cap">{Math.floor(gps?.elapsedMin ?? 0)}분째 · 평균 {Math.round(gps?.avgSpeed ?? 0)}km/h</span></div>
-                  {gpsMsg && <p className="cap gps-err">{gpsMsg}</p>}
-                </>
-              ) : (
-                <>
-                  <div className="card-head"><span className="label run"><i className="dot good pulse" />주행 중</span><span className="cap">{driveProgress >= 100 ? '도착' : `${hhmm(new Date(Date.now() + etaMin * 60000))} 도착`}</span></div>
-                  <div className="card-head"><b className="big">{kmNow} / {distance} km</b><span className="cap">{STYLE_DESC[style]}</span></div>
-                  <div className="bar"><div style={{ width: `${driveProgress}%` }} /></div>
-                </>
-              )}
+              <div className="card-head">
+                <span className="label run"><i className={`dot ${gps?.fix ? 'good' : 'warn'} pulse`} />{gps?.fix ? '측정 중' : 'GPS 연결 중…'}</span>
+                <span className="cap">{gps?.accuracy != null ? `정확도 ±${gps.accuracy}m` : ''}</span>
+              </div>
+              <div className="card-head"><b className="big">{kmNow.toFixed(1)} km</b><span className="cap">{Math.floor(gps?.elapsedMin ?? 0)}분째 · 평균 {Math.round(gps?.avgSpeed ?? 0)}km/h</span></div>
+              {gpsMsg && <p className="cap gps-err">{gpsMsg}</p>}
               <button className="btn primary block" onClick={getOff}>주행 종료</button>
             </div>
             <div className="card">
-              <div className="card-head"><b className="label">차량 상태</b><span className="cap">{source === 'gps' ? 'GPS 실측' : STYLE_DESC[style]}</span></div>
+              <div className="card-head"><b className="label">차량 상태</b><span className="cap">GPS 실측</span></div>
               <VehicleStatus car={car} snap={snap} live={live} demo={!!simulator} />
             </div>
             </>

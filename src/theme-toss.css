@@ -379,3 +379,4 @@ html, body, .app { background: var(--bg); color: var(--fg); }
 /* 호출어 설정 줄 */
 .wake-row { display: block; margin: 8px 0 4px; text-align: left; }
 .wake-row .set-row { max-width: 460px; margin: 0 auto; }
+.set-row.static { cursor: default; }
