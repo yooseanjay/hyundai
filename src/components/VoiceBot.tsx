@@ -15,6 +15,7 @@ import { LiveSession } from '../voice/live';
 import { detectTool, runTool, summaryOf, type ActionCard } from '../voice/actions';
 import { ActionCardView } from './ActionCardView';
 import { VoiceOrb } from './VoiceOrb';
+import { pauseWakeBriefly, setVoiceBusy, setWakeInstance, setWakePref, WakeWord, wakePref, wakeSupported, type WakeState } from '../voice/wakeWord';
 
 type Phase = 'idle' | 'listening' | 'thinking' | 'speaking';
 
@@ -379,6 +380,7 @@ export function VoiceBot({ ctx, onLine, variant = 'screen' }: {
 
   /** 마이크: Live면 계속 듣는 대화(말을 멈추면 대답, 다시 누르면 끝) → 안 되면 브라우저 음성 인식 */
   const listen = async () => {
+    await pauseWakeBriefly();
     if (!muted) unlockAudio();
     if (dock && !live.current?.micOn) setOpen(true);
     if (live.current?.micOn) {
@@ -416,6 +418,35 @@ export function VoiceBot({ ctx, onLine, variant = 'screen' }: {
 
   const busy = phase === 'thinking' || phase === 'speaking';
   const name = ctx.car.nickname;
+
+  // ================= 호출어: "현대" 라고 부르면 화면을 누르지 않아도 듣기 시작 =================
+  const [wakeOn, setWakeOn] = useState(wakePref);
+  const [wakeState, setWakeState] = useState<WakeState>('off');
+  const listenRef = useRef(listen);
+  listenRef.current = listen;
+  const answerRef = useRef(answer);
+  answerRef.current = answer;
+  const busyId = useRef(`voice-${Math.random().toString(36).slice(2)}`).current;
+  useEffect(() => {
+    const h = () => setWakeOn(wakePref());
+    window.addEventListener('wake-pref', h);
+    return () => window.removeEventListener('wake-pref', h);
+  }, []);
+  // 듣거나 말하는 중엔 호출어 듣기를 쉬고, 끝나면 다시
+  useEffect(() => { void setVoiceBusy(busyId, phase !== 'idle' || liveMic); }, [busyId, phase, liveMic]);
+  useEffect(() => () => { void setVoiceBusy(busyId, false); }, [busyId]);
+  // 하단 마이크(늘 떠 있음)가 호출어를 맡음
+  useEffect(() => {
+    if (!dock) return;
+    if (!wakeOn || !wakeSupported()) { setWakeState(wakeSupported() ? 'off' : 'unsupported'); return; }
+    const w = new WakeWord((rest) => {
+      // "현대, 날씨 어때?" → 바로 대답 / "현대" 만 → 듣기 시작
+      if (rest.replace(/\s/g, '').length >= 2) answerRef.current(rest);
+      else void listenRef.current();
+    }, setWakeState);
+    setWakeInstance(w);
+    return () => { setWakeInstance(null); void w.stop('off'); };
+  }, [dock, wakeOn]);
   const status =
     phase === 'listening' ? ['듣고 있어요', liveMic ? (heard || '말을 멈추면 대답해요 · 다시 누르면 끝') : (heard || '편하게 말해 주세요')]
     : phase === 'thinking' ? ['생각 중이에요', heard ? `“${heard}”` : '']
@@ -469,10 +500,12 @@ export function VoiceBot({ ctx, onLine, variant = 'screen' }: {
           className={`dock-orb ${active ? 'on' : ''} ${phase === 'speaking' ? 'speaking' : ''}`}
           onClick={() => void listen()}
           disabled={busy && !liveMic}
-          aria-label={active ? '듣기 멈추기' : `${name}에게 말 걸기`}
+          aria-label={active ? '듣기 멈추기' : `${name}에게 말 걸기${wakeState === 'listening' ? ' (“현대”라고 불러도 돼요)' : ''}`}
+          title={wakeState === 'listening' ? '“현대”라고 부르면 들어요' : wakeState === 'blocked' ? '마이크 권한이 없어 호출어를 못 들어요' : undefined}
         >
           <VoiceOrb size={50} phase={phase} active={active} />
           {active ? <Square size={14} fill="currentColor" className="dock-icon" /> : <Mic size={20} className="dock-icon" />}
+          {wakeState === 'listening' && !active && <span className="wake-tag" aria-hidden>“현대”</span>}
         </button>
       </>
     );
@@ -511,6 +544,16 @@ export function VoiceBot({ ctx, onLine, variant = 'screen' }: {
         </form>
       )}
 
+      {wakeSupported() && (
+        <div className="wake-row">
+          <button className={`chip sm ${wakeOn ? 'on' : ''}`} onClick={() => setWakePref(!wakeOn)} aria-pressed={wakeOn}>
+            🎙 “현대” 하고 부르면 듣기 · {wakeOn ? '켜짐' : '꺼짐'}
+          </button>
+          <span className="cap">{wakeOn
+            ? '화면을 누르지 않아도 “현대”라고 부르면 대화가 시작돼요. “현대, 날씨 어때?”처럼 바로 물어봐도 돼요. 듣는 소리는 브라우저 음성 인식이 처리해요.'
+            : '끄면 마이크 버튼을 눌러야 들어요.'}</span>
+        </div>
+      )}
       <div className="mic-area">
         <button className="icon-btn" onClick={() => setMuted((m) => !m)} aria-label={muted ? '소리 켜기' : '소리 끄기'}>{muted ? <VolumeX size={18} /> : <Volume2 size={18} />}</button>
         {canMic ? (

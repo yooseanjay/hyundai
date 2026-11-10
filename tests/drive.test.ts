@@ -135,3 +135,15 @@ describe('주행 규칙', () => {
     expect(lanesPerSide({ highway: 'primary' })).toBe(2);
   });
 });
+
+describe('호출어 “현대”', async () => {
+  const { afterWake } = await import('../src/voice/wakeWord');
+  it('“현대”가 들리면 뒤에 이어진 말을 돌려준다', () => {
+    expect(afterWake('현대')).toBe('');
+    expect(afterWake('현대야')).toBe('');
+    expect(afterWake('현대 날씨 어때')).toBe('날씨 어때');
+    expect(afterWake('헤이 현대, 근처 충전소')).toBe('근처 충전소');
+    expect(afterWake('Hyundai 기분 어때?')).toBe('기분 어때?');
+    expect(afterWake('오늘 날씨 어때')).toBeNull();
+  });
+});

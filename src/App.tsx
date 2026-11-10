@@ -30,7 +30,7 @@ import { SCENES, type SceneId } from './three/scenery';
 import { REAL_ROADS } from './data/realRoads';
 import { RouteMap } from './components/RouteMap';
 import { DriveControls } from './components/DriveControls';
-import { myPosition, roadNear } from './data/nearbyRoad';
+import { distToRoad, myPosition, roadNear } from './data/nearbyRoad';
 import type { RealRoad } from './data/realRoads';
 import type { DriveControl, DriveStatus } from './components/Car3D';
 
@@ -85,21 +85,41 @@ export default function App() {
   // 내 위치 근처 실제 도로
   const [hereRoad, setHereRoad] = useState<RealRoad | null>(null);
   const [hereMsg, setHereMsg] = useState<string | null>(null);
-  const findHere = async () => {
-    if (hereRoad) { setHereRoad(null); setHereMsg(null); setMapPos(null); return; }
-    setHereMsg('내 위치 근처 도로를 찾는 중…');
+  /** 현 위치 실제 도로로 달리기 (기본 켜짐, 끄면 장면 기본 도로) */
+  const [autoHere, setAutoHere] = useState(() => { try { return localStorage.getItem('here-road') !== '0'; } catch { return true; } });
+  const hereBusy = useRef(false);
+  const hereRoadRef = useRef(hereRoad);
+  hereRoadRef.current = hereRoad;
+  const hereAt = useRef(0);
+  /** 위치(없으면 지금 위치를 한 번 물어봄) 근처 실제 도로 불러오기 */
+  const loadHere = async (at?: [number, number]) => {
+    if (hereBusy.current) return;
+    hereBusy.current = true;
+    hereAt.current = Date.now();
+    setHereMsg((m) => m ?? '현 위치 도로를 찾는 중…');
     try {
-      const [la, ln] = await myPosition();
+      const [la, ln] = at ?? (await myPosition());
       const r = await roadNear(la, ln);
+      if (hereRoadRef.current && hereRoadRef.current.name !== r.name) setToast(`📍 ${r.name}(으)로 이어졌어요`);
       setHereRoad(r);
       setMapPos(null);
       setHereMsg(null);
     } catch (e) {
-      setHereMsg(e instanceof Error ? e.message : '도로를 찾지 못했어요');
+      setHereMsg(`${e instanceof Error ? e.message : '도로를 찾지 못했어요'} · 장면 기본 도로로 달려요`);
+    } finally {
+      hereBusy.current = false;
     }
   };
+  const toggleHere = () => {
+    const on = !autoHere;
+    setAutoHere(on);
+    try { localStorage.setItem('here-road', on ? '1' : '0'); } catch { /* 괜찮음 */ }
+    if (on) void loadHere();
+    else { setHereRoad(null); setHereMsg(null); setMapPos(null); }
+  };
   const roadNow = hereRoad ?? REAL_ROADS[scene];
-  const onCarPos = useCallback((la: number, ln: number) => setMapPos([la, ln]), []);
+  const sourceRef = useRef<'sim' | 'gps'>('sim');
+  const onCarPos = useCallback((la: number, ln: number) => { if (sourceRef.current !== 'gps') setMapPos([la, ln]); }, []);
   const pickScene = (id: SceneId) => { setScene(id); setMapPos(null); try { localStorage.setItem('drive-scene', id); } catch { /* 저장 안 돼도 괜찮음 */ } };
   const [driveProgress, setDriveProgress] = useState(0);
   const [live, setLive] = useState<LiveDrive & { braking: boolean }>({ speed: 0, km: 0, hardBrakes: 0, maxSpeed: 0, braking: false });
@@ -107,6 +127,7 @@ export default function App() {
   // 주행 측정 방식: 시뮬레이션(데모) 또는 실제 휴대폰 GPS
   const [source, setSource] = useState<'sim' | 'gps'>(() => (simulator ? 'sim' : 'gps'));
   const [gps, setGps] = useState<GpsUpdate | null>(null);
+  sourceRef.current = source;
   const [gpsMsg, setGpsMsg] = useState<string | null>(null);
   const gpsStop = useRef<(() => void) | null>(null);
   const tripStart = useRef(0);
@@ -190,7 +211,18 @@ export default function App() {
     );
   };
 
+  // 실제 GPS로 달릴 때: 지금 도로에서 벗어나면 (다른 길로 꺾으면) 그 도로를 새로 불러와 이어 달림
+  useEffect(() => {
+    if (!driving || source !== 'gps' || !autoHere || !gps?.pos) return;
+    setMapPos(gps.pos);
+    const [la, ln] = gps.pos;
+    const off = hereRoad ? distToRoad(hereRoad.pts, la, ln) : Infinity;
+    if (off > 45 && Date.now() - hereAt.current > 20000) void loadHere([la, ln]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gps?.pos?.[0], gps?.pos?.[1], driving, source, autoHere]);
+
   const startDrive = () => {
+    if (autoHere && !hereRoad) void loadHere();
     if (source === 'gps') return startGps();
     setDriving(true);
     setDriveProgress(0);
@@ -383,11 +415,13 @@ export default function App() {
                 ))}
               </div>
               <div className="chip-row">
-                <button className={`chip ${hereRoad ? 'on' : ''}`} onClick={findHere} aria-pressed={!!hereRoad}>
-                  📍 {hereRoad ? `내 위치 도로: ${hereRoad.name}` : '내 위치 도로로 달리기'}
+                <button className={`chip ${autoHere ? 'on' : ''}`} onClick={toggleHere} aria-pressed={autoHere}>
+                  📍 {autoHere ? (hereRoad ? `현 위치 도로: ${hereRoad.name}` : '현 위치 실제 도로로 달리기') : '현 위치 도로 꺼짐'}
                 </button>
               </div>
-              <p className="cap gps-note">{hereMsg ?? (hereRoad ? '장면은 위에서 고른 모양 그대로, 도로만 내 근처 실제 도로예요.' : '누르면 위치를 한 번 OpenStreetMap에 보내 가장 가까운 찻길을 찾아요. 저장하지 않아요.')}</p>
+              <p className="cap gps-note">{hereMsg ?? (autoHere
+                ? '시동을 걸면 지금 위치에서 가장 가까운 실제 찻길로 달려요. 도로를 찾을 때만 위치를 OpenStreetMap에 보내고 저장하지 않아요.'
+                : '장면 기본 도로로 달려요. 누르면 현 위치 실제 도로로 바꿔요.')}</p>
               <div className="card-head"><b className="label">측정 방식</b><span className="cap">{source === 'gps' ? '휴대폰 GPS로 실제 속도' : '데모 시뮬레이션'}</span></div>
               <div className="chip-row">
                 <button className={`chip ${source === 'gps' ? 'on' : ''}`} onClick={() => setSource('gps')} disabled={!gpsSupported()}>실제 GPS</button>
@@ -397,7 +431,7 @@ export default function App() {
                 <>
                   <p className="cap gps-note">
                     {gpsSupported()
-                      ? '휴대폰을 차에 두고 시동을 걸면 실제 속도·거리·급정거를 측정해요. 위치는 이 휴대폰 안에서만 계산하고 어디에도 보내지 않아요.'
+                      ? '휴대폰을 차에 두고 시동을 걸면 실제 속도·거리·급정거를 측정해요. 속도·거리는 이 휴대폰 안에서만 계산해요. 현 위치 도로가 켜져 있으면 길을 찾을 때만 위치를 OpenStreetMap에 보내요.'
                       : '이 주소에서는 GPS를 쓸 수 없어요. https 주소(배포 링크)에서 열어 주세요.'}
                   </p>
                   <p className="safety">운전 중에는 화면을 조작하지 마세요. 거치대에 두거나 동승자가 사용해 주세요.</p>

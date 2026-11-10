@@ -111,3 +111,19 @@ export async function roadNear(lat: number, lng: number): Promise<RealRoad> {
   const region = [a.city ?? a.province ?? a.state, a.borough ?? a.county ?? a.town, a.suburb ?? a.quarter].filter(Boolean).join(' ');
   return { name, region: region || '내 위치 근처', pts: finalPts, lanes: lanesPerSide(tags), here: true };
 }
+
+/** 점에서 도로(꺾은선)까지 가장 가까운 거리 (m) */
+export function distToRoad(pts: [number, number][], lat: number, lng: number): number {
+  const k = Math.cos((lat * Math.PI) / 180);
+  const xy = (p: [number, number]) => [(p[1] - lng) * 111320 * k, (p[0] - lat) * 110540] as const;
+  let best = Infinity;
+  for (let i = 1; i < pts.length; i++) {
+    const [ax, ay] = xy(pts[i - 1]);
+    const [bx, by] = xy(pts[i]);
+    const dx = bx - ax, dy = by - ay;
+    const L = dx * dx + dy * dy;
+    const t = L ? Math.max(0, Math.min(1, -(ax * dx + ay * dy) / L)) : 0;
+    best = Math.min(best, Math.hypot(ax + dx * t, ay + dy * t));
+  }
+  return pts.length === 1 ? Math.hypot(...xy(pts[0])) : best;
+}

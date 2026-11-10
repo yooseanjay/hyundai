@@ -732,3 +732,8 @@ body { word-break: keep-all; overflow-wrap: anywhere; } /* 한국어: 단어 중
 .drive-ctl .lane-dots i.opp { background: rgba(127,127,127,.18); }
 .drive-ctl .lane-dots i.me { background: #3b82f6; }
 @media (max-width: 420px) { .drive-ctl .btn.ctl { padding: 0 9px; } .drive-ctl .ctl-msg .lane-dots { display: none; } }
+
+/* 호출어 "현대" 듣는 중 표시 · 켜고 끄기 */
+.dock-orb .wake-tag { position: absolute; left: 50%; bottom: -15px; transform: translateX(-50%); font-size: 10px; font-weight: 700; white-space: nowrap; padding: 1px 6px; border-radius: 8px; background: rgba(59,130,246,.18); color: #60a5fa; pointer-events: none; }
+.wake-row { display: flex; flex-direction: column; align-items: center; gap: 4px; margin: 8px 0 4px; text-align: center; }
+.wake-row .cap { max-width: 460px; }

@@ -12,6 +12,8 @@ export interface GpsUpdate {
   accuracy: number | null; // 위치 정확도 (m)
   elapsedMin: number;
   fix: boolean; // GPS 신호를 잡았는지
+  /** 지금 위치 [위도, 경도] (이 기기 안에서만 씀: 지도 표시 · 근처 도로 찾기) */
+  pos: [number, number] | null;
 }
 
 export const gpsSupported = () => typeof navigator !== 'undefined' && 'geolocation' in navigator && window.isSecureContext;
@@ -41,10 +43,11 @@ export function startGpsTrip(onUpdate: (u: GpsUpdate) => void, onError: (msg: st
   let brakingUntil = 0;
   let accuracy: number | null = null;
   let fix = false;
+  let pos: [number, number] | null = null;
 
   const emit = () =>
     onUpdate({
-      speed, km, maxSpeed, hardBrakes, accuracy, fix,
+      speed, km, maxSpeed, hardBrakes, accuracy, fix, pos,
       avgSpeed: movingMs > 0 ? km / (movingMs / 3600000) : 0,
       braking: Date.now() < brakingUntil,
       elapsedMin: (Date.now() - t0) / 60000,
@@ -54,6 +57,7 @@ export function startGpsTrip(onUpdate: (u: GpsUpdate) => void, onError: (msg: st
     const c = p.coords;
     accuracy = Math.round(c.accuracy);
     fix = c.accuracy <= 60;
+    if (fix) pos = [c.latitude, c.longitude];
     if (!last) {
       last = p;
       return emit();
