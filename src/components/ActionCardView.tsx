@@ -3,7 +3,7 @@ import { useState } from 'react';
 import type { ActionCard } from '../voice/actions';
 
 import { PlayerControls } from './SpotifyPanel';
-import { connectSpotify } from '../voice/spotify';
+import { connectSpotify, linkSpotify, SPOTIFY_HOME } from '../voice/spotify';
 
 type MusicCard = Extract<ActionCard, { kind: 'music' }>;
 
@@ -96,8 +96,15 @@ export function ActionCardView({ card }: { card: ActionCard }) {
     case 'spotify-connect':
       return (
         <div className="act act-inline">
-          <div className="act-main"><b>Spotify 계정 연결</b><span>{card.connected ? '이미 연결돼 있어요' : card.ready ? '잠시 뒤 로그인 화면으로 이동해요' : '내 차 탭에서 Spotify 설정을 먼저 해 주세요'}</span></div>
-          {!card.connected && card.ready && <div className="act-links"><button className="btn primary sm" onClick={() => void connectSpotify()}>지금 로그인</button></div>}
+          <div className="act-main">
+            <b>{card.mode === 'app' ? (card.connected ? 'Spotify 연결됨' : 'Spotify 연결') : 'Spotify 계정 연결'}</b>
+            <span>{card.note ?? (card.mode === 'login' ? (card.connected ? '이미 연결돼 있어요' : '잠시 뒤 로그인 화면으로 이동해요') : '노래를 말하면 Spotify에서 바로 찾아 줘요')}</span>
+          </div>
+          <div className="act-links">
+            {card.mode === 'login' && !card.connected
+              ? <button className="btn primary sm" onClick={() => void connectSpotify()}>지금 로그인</button>
+              : <a href={SPOTIFY_HOME} target="_blank" rel="noreferrer" onClick={() => linkSpotify(false)}>Spotify 열기</a>}
+          </div>
         </div>
       );
     case 'report':

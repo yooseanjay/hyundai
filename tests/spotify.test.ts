@@ -13,16 +13,18 @@ class MemoryStorage {
 
 let assigned = '';
 let calls: { url: string; method: string; body?: string }[] = [];
+let opened: string[] = [];
 let responder: (url: string, method: string) => { status: number; body?: unknown };
 
-async function load(search = '') {
+async function load(search = '', cid = '0123456789abcdef0123456789abcdef') {
   vi.resetModules();
+  vi.stubEnv('VITE_SPOTIFY_CLIENT_ID', cid);
   const g = globalThis as any;
   g.localStorage = new MemoryStorage();
   g.sessionStorage = new MemoryStorage();
   g.location = { origin: 'https://yooseanjay.github.io', pathname: '/hyundai/', search, hash: '', assign: (u: string) => { assigned = u; } };
   g.history = { replaceState: (_a: unknown, _b: string, u: string) => { g.location.search = u.includes('?') ? u.slice(u.indexOf('?')) : ''; } };
-  g.window = Object.assign(g, { addEventListener() {}, removeEventListener() {}, dispatchEvent() { return true; }, setTimeout, clearTimeout });
+  g.window = Object.assign(g, { open: (u: string) => { opened.push(u); return {}; }, addEventListener() {}, removeEventListener() {}, dispatchEvent() { return true; }, setTimeout, clearTimeout });
   g.fetch = vi.fn(async (url: string, init?: RequestInit) => {
     const method = init?.method ?? 'GET';
     calls.push({ url, method, body: init?.body ? String(init.body) : undefined });
@@ -39,12 +41,11 @@ async function load(search = '') {
   };
 }
 
-beforeEach(() => { assigned = ''; calls = []; responder = () => ({ status: 204 }); });
+beforeEach(() => { opened = []; assigned = ''; calls = []; responder = () => ({ status: 204 }); });
 
 describe('Spotify 계정 연결', () => {
   it('로그인: PKCE(S256)로 Spotify 로그인 화면에 보내고, 돌아오면 토큰을 받아 저장', async () => {
     const { sp } = await load();
-    sp.setClientId('0123456789abcdef0123456789abcdef');
     await sp.connectSpotify();
     const u = new URL(assigned);
     expect(u.origin).toBe('https://accounts.spotify.com');
@@ -64,7 +65,6 @@ describe('Spotify 계정 연결', () => {
 
   it('state가 다르면 토큰을 받지 않음 (가로채기 방지)', async () => {
     const { sp } = await load();
-    sp.setClientId('0123456789abcdef0123456789abcdef');
     await sp.connectSpotify();
     (globalThis as any).location.search = '?code=abc&state=sp_other';
     expect(await sp.handleSpotifyCallback()).toContain('실패');
@@ -76,7 +76,6 @@ describe('Spotify 계정 연결', () => {
 describe('음성 명령', () => {
   const connect = async () => {
     const m = await load();
-    m.sp.setClientId('0123456789abcdef0123456789abcdef');
     await m.sp.connectSpotify();
     const state = new URL(assigned).searchParams.get('state');
     (globalThis as any).location.search = `?code=abc&state=${state}`;
@@ -134,5 +133,34 @@ describe('음성 명령', () => {
     const { actions } = await load();
     const r = await actions.runTool('music_control', { action: 'pause' }, {} as never);
     expect(r.card.kind).toBe('spotify-connect');
+  });
+});
+
+describe('키 없이 바로 연결 (Client ID 없는 배포)', () => {
+  it('"스포티파이 연결해 줘" → 연결 표시 + Spotify 열기, 로그인 화면으로 보내지 않음', async () => {
+    const { sp, actions } = await load('', '');
+    const r = await actions.runTool('connect_spotify', {}, {} as never);
+    expect(r.card).toMatchObject({ kind: 'spotify-connect', mode: 'app', connected: true, opened: true });
+    expect(sp.spotifyLinked()).toBe(true);
+    expect(opened).toEqual(['https://open.spotify.com']);
+    await new Promise((ok) => setTimeout(ok, 0));
+    expect(assigned).toBe('');
+  });
+
+  it('연결한 뒤 "아이유 밤편지 틀어 줘" → Spotify에서 그 노래 검색을 엶', async () => {
+    const { sp, actions } = await load('', '');
+    sp.linkSpotify(false);
+    responder = () => ({ status: 503, body: {} }); // 서버 검색 키 없음
+    const r = await actions.runTool('play_music', { query: '아이유 밤편지 틀어줘' }, {} as never);
+    expect(opened).toEqual(['https://open.spotify.com/search/' + encodeURIComponent('아이유 밤편지')]);
+    expect(actions.summaryOf(r.card)).toContain('찾아 열었어요');
+  });
+
+  it('재생 조작은 Spotify 앱에서 하라고 안내', async () => {
+    const { sp, actions } = await load('', '');
+    sp.linkSpotify(false);
+    const r = await actions.runTool('music_control', { action: 'next' }, {} as never);
+    expect(r.card).toMatchObject({ kind: 'spotify-connect', mode: 'app' });
+    expect(actions.summaryOf(r.card)).toContain('Spotify 앱에서');
   });
 });

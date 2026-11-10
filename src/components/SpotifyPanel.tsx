@@ -2,8 +2,8 @@
 import { Pause, Play, SkipBack, SkipForward } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import {
-  clientId, clientIdFromEnv, connectSpotify, control, disconnectSpotify, nowPlaying, redirectUri, setClientId,
-  spotifyConnected, type NowPlaying, type PlayerAction,
+  clientId, connectSpotify, control, linkSpotify, nowPlaying, openSpotify, SPOTIFY_HOME, spotifyConnected, spotifyLinked,
+  spotifySearchUrl, unlinkSpotify, type NowPlaying, type PlayerAction,
 } from '../voice/spotify';
 
 function useSpotify() {
@@ -13,7 +13,7 @@ function useSpotify() {
     window.addEventListener('spotify-change', h);
     return () => window.removeEventListener('spotify-change', h);
   }, []);
-  return { connected: spotifyConnected(), cid: clientId() };
+  return { connected: spotifyConnected(), linked: spotifyLinked(), canLogin: !!clientId() };
 }
 
 /** 재생 조작 줄 (지금 곡 + 이전 · 재생/멈춤 · 다음) */
@@ -51,10 +51,12 @@ export function PlayerControls({ initial, note }: { initial?: NowPlaying | null;
   );
 }
 
-/** 내 차 탭의 Spotify 카드: 연결 전엔 설정 · 로그인, 연결 후엔 재생 조작 */
+/** 내 차 탭의 Spotify 카드
+ *  - 기본: '연결' 한 번 → Spotify 앱(없으면 웹)이 열리고, 말로 부른 노래를 Spotify에서 바로 찾아 줌
+ *  - 앱 주인이 Client ID를 넣어 배포했으면: 계정 로그인으로 재생 · 멈춤 · 다음 곡까지 */
 export function SpotifyPanel() {
-  const { connected, cid } = useSpotify();
-  const [draft, setDraft] = useState('');
+  const { connected, linked, canLogin } = useSpotify();
+  const [q, setQ] = useState('');
   const [err, setErr] = useState<string | null>(null);
   const login = () => connectSpotify().catch((e) => setErr(e instanceof Error ? e.message : '연결 실패'));
 
@@ -62,32 +64,23 @@ export function SpotifyPanel() {
     <div className="card sp-card">
       <div className="card-head">
         <b className="label sp-title"><span className="sp-logo" aria-hidden />Spotify</b>
-        <span className={`cap ${connected ? 'good-text' : ''}`}>{connected ? '연결됨' : '연결 안 됨'}</span>
+        <span className={`cap ${linked ? 'good-text' : ''}`}>{linked ? '연결됨' : '연결 안 됨'}</span>
       </div>
       {connected ? (
-        <>
-          <PlayerControls />
-          <p className="cap">“현대, 아이유 노래 틀어 줘” · “다음 곡” · “음악 멈춰”처럼 말로도 돼요. 재생 제어는 Spotify Premium에서 돼요.</p>
-          <button className="btn text sm" onClick={disconnectSpotify}>연결 해제</button>
-        </>
-      ) : cid ? (
-        <>
-          <p className="cap">Spotify 계정으로 로그인하면 이 앱에서 내 Spotify를 틀고 멈출 수 있어요. 말로 “스포티파이 연결해 줘”라고 해도 돼요.</p>
-          <button className="btn primary block sp-btn" onClick={login}>Spotify 로그인</button>
-          {!clientIdFromEnv() && <button className="btn text sm" onClick={() => setClientId('')}>Client ID 바꾸기</button>}
-        </>
+        <PlayerControls />
+      ) : linked ? (
+        <form className="sp-cid" onSubmit={(e) => { e.preventDefault(); if (q.trim()) openSpotify(spotifySearchUrl(q.trim())); }}>
+          <input className="text-input" value={q} onChange={(e) => setQ(e.target.value)} placeholder="노래 · 가수 찾기" aria-label="Spotify에서 노래 찾기" />
+          <button className="btn primary sm sp-btn" type="submit">찾기</button>
+        </form>
       ) : (
-        <>
-          <p className="cap">
-            처음 한 번만 설정해요. <a href="https://developer.spotify.com/dashboard" target="_blank" rel="noreferrer">Spotify 개발자 대시보드</a>에서 앱을 만들고
-            Redirect URI에 <code>{redirectUri()}</code>를 넣은 뒤, Client ID를 붙여 넣어 주세요.
-          </p>
-          <div className="sp-cid">
-            <input className="text-input" value={draft} onChange={(e) => setDraft(e.target.value)} placeholder="Client ID (32자리)" aria-label="Spotify Client ID" autoComplete="off" spellCheck={false} />
-            <button className="btn primary sm" onClick={() => { if (/^[0-9a-f]{32}$/i.test(draft.trim())) { setClientId(draft); setErr(null); } else setErr('Client ID는 영문·숫자 32자리예요'); }}>저장</button>
-          </div>
-        </>
+        <p className="cap">누르면 Spotify 앱(없으면 웹)이 열려요. Spotify에 로그인돼 있으면 바로 들을 수 있어요.</p>
       )}
+      {!linked && <button className="btn primary block sp-btn" onClick={() => linkSpotify(true)}>Spotify 연결</button>}
+      {linked && !connected && <a className="btn block mc-ghost" href={SPOTIFY_HOME} target="_blank" rel="noreferrer">Spotify 열기</a>}
+      {linked && !connected && canLogin && <button className="btn text sm" onClick={login}>계정 로그인하고 말로 재생 조작하기 (Premium)</button>}
+      {linked && <p className="cap">“현대, 아이유 노래 틀어 줘”라고 말하면 Spotify에서 바로 찾아 줘요.</p>}
+      {linked && <button className="btn text sm" onClick={unlinkSpotify}>연결 해제</button>}
       {err && <p className="cap bad-text">{err}</p>}
     </div>
   );

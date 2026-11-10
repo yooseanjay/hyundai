@@ -1,4 +1,6 @@
-// Spotify 계정 연결 (로그인 → 이 앱이 내 Spotify를 재생 · 멈춤 · 다음 곡)
+// Spotify 연결
+//  1) 기본: 키 없이 바로 연결 — '연결'을 누르면 Spotify 앱(없으면 웹)이 열리고, 말로 부른 노래는 Spotify에서 바로 찾아 틀어 줌
+//  2) 앱 주인이 Spotify 개발자 앱 Client ID(VITE_SPOTIFY_CLIENT_ID)를 넣어 배포하면: 계정 로그인으로 재생 · 멈춤 · 다음 곡까지 제어
 //  - Authorization Code + PKCE: 비밀 키 없이 브라우저에서 로그인 (Client ID는 공개 값)
 //  - 토큰은 이 기기에만 암호화 저장(secureStorage), 서버로 보내지 않음
 //  - 재생 제어는 Spotify Premium + 켜져 있는 Spotify 기기(휴대폰 · PC · 차)가 필요
@@ -8,7 +10,7 @@ const AUTH = 'https://accounts.spotify.com';
 const API = 'https://api.spotify.com/v1';
 const SCOPES = 'user-read-playback-state user-modify-playback-state user-read-currently-playing';
 const TOKEN_KEY = 'oca.spotify.v1';
-const CID_KEY = 'spotify-client-id';
+const LINK_KEY = 'spotify-linked';
 const PKCE_KEY = 'spotify-pkce';
 
 interface Tokens { at: string; rt: string; exp: number }
@@ -16,16 +18,30 @@ interface Tokens { at: string; rt: string; exp: number }
 /** 이 앱 주소 그대로 (Spotify 개발자 앱의 Redirect URI에 똑같이 등록) */
 export const redirectUri = () => location.origin + import.meta.env.BASE_URL;
 
-export function clientId(): string {
-  const env = (import.meta.env.VITE_SPOTIFY_CLIENT_ID as string | undefined) ?? '';
-  if (env) return env;
-  try { return localStorage.getItem(CID_KEY) ?? ''; } catch { return ''; }
+/** 계정 로그인(재생 제어)용 Client ID: 앱 주인이 배포할 때만 넣음. 없으면 키 없는 바로 연결만 */
+export const clientId = (): string => (import.meta.env.VITE_SPOTIFY_CLIENT_ID as string | undefined) ?? '';
+
+// ---------- 키 없이 바로 연결 ----------
+export const spotifyLinked = () => { try { return localStorage.getItem(LINK_KEY) === '1' || spotifyConnected(); } catch { return false; } };
+export const SPOTIFY_HOME = 'https://open.spotify.com';
+/** 노래 찾기 주소: 휴대폰에 Spotify 앱이 있으면 앱이, 없으면 웹 플레이어가 열림 */
+export const spotifySearchUrl = (q: string) => `${SPOTIFY_HOME}/search/${encodeURIComponent(q)}`;
+
+/** Spotify 열기 (새 창). 막히면 false → 화면 버튼으로 */
+export function openSpotify(url = SPOTIFY_HOME): boolean {
+  try { return !!window.open(url, '_blank', 'noopener'); } catch { return false; }
 }
-export function setClientId(id: string) {
-  try { localStorage.setItem(CID_KEY, id.trim()); } catch { /* 저장 안 됨 */ }
+
+/** '연결': 이 앱에 Spotify를 쓰겠다고 표시하고 Spotify를 엶 (로그인은 Spotify 앱 · 웹에서) */
+export function linkSpotify(open = true): boolean {
+  try { localStorage.setItem(LINK_KEY, '1'); } catch { /* 저장 안 됨 */ }
   changed();
+  return open ? openSpotify() : true;
 }
-export const clientIdFromEnv = () => !!import.meta.env.VITE_SPOTIFY_CLIENT_ID;
+export function unlinkSpotify() {
+  try { localStorage.removeItem(LINK_KEY); } catch { /* 없음 */ }
+  save(null);
+}
 
 function load(): Tokens | null {
   try { const v = JSON.parse(secureStorage.getItem(TOKEN_KEY) ?? 'null'); return v?.at ? v : null; } catch { return null; }
@@ -37,7 +53,8 @@ function save(t: Tokens | null) {
 }
 function changed() { window.dispatchEvent(new Event('spotify-change')); }
 
-export const spotifyConnected = () => !!load();
+/** 계정 로그인(재생 제어)까지 된 상태 */
+export const spotifyConnected = () => { try { return !!load(); } catch { return false; } };
 export function disconnectSpotify() { save(null); }
 
 // ---------- 로그인 ----------
