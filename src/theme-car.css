@@ -84,7 +84,7 @@ html.pleos .toast { bottom: calc(var(--pf-bot) + 24px); }
 /* 재생 창: 휴대폰은 탭바 위 전체, 차 화면은 Pleos Connect 앱 창 자리 전체 */
 .spw {
   position: fixed; inset: 0 0 calc(72px + env(safe-area-inset-bottom)) 0; z-index: 25;
-  display: grid; grid-template-rows: auto minmax(0, 1fr) auto auto; gap: 13px;
+  display: grid; grid-template-rows: auto minmax(0, 1fr); gap: 21px; overflow-y: auto; overscroll-behavior: contain;
   padding: calc(16px + env(safe-area-inset-top)) 16px 16px;
   background: radial-gradient(120% 60% at 50% 0%, rgba(29, 185, 84, .28), transparent 62%), #0b0d0c; color: #f2f4f7;
   transition: transform .34s cubic-bezier(.2, .8, .2, 1), opacity .34s;
@@ -96,7 +96,22 @@ html.pleos .toast { bottom: calc(var(--pf-bot) + 24px); }
 .spw-title b { font-size: 21px; }
 .spw-title .cap { color: #b5bcc6; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .spw-back { flex: none; display: inline-flex; align-items: center; gap: 4px; color: #f2f4f7 !important; border-color: rgba(255, 255, 255, .22) !important; background: transparent !important; }
-.spw-frame { width: 100%; height: 100%; min-height: 232px; border: 0; border-radius: 13px; background: #121212; box-shadow: 0 0 34px rgba(29, 185, 84, .22); }
+.spw-body { display: grid; gap: 21px; align-content: start; min-height: 0; }
+.spw-side { display: grid; gap: 13px; align-content: start; }
+.spw-label { font-size: 15px; color: #b5bcc6; font-weight: 600; }
+.spw-tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.spw-tile {
+  display: grid; gap: 2px; text-align: left; padding: 13px 14px; border-radius: 13px; cursor: pointer;
+  background: rgba(255, 255, 255, .07); border: 1px solid rgba(255, 255, 255, .1); color: #f2f4f7; font: inherit;
+  transition: background .2s, box-shadow .2s;
+}
+.spw-tile b { font-size: 16px; }
+.spw-tile span { font-size: 12px; color: #9aa2ad; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.spw-tile:hover { background: rgba(255, 255, 255, .12); }
+.spw-tile.on { background: rgba(29, 185, 84, .2); border-color: #1DB954; box-shadow: 0 0 21px rgba(29, 185, 84, .3); }
+.spw-tile.on span { color: #8fe0ac; }
+/* Spotify 재생기는 352px보다 크면 빈 화면이 됨 → 높이 고정 */
+.spw-frame { width: 100%; height: 352px; border: 0; border-radius: 13px; background: #121212; box-shadow: 0 0 34px rgba(29, 185, 84, .22); }
 .spw .chip { background: rgba(255, 255, 255, .08); color: #e9ecf1; border-color: rgba(255, 255, 255, .14); }
 .spw-note { color: #8a9099; margin: 0; }
 
@@ -105,7 +120,12 @@ html.pleos .spw {
   padding: 28px 48px 24px 40px; gap: 21px;
 }
 html.pleos .spw-title b { font-size: 26px; }
-html.pleos .spw .chip { font-size: 17px; padding: 10px 21px; }
+/* 차 화면: 왼쪽 재생기(황금비) · 오른쪽 바로 듣기 */
+html.pleos .spw-body { grid-template-columns: minmax(0, 1.618fr) minmax(0, 1fr); gap: 34px; }
+html.pleos .spw-tiles { grid-template-columns: minmax(0, 1fr); }
+html.pleos .spw-tile { padding: 14px 18px; }
+html.pleos .spw-tile b { font-size: 19px; }
+html.pleos .spw-tile span { font-size: 14px; }
 /* 아래 시스템 바의 음악 아이콘에 불 */
 html.pleos.spotify-on .pf-apps svg:nth-child(3) { color: #1DB954; filter: drop-shadow(0 0 8px rgba(29, 185, 84, .8)); }
 

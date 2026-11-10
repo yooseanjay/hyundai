@@ -9,8 +9,19 @@ import {
 
 const useEmbed = () => useSyncExternalStore(onEmbedChange, embedState);
 
-function Presets() {
+function Presets({ tiles = false }: { tiles?: boolean }) {
   const s = useEmbed();
+  if (tiles) {
+    return (
+      <div className="spw-tiles" role="group" aria-label="바로 듣기">
+        {PRESETS.map((p) => (
+          <button key={p.id} className={`spw-tile ${s.item?.path === p.path ? 'on' : ''}`} onClick={() => playInApp(p)} aria-pressed={s.item?.path === p.path}>
+            <b>{p.title}</b><span>{p.sub}</span>
+          </button>
+        ))}
+      </div>
+    );
+  }
   return (
     <div className="spw-presets" role="group" aria-label="바로 듣기">
       {PRESETS.map((p) => (
@@ -32,7 +43,7 @@ export function SpotifyWindow() {
   useEffect(() => { attachFrame(ref.current?.contentWindow ?? null); }, [s.item?.path]);
   if (!s.item) return null;
   return (
-    <section className={`spw ${s.open ? 'open' : 'closed'}`} role="dialog" aria-label="Spotify" aria-hidden={!s.open}>
+    <section className={`spw ${s.open ? 'open' : 'closed'}`} role="dialog" aria-label="Spotify" aria-hidden={!s.open} {...(!s.open ? { inert: '' } : {})}>
       <header className="spw-head">
         <span className="sp-logo" aria-hidden />
         <div className="spw-title">
@@ -41,6 +52,7 @@ export function SpotifyWindow() {
         </div>
         <button className="btn sm mc-ghost spw-back" onClick={hideWindow}><ChevronDown size={18} aria-hidden />원래 화면</button>
       </header>
+      <div className="spw-body">
       <iframe
         ref={ref}
         key={s.item.path}
@@ -48,10 +60,15 @@ export function SpotifyWindow() {
         title={`${s.item.title} (Spotify)`}
         src={embedUrl(s.item.path)}
         allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
+        height={352}
         onLoad={() => attachFrame(ref.current?.contentWindow ?? null)}
       />
-      <Presets />
-      <p className="cap spw-note">곡을 멈추면 원래 화면으로 돌아가요. Spotify에 로그인하지 않은 브라우저에선 30초 미리 듣기만 돼요.</p>
+      <div className="spw-side">
+        <b className="spw-label">바로 듣기</b>
+        <Presets tiles />
+        <p className="cap spw-note">곡을 멈추면 원래 화면으로 돌아가요. Spotify에 로그인하지 않은 브라우저에선 30초 미리 듣기만 돼요.</p>
+      </div>
+      </div>
     </section>
   );
 }
