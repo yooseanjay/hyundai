@@ -698,7 +698,11 @@ body { word-break: keep-all; overflow-wrap: anywhere; } /* 한국어: 단어 중
 .sec-form { display: grid; gap: 8px; }
 .sec-erase { justify-self: start; color: var(--bad); padding-left: 0; }
 
-/* 주행 장면 바꾸기 (3D 주행 화면 오른쪽 위) */
-.scene-btn { position: absolute; right: 12px; top: 10px; z-index: 2; height: 34px; padding: 0 13px; border-radius: 999px;
-  background: rgba(0, 0, 0, .45); color: #fff; font-size: var(--fs-1); font-weight: 600; backdrop-filter: blur(6px); border: 1px solid rgba(255, 255, 255, .25); }
+/* 주행 화면 아래 줄: 속도 + 장면 고르기 (3D 위에 글자를 띄우지 않음) */
+.drive-bar { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 48px; margin-top: 8px; }
+.drive-bar .hud { position: static; text-shadow: none; pointer-events: auto; flex: none; }
+.scene-pick { display: flex; gap: 5px; overflow-x: auto; scrollbar-width: none; }
+.scene-pick::-webkit-scrollbar { display: none; }
+.scene-pick .chip { display: inline-flex; align-items: center; gap: 5px; }
+@media (max-width: 420px) { .scene-pick .scene-name { display: none; } }
 .scene-row { margin-bottom: 8px; }

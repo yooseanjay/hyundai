@@ -150,6 +150,8 @@ html, body, .app { background: var(--bg); color: var(--fg); }
 .drive3d { border: 0; border-radius: 24px; }
 .hud, .hud b { color: #fff; }
 .hud span { color: rgba(255, 255, 255, .75); }
+.drive-bar .hud, .drive-bar .hud b { color: var(--fg); }
+.drive-bar .hud span { color: var(--gray-700); }
 .highway::before { background: radial-gradient(closest-side, var(--spot-1), transparent); }
 .highway .hw-lines path { stroke: var(--gray-400); }
 .speedo .track { stroke: var(--gray-200); }

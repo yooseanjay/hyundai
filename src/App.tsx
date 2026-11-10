@@ -310,17 +310,22 @@ export default function App() {
             <Suspense fallback={<div className="highway"><CarCharacter mood={st.mood} color={carColor} size={232} /></div>}>
               <div className="drive3d">
                 <Car3D mode="drive" mood={driving ? (live.braking ? 'sick' : 'excited') : st.mood} color={carColor} shape={carShape} style={look}
-                  speedKmh={driving ? live.speed : 0} braking={live.braking} scenery={scene} height={goldH()} />
-                <button className="scene-btn" onClick={() => pickScene(SCENES[(SCENES.findIndex((x) => x.id === scene) + 1) % SCENES.length].id)} aria-label="주행 장면 바꾸기">
-                  {SCENES.find((x) => x.id === scene)?.emoji} {SCENES.find((x) => x.id === scene)?.label}
-                </button>
-                {driving && (
-                  <div className="hud">
-                    <b>{Math.round(live.speed)}</b><span>km/h</span>
-                    {live.braking && <em>급정거!</em>}
-                    {source === 'gps' && <i className="gps-tag">GPS</i>}
-                  </div>
-                )}
+                  speedKmh={driving ? live.speed : 0} braking={live.braking} scenery={scene} height={goldH() - 56} />
+              </div>
+              {/* 3D 화면 위에 글자를 띄우지 않고 아래 줄에 */}
+              <div className="drive-bar">
+                <div className="hud">
+                  <b>{Math.round(live.speed)}</b><span>km/h</span>
+                  {live.braking && <em>급정거!</em>}
+                  {source === 'gps' && <i className="gps-tag">GPS</i>}
+                </div>
+                <div className="scene-pick" role="radiogroup" aria-label="주행 장면">
+                  {SCENES.map((x) => (
+                    <button key={x.id} role="radio" aria-checked={scene === x.id} className={`chip sm ${scene === x.id ? 'on' : ''}`} onClick={() => pickScene(x.id)} title={x.label}>
+                      <span aria-hidden>{x.emoji}</span><span className="scene-name">{x.label}</span>
+                    </button>
+                  ))}
+                </div>
               </div>
             </Suspense>
             ) : (

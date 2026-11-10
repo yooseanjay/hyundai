@@ -85,7 +85,6 @@ export default function Car3D({ mood, color, shape, style, mode = 'show', speedK
   const live = useRef({ speed: speedKmh, braking, talking });
   live.current = { speed: speedKmh, braking, talking };
   const [failed, setFailed] = useState(false);
-  const [hint, setHint] = useState(true);
 
   useEffect(() => {
     const el = host.current!;
@@ -125,13 +124,15 @@ export default function Car3D({ mood, color, shape, style, mode = 'show', speedK
     controls.autoRotateSpeed = 1.6;
     controls.update();
     let resume = 0;
-    const onStart = () => { controls.autoRotate = false; setHint(false); window.clearTimeout(resume); };
+    const onStart = () => { controls.autoRotate = false; window.clearTimeout(resume); };
     const onEnd = () => { resume = window.setTimeout(() => { controls.autoRotate = mode === 'show'; }, 4000); };
     controls.addEventListener('start', onStart);
     controls.addEventListener('end', onEnd);
 
     // 조명
-    scene.add(new THREE.HemisphereLight('#ffffff', '#303036', 1.1));
+    // 주행 배경은 해 그림자가 보이도록 주변 빛을 줄임 (차는 환경 반사로 여전히 빛남)
+    scene.add(mode === 'drive' ? new THREE.HemisphereLight('#dbe9ff', '#5a5040', 0.55) : new THREE.HemisphereLight('#ffffff', '#303036', 1.1));
+    if (mode === 'drive') scene.environmentIntensity = 0.45;
     const key = new THREE.DirectionalLight('#ffffff', 2.2);
     key.position.set(3, 7, 4);
     key.castShadow = true;
@@ -139,6 +140,19 @@ export default function Car3D({ mood, color, shape, style, mode = 'show', speedK
     key.shadow.camera.left = key.shadow.camera.bottom = -4;
     key.shadow.camera.right = key.shadow.camera.top = 4;
     key.shadow.radius = 6;
+    if (mode === 'drive') {
+      // 주행 배경: 해가 멀리서 비추고 나무 · 건물 · 사람 그림자까지 넓게
+      key.color.set('#fff3dc');
+      key.intensity = 2.6;
+      key.position.set(9, 21, 12);
+      key.shadow.mapSize.set(2048, 2048);
+      key.shadow.camera.left = -26; key.shadow.camera.right = 26;
+      key.shadow.camera.top = 26; key.shadow.camera.bottom = -26;
+      key.shadow.camera.near = 1; key.shadow.camera.far = 70;
+      key.shadow.bias = -0.0006;
+      key.shadow.normalBias = 0.02;
+      key.shadow.radius = 3;
+    }
     scene.add(key);
     const rim = new THREE.DirectionalLight('#ffffff', 1.2);
     rim.position.set(-5, 3, -4);
@@ -152,7 +166,7 @@ export default function Car3D({ mood, color, shape, style, mode = 'show', speedK
     const shadowFloor = new THREE.Mesh(new THREE.PlaneGeometry(30, 30), new THREE.ShadowMaterial({ opacity: 0.55 }));
     shadowFloor.rotation.x = -Math.PI / 2;
     shadowFloor.receiveShadow = true;
-    scene.add(shadowFloor);
+    if (mode === 'show') scene.add(shadowFloor); // 주행 배경은 땅이 직접 그림자를 받음
 
     const extra: { dispose(): void }[] = [shadowFloor.geometry, shadowFloor.material as THREE.Material, envTex, pmrem];
     let roadTex: THREE.CanvasTexture | null = null;
@@ -282,7 +296,6 @@ export default function Car3D({ mood, color, shape, style, mode = 'show', speedK
 
   return (
     <div className={`car3d-view mode-${mode}`} style={{ height }} ref={host}>
-      {mode === 'show' && hint && <span className="rotate-hint">드래그해서 360° 돌려보기</span>}
     </div>
   );
 }
