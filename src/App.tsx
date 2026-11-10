@@ -27,6 +27,8 @@ import type { Trip as TripT } from './api/types';
 import { loadProgress, saveProgress, type Progress } from './game/progress';
 import { wideCar } from './carScreen';
 import { SCENES, type SceneId } from './three/scenery';
+import { REAL_ROADS } from './data/realRoads';
+import { RouteMap } from './components/RouteMap';
 
 type Tab = 'home' | 'studio' | 'diary';
 type View = Tab | 'talk';
@@ -72,7 +74,9 @@ export default function App() {
 
   const [driving, setDriving] = useState(false);
   const [scene, setScene] = useState<SceneId>(() => { try { return (localStorage.getItem('drive-scene') as SceneId) || 'city'; } catch { return 'city'; } });
-  const pickScene = (id: SceneId) => { setScene(id); try { localStorage.setItem('drive-scene', id); } catch { /* 저장 안 돼도 괜찮음 */ } };
+  const [mapPos, setMapPos] = useState<[number, number] | null>(null);
+  const onCarPos = useCallback((la: number, ln: number) => setMapPos([la, ln]), []);
+  const pickScene = (id: SceneId) => { setScene(id); setMapPos(null); try { localStorage.setItem('drive-scene', id); } catch { /* 저장 안 돼도 괜찮음 */ } };
   const [driveProgress, setDriveProgress] = useState(0);
   const [live, setLive] = useState<LiveDrive & { braking: boolean }>({ speed: 0, km: 0, hardBrakes: 0, maxSpeed: 0, braking: false });
   const sim = useRef({ t: 0, speed: 0, km: 0, hardBrakes: 0, maxSpeed: 0, sum: 0, n: 0, brakeUntil: 0 });
@@ -310,7 +314,7 @@ export default function App() {
             <Suspense fallback={<div className="highway"><CarCharacter mood={st.mood} color={carColor} size={232} /></div>}>
               <div className="drive3d">
                 <Car3D mode="drive" mood={driving ? (live.braking ? 'sick' : 'excited') : st.mood} color={carColor} shape={carShape} style={look}
-                  speedKmh={driving ? live.speed : 0} braking={live.braking} scenery={scene} height={goldH() - 56} />
+                  speedKmh={driving ? live.speed : 0} braking={live.braking} scenery={scene} onPosition={onCarPos} height={goldH() - 56} />
               </div>
               {/* 3D 화면 위에 글자를 띄우지 않고 아래 줄에 */}
               <div className="drive-bar">
@@ -347,7 +351,7 @@ export default function App() {
           {!driving && (
             <div className="card drive-card">
               <div className="card-head"><b className="h3">함께 달려볼까요?</b><Route size={18} className="muted" /></div>
-              <div className="card-head"><b className="label">달릴 곳</b><span className="cap">주행하면 이 장면이 펼쳐져요</span></div>
+              <div className="card-head"><b className="label">달릴 곳</b><span className="cap">📍 {REAL_ROADS[scene].name} · {REAL_ROADS[scene].region}</span></div>
               <div className="chip-row scene-row">
                 {SCENES.map((x) => (
                   <button key={x.id} className={`chip ${scene === x.id ? 'on' : ''}`} onClick={() => pickScene(x.id)}>{x.emoji} {x.label}</button>
@@ -385,6 +389,7 @@ export default function App() {
           )}
           {driving ? (
             <>
+            <RouteMap road={REAL_ROADS[scene]} pos={mapPos} />
             <div className="card">
               {source === 'gps' ? (
                 <>

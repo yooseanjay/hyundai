@@ -10,10 +10,12 @@
 export const CSP = {
   'default-src': ["'self'"],
   // three.js · React는 번들(self). 목소리 엔진(onnxruntime) wasm·모듈만 CDN 고정 버전에서
-  'script-src': ["'self'", "'wasm-unsafe-eval'", 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.20.1/'],
+  'script-src': ["'self'", "'wasm-unsafe-eval'", 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.20.1/',
+    // 주행 중 네이버 지도 (VITE_NAVER_MAP_CLIENT_ID 를 넣었을 때만 불러옴)
+    'https://oapi.map.naver.com', 'https://*.pstatic.net'],
   'style-src': ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com', 'https://cdn.jsdelivr.net'],
   'font-src': ["'self'", 'data:', 'https://fonts.gstatic.com', 'https://cdn.jsdelivr.net'],
-  'img-src': ["'self'", 'data:', 'blob:'],
+  'img-src': ["'self'", 'data:', 'blob:', 'https://*.pstatic.net', 'https://*.naver.net', 'https://*.naver.com'],
   'media-src': ["'self'", 'data:', 'blob:'],
   'worker-src': ["'self'", 'blob:'],
   'connect-src': [
@@ -24,6 +26,7 @@ export const CSP = {
     'https://generativelanguage.googleapis.com',
     'wss://generativelanguage.googleapis.com',
     'https://api.open-meteo.com',
+    'https://*.map.naver.com', 'https://*.pstatic.net', 'https://*.naver.net',
     'https://api.bigdatacloud.net',
     'https://cdn.jsdelivr.net',
     'https://huggingface.co',
