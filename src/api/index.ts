@@ -1,6 +1,5 @@
 import { HyundaiApiSource } from './hyundaiClient';
 import { MockVehicleSource } from './mockVehicle';
-import { inPleos, PleosVehicleSource } from './pleosVehicle';
 import type { VehicleDataSource } from './types';
 
 // VITE_DATA_SOURCE=hyundai 이고 Client ID가 들어 있을 때만 실제 API 사용, 아니면 데모(시뮬레이터)
@@ -10,8 +9,7 @@ const forceDemo = new URLSearchParams(location.search).has('demo');
 // GitHub Pages 같은 정적 사이트는 서버가 없으므로 VITE_DATA_SOURCE를 비워 두어 항상 데모로 동작
 const useHyundai = !forceDemo && import.meta.env.VITE_DATA_SOURCE === 'hyundai' && !!import.meta.env.VITE_HYUNDAI_CLIENT_ID;
 
-// Pleos Connect 차 안 앱(pleos/)에서 열리면 차의 Vehicle SDK 값을 바로 씀 (로그인 없음)
-export const dataSource: VehicleDataSource = inPleos() && !forceDemo ? new PleosVehicleSource() : useHyundai ? new HyundaiApiSource() : new MockVehicleSource();
+export const dataSource: VehicleDataSource = useHyundai ? new HyundaiApiSource() : new MockVehicleSource();
 
 export const simulator = dataSource instanceof MockVehicleSource ? dataSource : null;
 

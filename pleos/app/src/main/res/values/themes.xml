@@ -1,7 +1,7 @@
 <resources>
-    <style name="Theme.OurCar" parent="@android:style/Theme.DeviceDefault.NoActionBar">
-        <item name="android:windowBackground">@color/bg</item>
-        <item name="android:statusBarColor">@color/bg</item>
-        <item name="android:navigationBarColor">@color/bg</item>
+    <!-- 화면 색은 Compose(ui/Theme.kt)가 시스템 낮·밤 모드를 따라 정함 -->
+    <style name="Theme.OurCar" parent="@android:style/Theme.DeviceDefault.DayNight">
+        <item name="android:windowActionBar">false</item>
+        <item name="android:windowNoTitle">true</item>
     </style>
 </resources>

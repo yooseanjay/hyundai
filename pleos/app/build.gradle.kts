@@ -1,6 +1,7 @@
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
+    id("org.jetbrains.kotlin.plugin.compose")
 }
 
 android {
@@ -10,10 +11,13 @@ android {
     defaultConfig {
         applicationId = "ai.ourcar.alive"
         minSdk = 28 // Pleos Connect 최소 요구 (Android 9)
-        targetSdk = 34 // Pleos Connect 에뮬레이터 (Android 14)
+        targetSdk = 34 // Pleos Connect (Android 14)
         versionCode = 1
         versionName = "0.1.0"
     }
+
+    // 주행 중 화면 제한(CarUxRestrictions)은 Android Automotive 표준 Car API
+    useLibrary("android.car")
 
     buildTypes {
         release {
@@ -27,21 +31,28 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
     kotlinOptions { jvmTarget = "17" }
+    buildFeatures {
+        compose = true
+        buildConfig = true
+    }
+    testOptions { unitTests.isReturnDefaultValues = true }
 }
 
 dependencies {
+    // 현대 Pleos SDK (공개 Maven)
     implementation("ai.pleos.playground:Vehicle:2.3.2")
-    implementation("androidx.core:core-ktx:1.13.1")
-    implementation("androidx.activity:activity-ktx:1.9.3")
-    implementation("androidx.webkit:webkit:1.12.1")
-}
+    implementation("ai.pleos.playground:TextToSpeech:3.3.1")
 
-// 웹 앱 빌드물이 없으면 바로 알려 줌 (먼저 저장소 루트에서 npm run build:pleos)
-tasks.named("preBuild") {
-    doFirst {
-        val index = file("src/main/assets/web/index.html")
-        if (!index.exists()) {
-            throw GradleException("웹 앱이 아직 없어요. 저장소 루트에서 `npm run build:pleos`를 먼저 실행하세요.")
-        }
-    }
+    implementation(platform("androidx.compose:compose-bom:2024.10.01"))
+    implementation("androidx.compose.ui:ui")
+    implementation("androidx.compose.foundation:foundation")
+    implementation("androidx.compose.material3:material3")
+    implementation("androidx.compose.ui:ui-tooling-preview")
+    debugImplementation("androidx.compose.ui:ui-tooling")
+    implementation("androidx.activity:activity-compose:1.9.3")
+    implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.7")
+    implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.7")
+    implementation("androidx.core:core-ktx:1.13.1")
+
+    testImplementation("junit:junit:4.13.2")
 }

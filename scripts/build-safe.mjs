@@ -1,5 +1,5 @@
 // 키 없이 데모용으로 빌드하고, .env.local 의 실제 키 값이 결과물에 섞이지 않았는지 검사
-// (GitHub Pages 배포와 Pleos 차 안 앱이 함께 씀)
+// (GitHub Pages 배포에서 씀)
 import { execSync } from 'node:child_process';
 import { existsSync, readFileSync, readdirSync, rmSync, statSync } from 'node:fs';
 import { join } from 'node:path';
