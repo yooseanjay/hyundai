@@ -75,6 +75,8 @@ class VehicleBridge(context: Context) {
         safely {
             val odo = vehicle.getOdometer()
             odo.getCurrentDistanceDriven({ v -> state.odometerKm = v; ok() }, ::fail)
+            // SDK 2.3.2에서 deprecated(표준 RANGE_REMAINING 권장)지만 아직 동작하고 Pleos 에뮬레이터에서도 쓰임
+            @Suppress("DEPRECATION")
             odo.getRangeRemainingDistance({ v -> state.rangeM = v; ok() }, ::fail)
         }
         safely {
