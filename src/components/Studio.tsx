@@ -114,6 +114,6 @@ export function Studio({ car, look, onLook, config, onConfig, tab, onTab, previe
 /** 눈 모양 미리보기 (작은 얼굴 화면) */
 function FacePreview({ style }: { style: CharStyle }) {
   const ref = useRef<HTMLCanvasElement>(null);
-  useEffect(() => { if (ref.current) drawFace(ref.current, 'happy', 'none', false, style); }, [style]);
+  useEffect(() => { if (ref.current) drawFace(ref.current, 'happy', false, style); }, [style]);
   return <canvas ref={ref} width={512} height={200} className="face-canvas" />;
 }

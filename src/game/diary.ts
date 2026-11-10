@@ -9,7 +9,6 @@ export interface DiaryEntry {
   body: string;
   stamp: string; // 이모지 도장
   distanceKm: number;
-  xpGained: number;
   place: string;
 }
 
@@ -20,9 +19,8 @@ export function writeDiary(opts: {
   trip: Trip;
   snapshot: VehicleSnapshot;
   newWarnings: WarningKey[];
-  xpGained: number;
 }): DiaryEntry {
-  const { nickname, trip, snapshot, newWarnings, xpGained } = opts;
+  const { nickname, trip, snapshot, newWarnings } = opts;
   const place = snapshot.parking?.label ?? '어딘가';
   const hour = new Date(trip.startedAt).getHours();
   const when = hour < 6 ? '새벽' : hour < 11 ? '아침' : hour < 17 ? '낮' : hour < 21 ? '저녁' : '밤';
@@ -56,7 +54,6 @@ export function writeDiary(opts: {
     body: `${nickname}의 일기\n\n` + lines.join(' '),
     stamp,
     distanceKm: trip.distanceKm,
-    xpGained,
     place,
   };
 }

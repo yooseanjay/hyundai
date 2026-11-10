@@ -1,5 +1,4 @@
 import type { Mood } from '../game/character';
-import type { CosmeticId } from '../game/progress';
 import { PAINTS, type BodyColor } from '../data/hyundaiModels';
 import plate from '../data/ioniq5-screen.json';
 
@@ -9,7 +8,6 @@ const ASSET = import.meta.env.BASE_URL;
 interface Props {
   mood: Mood;
   color?: BodyColor;
-  cosmetic: CosmeticId;
   driving?: boolean;
   size?: number;
 }
@@ -35,7 +33,7 @@ function RingEye({ x, look = 0 }: { x: number; look?: number }) {
   );
 }
 
-function Face({ mood, cosmetic }: { mood: Mood; cosmetic: CosmeticId }) {
+function Face({ mood }: { mood: Mood }) {
   const stroke = { stroke: GLOW, strokeWidth: 9, strokeLinecap: 'round' as const, fill: 'none' };
   let eyes: JSX.Element;
   let mouth: JSX.Element;
@@ -128,30 +126,13 @@ function Face({ mood, cosmetic }: { mood: Mood; cosmetic: CosmeticId }) {
   return (
     <svg viewBox={`0 0 ${VW} ${VH}`} preserveAspectRatio="xMidYMid meet" className="face-svg">
       <g className="face-glow">
-        {cosmetic === 'sunglasses' && mood !== 'sleepy' ? (
-          <g>
-            <rect x={EL - 50} y={EY - 30} width="100" height="60" rx="22" fill="#05070a" stroke={GLOW} strokeWidth="6" />
-            <rect x={ER - 50} y={EY - 30} width="100" height="60" rx="22" fill="#05070a" stroke={GLOW} strokeWidth="6" />
-            <line x1={EL + 50} y1={EY - 12} x2={ER - 50} y2={EY - 12} stroke={GLOW} strokeWidth="6" />
-            <path d={`M${EL - 34} ${EY - 16} l18 0`} stroke={GLOW} strokeWidth="5" strokeLinecap="round" opacity=".7" />
-            <path d={`M${ER - 34} ${EY - 16} l18 0`} stroke={GLOW} strokeWidth="5" strokeLinecap="round" opacity=".7" />
-          </g>
-        ) : (
-          eyes
-        )}
+        {eyes}
         {mouth}
         {extra}
       </g>
     </svg>
   );
 }
-
-const ROOF_ITEMS: Partial<Record<CosmeticId, string>> = {
-  crown: `${ASSET}character/acc-crown.png`,
-  cap: `${ASSET}character/acc-cap.png`,
-  scarf: `${ASSET}character/acc-ribbon.png`,
-  flower: `${ASSET}character/acc-flower.png`,
-};
 
 /** 사진 차는 색 대신 밝기만 맞춤 (고른 색의 밝기 기준) */
 function colorFilter(c: BodyColor): string {
@@ -162,8 +143,7 @@ function colorFilter(c: BodyColor): string {
   return `brightness(${(0.35 + lum * 0.8).toFixed(2)}) saturate(0.4)`;
 }
 
-export function CarCharacter({ mood, cosmetic, driving, color = 'SAW', size = 280 }: Props) {
-  const roof = ROOF_ITEMS[cosmetic];
+export function CarCharacter({ mood, driving, color = 'SAW', size = 280 }: Props) {
   return (
     <div
       className={`car3d car-photo mood-${mood} ${driving ? 'is-driving' : ''}`}
@@ -174,10 +154,8 @@ export function CarCharacter({ mood, cosmetic, driving, color = 'SAW', size = 28
       <div className="car3d-body">
         <img src={`${ASSET}character/ioniq5.png`} alt="" draggable={false} style={{ filter: colorFilter(color) }} />
         <div className="car3d-screen" style={{ left: `${plate.x * 100}%`, top: `${plate.y * 100}%`, width: `${plate.w * 100}%`, height: `${plate.h * 100}%` }}>
-          <Face mood={mood} cosmetic={cosmetic} />
+          <Face mood={mood} />
         </div>
-        {roof && <img className={`car3d-roof acc-${cosmetic}`} src={roof} alt="" draggable={false} />}
-        {cosmetic === 'wrench' && <img className="car3d-badge" src={`${ASSET}character/acc-medal.png`} alt="" draggable={false} />}
       </div>
     </div>
   );

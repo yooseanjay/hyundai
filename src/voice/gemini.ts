@@ -72,9 +72,6 @@ async function getRoute(): Promise<Route> {
   return route;
 }
 
-export async function geminiReady() {
-  return !!(await getRoute());
-}
 export async function geminiSource(): Promise<'server' | 'device' | null> {
   const r = await getRoute();
   return r ? r.kind : null;

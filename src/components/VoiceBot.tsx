@@ -5,7 +5,7 @@ import { ExternalLink, Keyboard, KeyRound, Mic, Play, Square, Volume2, VolumeX }
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { Mood } from '../game/character';
-import { cleanForSpeech, cuteSpeech, pcmStreamPlayer, pickKoVoice, playAudioFile, playPcm, sfx, speakWithServer, stopServerVoice, unlockAudio, voiceFor } from '../game/cuteVoice';
+import { cleanForSpeech, cuteSpeech, pcmStreamPlayer, pickKoVoice, playAudioFile, playPcm, sfx, stopVoice, unlockAudio, voiceFor } from '../game/cuteVoice';
 // 음성 AI 엔진(onnxruntime)은 크기가 커서 필요할 때만 불러온다
 const engine = () => import('../voice/supertonic');
 import { loadVoicePrefs, saveVoicePrefs, type VoicePrefs } from '../voice/voicePrefs';
@@ -211,10 +211,9 @@ export function VoiceBot({ ctx, onLine, variant = 'screen' }: {
       }
       speechSynthesis.cancel();
       (rule.intent === 'unknown' && !fromAi ? sfx.confused : () => sfx.reply(mood))();
-      // 2) 목소리: Gemini(사람 같은) → 오프라인 음성 AI → Typecast(PC) → 휴대폰 기본
+      // 2) 목소리: Gemini(사람 같은) → 오프라인 음성 AI → 휴대폰 기본
       if (await speakGemini(text, mood)) return done();
       if (await speakAi(text, mood)) return done();
-      if (await speakWithServer(text, mood, () => setPhase('speaking'))) return done();
       browserSpeak(text, mood, done);
     })();
 
@@ -224,7 +223,7 @@ export function VoiceBot({ ctx, onLine, variant = 'screen' }: {
   const listenClassic = () => {
     if (phase === 'listening') return recRef.current?.stop();
     if (!muted) unlockAudio();
-    stopServerVoice();
+    stopVoice();
     if (canSpeak) speechSynthesis.cancel();
     const rec = new SR();
     recRef.current = rec;
@@ -293,7 +292,7 @@ export function VoiceBot({ ctx, onLine, variant = 'screen' }: {
       else finish();
     },
     onInterrupted() {
-      stopServerVoice(); // 말 끊으면 바로 멈춤
+      stopVoice(); // 말 끊으면 바로 멈춤
       turn.current.player = null;
     },
     async onToolCall(toolName: string, args: Record<string, unknown>) {
@@ -363,7 +362,7 @@ export function VoiceBot({ ctx, onLine, variant = 'screen' }: {
       const ss = await ensureLive();
       if (ss) {
         try {
-          stopServerVoice();
+          stopVoice();
           if (canSpeak) speechSynthesis.cancel();
           turn.current = { ...fresh(), q: question };
           setCard(null);
@@ -395,7 +394,7 @@ export function VoiceBot({ ctx, onLine, variant = 'screen' }: {
       const ss = await ensureLive();
       if (ss) {
         try {
-          stopServerVoice();
+          stopVoice();
           await ss.startMic();
           setLiveMic(true);
           if (!muted) sfx.listen();
@@ -436,7 +435,7 @@ export function VoiceBot({ ctx, onLine, variant = 'screen' }: {
     const stop = () => {
       if (live.current?.micOn) { live.current.stopMic(); setLiveMic(false); }
       if (phase === 'listening') recRef.current?.stop();
-      stopServerVoice();
+      stopVoice();
       if (canSpeak) speechSynthesis.cancel();
       setPhase('idle');
       setOpen(false);

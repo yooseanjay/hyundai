@@ -1,9 +1,8 @@
 // 번호판 화면 얼굴 (3D 텍스처용 캔버스 그리기). 기분 7종 + 깜빡임 + 선글라스
 import type { Mood } from '../game/character';
-import type { CosmeticId } from '../game/progress';
 import { DEFAULT_STYLE, glowHex, type CharStyle } from '../game/style';
 
-export function drawFace(cv: HTMLCanvasElement, mood: Mood, cosmetic: CosmeticId, blink = false, style: CharStyle = DEFAULT_STYLE) {
+export function drawFace(cv: HTMLCanvasElement, mood: Mood, blink = false, style: CharStyle = DEFAULT_STYLE) {
   const C = glowHex(style.glow);
   const BG = '#050608';
   const g = cv.getContext('2d')!;
@@ -34,13 +33,7 @@ export function drawFace(cv: HTMLCanvasElement, mood: Mood, cosmetic: CosmeticId
     g.fill();
   };
 
-  // 선글라스 (졸릴 때 빼고)
-  if (cosmetic === 'sunglasses' && mood !== 'sleepy') {
-    g.lineWidth = 10;
-    [EL, ER].forEach((x) => { g.beginPath(); g.roundRect(x - 52, EY - 30, 104, 58, 22); g.stroke(); });
-    path(() => { g.moveTo(EL + 52, EY - 12); g.lineTo(ER - 52, EY - 12); });
-    g.lineWidth = 14;
-  } else if (blink && ['happy', 'calm', 'hungry', 'excited'].includes(mood)) {
+  if (blink && ['happy', 'calm', 'hungry', 'excited'].includes(mood)) {
     closedEyes();
   } else if ((mood === 'happy' || mood === 'calm') && style.eye !== 'classic') {
     // 꾸미기에서 고른 눈 모양 (기분이 좋을 때)

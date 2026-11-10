@@ -94,13 +94,6 @@ a { color: inherit; text-decoration: none; }
 .car-photo .car3d-shadow { display: none; }
 .car-photo .car3d-body > img:first-child { object-fit: contain; }
 .car-photo .face-glow { filter: drop-shadow(0 0 3px rgba(255, 255, 255, .9)); }
-.car-photo .car3d-roof { left: 46%; top: -6%; width: 15%; filter: grayscale(1) brightness(1.1) drop-shadow(0 4px 6px rgba(0,0,0,.5)); }
-.car-photo .car3d-badge { filter: grayscale(1) brightness(1.1); }
-.car-photo .car3d-roof.acc-crown { left: 47%; top: -7%; width: 13%; }
-.car-photo .car3d-roof.acc-cap { left: 45%; top: -4%; width: 16%; }
-.car-photo .car3d-roof.acc-scarf { left: 47%; top: -4%; width: 13%; }
-.car-photo .car3d-roof.acc-flower { left: 66%; top: -6%; width: 9%; transform: rotate(14deg); }
-.car-photo .car3d-badge { left: 63%; top: 50%; width: 7%; }
 
 /* ---------- 카드 ---------- */
 .card { background: var(--card); border: 1px solid var(--line); border-radius: 21px; padding: 13px; display: grid; gap: 13px; box-shadow: none; }

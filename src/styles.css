@@ -223,11 +223,6 @@ h1, h2, h3, p, figure { margin: 0; }
 .car3d.mood-sleepy .car3d-body, .car3d.mood-tired .car3d-body { animation-duration: 4.5s; }
 .car3d.is-driving .car3d-body { animation: drive3d .32s ease-in-out infinite; }
 @keyframes drive3d { 50% { transform: translateY(-2%) rotate(-.8deg); } }
-.car3d-roof { position: absolute; left: 30%; top: -14%; width: 28%; filter: drop-shadow(0 6px 8px rgba(43,34,64,.18)); }
-.car3d-roof.acc-flower { left: 66%; top: -24%; width: 15%; transform: rotate(14deg); }
-.car3d-roof.acc-scarf { left: 33%; top: -9%; width: 24%; }
-.car3d-roof.acc-cap { top: -12%; width: 31%; left: 28%; }
-.car3d-badge { position: absolute; left: 76%; top: 52%; width: 11%; transform: rotate(-8deg); filter: drop-shadow(0 4px 6px rgba(43,34,64,.2)); }
 .tile .car3d-shadow, .tile .car3d-body, .tile .blink, .tile .twinkle { animation: none; }
 
 /* ===== 개발용 표정 시트 (#moods) ===== */

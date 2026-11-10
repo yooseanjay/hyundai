@@ -7,14 +7,12 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import type { BodyColor } from '../data/hyundaiModels';
 import type { Mood } from '../game/character';
-import type { CosmeticId } from '../game/progress';
 import type { CharStyle } from '../game/style';
 import { buildCar, type CarRig } from '../three/carModel';
 import { shapeOf } from '../three/shapes';
 
 interface Props {
   mood: Mood;
-  cosmetic: CosmeticId;
   color?: BodyColor;
   /** 차종 3D 모양 id (hyundaiModels shape) */
   shape?: string;
@@ -68,12 +66,12 @@ function glowTexture() {
   return new THREE.CanvasTexture(cv);
 }
 
-export default function Car3D({ mood, cosmetic, color, shape, style, mode = 'show', speedKmh = 0, braking = false, talking = false, height }: Props) {
+export default function Car3D({ mood, color, shape, style, mode = 'show', speedKmh = 0, braking = false, talking = false, height }: Props) {
   const host = useRef<HTMLDivElement>(null);
   const rig = useRef<CarRig | null>(null);
   const sceneRef = useRef<THREE.Scene | null>(null);
-  const look = useRef({ mood, cosmetic, color, style });
-  look.current = { mood, cosmetic, color, style };
+  const look = useRef({ mood, color, style });
+  look.current = { mood, color, style };
   const live = useRef({ speed: speedKmh, braking, talking });
   live.current = { speed: speedKmh, braking, talking };
   const [failed, setFailed] = useState(false);
@@ -281,9 +279,8 @@ export default function Car3D({ mood, cosmetic, color, shape, style, mode = 'sho
     mountCar(scene, rig, shape, look.current);
   }, [shape]);
   useEffect(() => { if (style) rig.current?.setStyle(style); }, [style]);
-  useEffect(() => { rig.current?.setMood(mood, cosmetic); }, [mood, cosmetic]);
+  useEffect(() => { rig.current?.setMood(mood); }, [mood]);
   useEffect(() => { rig.current?.setColor(color); }, [color]);
-  useEffect(() => { rig.current?.setCosmetic(cosmetic, import.meta.env.BASE_URL); }, [cosmetic]);
 
   if (failed) return <div className="car3d-fallback" style={{ height }}>이 기기에서는 3D를 표시할 수 없어요</div>;
 
@@ -294,15 +291,14 @@ export default function Car3D({ mood, cosmetic, color, shape, style, mode = 'sho
   );
 }
 
-function mountCar(scene: THREE.Scene, rig: { current: CarRig | null }, shape: string | undefined, l: { mood: Mood; cosmetic: CosmeticId; color?: BodyColor; style?: CharStyle }) {
+function mountCar(scene: THREE.Scene, rig: { current: CarRig | null }, shape: string | undefined, l: { mood: Mood; color?: BodyColor; style?: CharStyle }) {
   const car = buildCar(shape);
   // 작은 차는 조금 크게, 큰 차는 조금 작게 (화면에 비슷한 크기로)
   const k = Math.min(1.12, Math.max(0.86, 2.3 / shapeOf(shape).L));
   car.group.scale.setScalar(k);
   if (l.style) car.setStyle(l.style);
   car.setColor(l.color);
-  car.setMood(l.mood, l.cosmetic);
-  car.setCosmetic(l.cosmetic, import.meta.env.BASE_URL);
+  car.setMood(l.mood);
   scene.add(car.group);
   rig.current = car;
   // 실제 차 3D 모델이 있으면 불러와서 차체를 바꿈 (그동안은 코드로 만든 차)

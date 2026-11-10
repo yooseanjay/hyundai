@@ -3,7 +3,6 @@
 import * as THREE from 'three';
 import { PAINTS, type BodyColor } from '../data/hyundaiModels';
 import type { Mood } from '../game/character';
-import type { CosmeticId } from '../game/progress';
 import { DEFAULT_STYLE, type CharStyle } from '../game/style';
 import { drawFace } from './face';
 import { shapeOf, type CarShape } from './shapes';
@@ -14,11 +13,10 @@ export interface CarRig {
   group: THREE.Group;
   wheels: THREE.Object3D[];
   wheelR: number;
-  setMood(m: Mood, cosmetic: CosmeticId): void;
+  setMood(m: Mood): void;
   setBlink(closed: boolean): void;
   setColor(c?: BodyColor): void;
   setStyle(s: CharStyle): void;
-  setCosmetic(c: CosmeticId, base: string): void;
   /** 실제 차 3D 모델(GLB)로 차체를 바꿈. 얼굴 화면·액세서리는 그대로 */
   useModel(root: THREE.Object3D, rotY?: number): void;
   dispose(): void;
@@ -189,23 +187,10 @@ export function buildCar(shapeId?: string): CarRig {
   group.traverse((o) => { if ((o as THREE.Mesh).isMesh) { o.castShadow = true; o.receiveShadow = true; } });
   screen.castShadow = false;
 
-  // ---- 꾸미기 (지붕 위 스프라이트) ----
-  let acc: THREE.Sprite | null = null;
-  let accTex: THREE.Texture | null = null;
-  let accReq = 0;
-  const clearAcc = () => {
-    if (acc) group.remove(acc);
-    acc?.material.dispose();
-    accTex?.dispose();
-    acc = null;
-    accTex = null;
-  };
-
   let mood: Mood = 'happy';
-  let cosmetic: CosmeticId = 'none';
   let style: CharStyle = DEFAULT_STYLE;
   const redraw = (closed = false) => {
-    drawFace(faceCanvas, mood, cosmetic, closed, style);
+    drawFace(faceCanvas, mood, closed, style);
     faceTex.needsUpdate = true;
   };
   const roofCX = (roofFX + roofBX) / 2;
@@ -224,7 +209,7 @@ export function buildCar(shapeId?: string): CarRig {
     group,
     wheels,
     wheelR: wr,
-    setMood(m, c) { mood = m; cosmetic = c; redraw(); },
+    setMood(m) { mood = m; redraw(); },
     setBlink(closed) { redraw(closed); },
     setColor(c) {
       current = c;
@@ -232,31 +217,6 @@ export function buildCar(shapeId?: string): CarRig {
       tintModel();
     },
     setStyle(s) { style = s; redraw(); },
-    setCosmetic(c, base) {
-      clearAcc();
-      const req = ++accReq;
-      const file: Partial<Record<CosmeticId, [string, number, number, number, number]>> = {
-        // [이미지, x, y, z, 크기]
-        crown: ['acc-crown.png', roofCX, topY + 0.31, 0, 0.55],
-        cap: ['acc-cap.png', roofCX, topY + 0.29, 0, 0.7],
-        scarf: ['acc-ribbon.png', roofCX + 0.35, topY + 0.21, 0, 0.5],
-        flower: ['acc-flower.png', roofFX + 0.08, roofY + 0.13, 0, 0.35],
-        wrench: ['acc-medal.png', -0.2, S.beltRear - 0.26, W + 0.05, 0.32],
-      };
-      const f = file[c];
-      if (!f) return;
-      const img = new Image();
-      img.onload = () => {
-        if (req !== accReq) return;
-        accTex = new THREE.CanvasTexture(img);
-        accTex.colorSpace = THREE.SRGBColorSpace;
-        acc = new THREE.Sprite(new THREE.SpriteMaterial({ map: accTex, transparent: true }));
-        acc.position.set(f[1], f[2], f[3]);
-        acc.scale.set(f[4], f[4] * (img.height / img.width), 1);
-        group.add(acc);
-      };
-      img.src = `${base}character/${f[0]}`;
-    },
     useModel(root, rotY = 0) {
       // 크기·방향을 코드 차와 맞춤 (앞 +x, 바닥 y=0)
       const holder = new THREE.Group();
@@ -317,12 +277,11 @@ export function buildCar(shapeId?: string): CarRig {
         frontFrame.position.x = screen.position.x - 0.003 - 0.15;
       }
       // 코드로 만든 차체는 숨기고 얼굴 화면만 남김
-      group.children.forEach((o) => { if (!o.userData.keep && o !== acc) o.visible = false; });
+      group.children.forEach((o) => { if (!o.userData.keep) o.visible = false; });
       group.add(holder);
       tintModel();
     },
     dispose() {
-      clearAcc();
       disposables.forEach((d) => d.dispose());
     },
   };

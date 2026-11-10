@@ -24,10 +24,7 @@ import { writeDiary, type DiaryEntry } from './game/diary';
 import { secureStorage } from './security';
 import SecurityPanel from './components/SecurityPanel';
 import type { Trip as TripT } from './api/types';
-import {
-  loadProgress, saveProgress, xpForTrip,
-  XP_FOR_CHARGE, XP_FOR_FIX, type CosmeticId, type Progress,
-} from './game/progress';
+import { loadProgress, saveProgress, type Progress } from './game/progress';
 
 type Tab = 'home' | 'studio' | 'diary';
 type View = Tab | 'talk';
@@ -113,9 +110,8 @@ export default function App() {
       if (prevSnap) {
         const fixed = (Object.keys(s.warnings) as WarningKey[]).filter((k) => prevSnap.warnings[k] && !s.warnings[k]);
         const charged = s.fuelLevelPct - prevSnap.fuelLevelPct >= 10;
-        const gain = fixed.reduce((a, k) => a + XP_FOR_FIX[k], 0) + (charged ? XP_FOR_CHARGE : 0);
-        if (gain > 0) {
-          updateProgress((p) => ({ ...p, xp: p.xp + gain, fixes: p.fixes + fixed.length }));
+        if (fixed.length || charged) {
+          if (fixed.length) updateProgress((p) => ({ ...p, fixes: p.fixes + fixed.length }));
           showToast(fixed.length ? `${fixed.map((k) => WARNING_LABELS[k]).join(', ')} 회복했어요` : '든든해졌어요');
         }
       }
@@ -239,14 +235,9 @@ export default function App() {
     setLive({ speed: 0, km: 0, hardBrakes: 0, maxSpeed: 0, braking: false });
     if (!after) return;
     const newWarnings = (Object.keys(after.warnings) as WarningKey[]).filter((k) => after.warnings[k] && !before.warnings[k]);
-    const xp = xpForTrip(trip);
-    const diary = writeDiary({ nickname: car.nickname, trip, snapshot: after, newWarnings, xpGained: xp });
+    const diary = writeDiary({ nickname: car.nickname, trip, snapshot: after, newWarnings });
     updateProgress((p) => ({
       ...p,
-      xp: p.xp + xp,
-      totalKm: p.totalKm + trip.distanceKm,
-      tripCount: p.tripCount + 1,
-      calmTrips: p.calmTrips + (trip.hardBrakes === 0 ? 1 : 0),
       diaries: [diary, ...p.diaries].slice(0, 100),
     }));
     setOpenDiary({ d: diary, fresh: true });
@@ -265,7 +256,7 @@ export default function App() {
       <main className="app">
         <Brand />
         <section className="screen welcome">
-          <Showroom><CarCharacter mood={needLogin ? 'happy' : 'sick'} cosmetic="none" size={300} /></Showroom>
+          <Showroom><CarCharacter mood={needLogin ? 'happy' : 'sick'} size={300} /></Showroom>
           <h1 className="h1">{needLogin ? '내 차가 깨어날 준비가 됐어요' : '차랑 연결이 안 됐어요'}</h1>
           <p className="muted body">
             {needLogin
@@ -312,9 +303,9 @@ export default function App() {
               <span className="ready"><i className="dot good pulse" />{driving ? '주행 중' : dataSource.kind === 'hyundai' ? '차량 연결됨' : '출발 준비 완료'}</span>
             </div>
             {driving ? (
-            <Suspense fallback={<div className="highway"><CarCharacter mood={st.mood} cosmetic="none" color={carColor} size={232} /></div>}>
+            <Suspense fallback={<div className="highway"><CarCharacter mood={st.mood} color={carColor} size={232} /></div>}>
               <div className="drive3d">
-                <Car3D mode="drive" mood={driving ? (live.braking ? 'sick' : 'excited') : st.mood} cosmetic="none" color={carColor} shape={carShape} style={look}
+                <Car3D mode="drive" mood={driving ? (live.braking ? 'sick' : 'excited') : st.mood} color={carColor} shape={carShape} style={look}
                   speedKmh={driving ? live.speed : 0} braking={live.braking} height={goldH()} />
                 {driving && (
                   <div className="hud">
@@ -326,7 +317,7 @@ export default function App() {
               </div>
             </Suspense>
             ) : (
-              <Show3D car={car} look={look} mood={bot?.mood ?? st.mood} cosmetic="none" height={goldH()} />
+              <Show3D car={car} look={look} mood={bot?.mood ?? st.mood} height={goldH()} />
             )}
             <div className="hero-range">
               <div className="range-num"><b>{snap.dteKm}</b><span>km</span></div>
@@ -463,7 +454,7 @@ export default function App() {
             <h1 className="h1">{car.nickname}와 대화</h1>
             <span className="cap conn"><i className="dot good" />{dataSource.kind === 'hyundai' ? '차량 연결됨' : '데모 차량 연결됨'}</span>
           </div>
-          <Show3D car={car} look={look} mood={bot?.mood ?? st.mood} cosmetic="none" talking={!!bot?.speaking} height={goldH()} />
+          <Show3D car={car} look={look} mood={bot?.mood ?? st.mood} talking={!!bot?.speaking} height={goldH()} />
           <VoiceBot ctx={{ car, snap, status: st, trips, progress }} onLine={(line, mood, speaking) => setBot(line ? { line, mood, speaking } : null)} />
         </section>
       )}
@@ -473,7 +464,7 @@ export default function App() {
         <section className="screen">
           <div className="title-row">
             <h1 className="h1">{car.nickname}의 기록</h1>
-            <CarCharacter mood="happy" cosmetic="none" color={carColor} size={56} />
+            <CarCharacter mood="happy" color={carColor} size={56} />
           </div>
                     <div className="grid3">
             <div className="tile-stat"><span className="cap">총 주행</span><b className="num">{snap.odometerKm.toLocaleString()}<small>km</small></b></div>
@@ -521,7 +512,7 @@ export default function App() {
           config={simulator?.config}
           onConfig={simulator ? (c) => { simulator?.setCar(c); refresh(); } : undefined}
           tab={studioTab} onTab={setStudioTab}
-          preview={<Show3D car={car} look={look} mood="happy" cosmetic="none" height={goldH(true)} />}
+          preview={<Show3D car={car} look={look} mood="happy" height={goldH(true)} />}
           footer={
             <>
             <SecurityPanel />
@@ -565,7 +556,7 @@ export default function App() {
               <span className="handle" />
               <div className="card-head"><b className="h2">오늘의 일기</b><button className="icon-btn plain" onClick={() => setOpenDiary(null)} aria-label="닫기"><X size={20} /></button></div>
               <div className="keepsake">
-                <div className="peek"><CarCharacter mood="happy" cosmetic="none" color={carColor} size={210} /></div>
+                <div className="peek"><CarCharacter mood="happy" color={carColor} size={210} /></div>
                 <article className="paper">
                   <div className="card-head"><span className="cap">{t.getFullYear()}.{pad(t.getMonth() + 1)}.{pad(t.getDate())} · {weekday(t)}</span><Sun size={16} /></div>
                   <h3 className="paper-title">{car.nickname}의 일기 — {d.title}</h3>
@@ -606,11 +597,11 @@ function goldH(bleed = false) {
   return Math.round((w - (bleed ? 0 : 42)) / PHI);
 }
 
-function Show3D({ car, look, mood, cosmetic, talking, height = 200 }: { car: CarProfile; look: CharStyle; mood: Mood; cosmetic: CosmeticId; talking?: boolean; height?: number }) {
+function Show3D({ car, look, mood, talking, height = 200 }: { car: CarProfile; look: CharStyle; mood: Mood; talking?: boolean; height?: number }) {
   const color = colorOf(look, car.bodyColor, car.modelId);
   return (
-    <Suspense fallback={<Showroom><CarCharacter mood={mood} cosmetic={cosmetic} color={color} size={268} /></Showroom>}>
-      <Car3D mode="show" mood={mood} cosmetic={cosmetic} color={color} shape={findModelById(car.modelId ?? '')?.shape} style={look} talking={talking} height={height} />
+    <Suspense fallback={<Showroom><CarCharacter mood={mood} color={color} size={268} /></Showroom>}>
+      <Car3D mode="show" mood={mood} color={color} shape={findModelById(car.modelId ?? '')?.shape} style={look} talking={talking} height={height} />
     </Suspense>
   );
 }

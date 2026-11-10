@@ -13,7 +13,7 @@ const root = createRoot(document.getElementById('root')!);
 
 // 앱 코드는 금고가 열린 다음에야 불러옴 → 잠긴 상태에서는 기록을 읽는 코드가 아예 실행되지 않음
 async function start() {
-  const Root = location.hash === '#moods' ? (await import('./MoodSheet')).default : (await import('./App')).default;
+  const Root = (await import('./App')).default;
   root.render(
     <StrictMode>
       <Root />
