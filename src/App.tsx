@@ -1,6 +1,6 @@
 // 화면 구성: Figma "우리 차가 살아있다면" 흑백 디자인 (홈+운전 · AI 음성봇 · 오늘의 일기 · 일기장 · 꾸미기)
 import {
-  ArrowUpRight, BookOpen, CalendarDays, ChevronLeft, ChevronRight,
+  ArrowUpRight, BookOpen, CarFront, CalendarDays, ChevronLeft, ChevronRight,
   Gauge as GaugeIcon, House, MapPin, Mic, Route, Sparkles, Sun, X, type LucideIcon,
 } from 'lucide-react';
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -28,16 +28,17 @@ import { loadProgress, saveProgress, type Progress } from './game/progress';
 import { wideCar } from './carScreen';
 import { SCENES, type SceneId } from './three/scenery';
 import { REAL_ROADS } from './data/realRoads';
+import { MyCar } from './components/MyCar';
 import { RouteMap } from './components/RouteMap';
 import { DriveControls } from './components/DriveControls';
 import { distToRoad, myPosition, roadNear } from './data/nearbyRoad';
 import type { RealRoad } from './data/realRoads';
 import type { DriveControl, DriveStatus } from './components/Car3D';
 
-type Tab = 'home' | 'studio' | 'diary';
+type Tab = 'home' | 'mycar' | 'studio' | 'diary';
 type View = Tab | 'talk';
 // 하단: 음성(빛나는 구) · 홈(운전 포함) · 꾸미기 · 일기. 여행·날씨·주변 찾기는 음성으로
-const TABS: [Tab, LucideIcon, string][] = [['home', House, '홈'], ['studio', Sparkles, '꾸미기'], ['diary', BookOpen, '기록']];
+const TABS: [Tab, LucideIcon, string][] = [['home', House, '홈'], ['mycar', CarFront, '내 차'], ['studio', Sparkles, '꾸미기'], ['diary', BookOpen, '기록']];
 const WARNING_TITLE: Record<WarningKey, string> = {
   tirePressure: '타이어 공기압이 낮아요', engineOil: '엔진오일을 갈 때예요', brakeOil: '브레이크액을 확인해요',
   washerFluid: '워셔액이 부족해요', lamp: '램프를 점검해요', smartKeyBattery: '스마트키 배터리가 약해요',
@@ -468,6 +469,12 @@ export default function App() {
       )}
 
       {/* ---------- 일기장 목록 ---------- */}
+      {view === 'mycar' && (
+        <section className="screen mycar">
+          <MyCar car={car} snap={snap} trips={trips} onReplaced={(name) => { setPartsTick((n) => n + 1); updateProgress((pr) => ({ ...pr, fixes: pr.fixes + 1 })); showToast(`${name} 교체 완료`); }} />
+        </section>
+      )}
+
       {view === 'diary' && (
         <section className="screen">
           <div className="title-row">

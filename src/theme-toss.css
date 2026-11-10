@@ -330,9 +330,9 @@ html, body, .app { background: var(--bg); color: var(--fg); }
 .music-alts .chip { max-width: 220px; overflow: hidden; text-overflow: ellipsis; }
 .music .act-links a:first-child { background: #1DB954; color: #fff; }
 
-/* 탭 3개 (홈에 운전 합침): 음성 구 + 홈 · 꾸미기 · 일기 */
-.tabbar { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-.tabbar.with-mic { grid-template-columns: 66px repeat(3, minmax(0, 1fr)); }
+/* 탭 4개: 음성 구 + 홈 · 내 차 · 꾸미기 · 기록 */
+.tabbar { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.tabbar.with-mic { grid-template-columns: 62px repeat(4, minmax(0, 1fr)); }
 .drive-card .h3 { font-size: 18px; }
 
 /* 꾸미기 · 색상: 차종 고르기 (실제 3D 모델 4종) */
@@ -380,3 +380,65 @@ html, body, .app { background: var(--bg); color: var(--fg); }
 .wake-row { display: block; margin: 8px 0 4px; text-align: left; }
 .wake-row .set-row { max-width: 460px; margin: 0 auto; }
 .set-row.static { cursor: default; }
+
+/* =====================================================================
+   리디자인 v2 — Figma "리디자인 v2 · 황금비" 페이지
+   황금비: 화면 나눔 1.618 : 1, 여백·글자 단계 8 · 13 · 21 · 34 · 55
+   불빛: 어두운 화면에서만 버튼 · 막대 · 숫자 · 선택된 메뉴가 은은하게 빛남
+   ===================================================================== */
+:root {
+  --g1: 8px; --g2: 13px; --g3: 21px; --g4: 34px; --g5: 55px;
+  --glow-btn: 0 6px 21px rgba(49, 130, 246, .22);
+  --glow-bar: none;
+  --glow-tab: none;
+}
+:root[data-theme="dark"] {
+  --glow-btn: 0 0 21px rgba(49, 130, 246, .5), 0 8px 34px rgba(49, 130, 246, .3);
+  --glow-bar: 0 0 13px rgba(124, 192, 255, .75);
+  --glow-tab: drop-shadow(0 0 8px rgba(124, 192, 255, .9));
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --glow-btn: 0 0 21px rgba(49, 130, 246, .5), 0 8px 34px rgba(49, 130, 246, .3);
+    --glow-bar: 0 0 13px rgba(124, 192, 255, .75);
+    --glow-tab: drop-shadow(0 0 8px rgba(124, 192, 255, .9));
+  }
+}
+.btn.primary { box-shadow: var(--glow-btn); }
+.btn.primary:disabled { box-shadow: none; }
+.range-bar > div, .bar > div { background: linear-gradient(90deg, var(--blue), #7cc0ff); box-shadow: var(--glow-bar); }
+.tabbar button.on svg { filter: var(--glow-tab); }
+.glow-num { text-shadow: var(--km-glow); }
+.card { border-radius: var(--g3); }
+
+/* 차 화면: 왼쪽 61.8% · 오른쪽 38.2% */
+html.pleos .app > .screen { grid-template-columns: minmax(0, 1.618fr) minmax(0, 1fr); column-gap: var(--g4); }
+html.pleos .app > .screen > .side { gap: var(--g2); }
+
+/* ---------- 내 차 (마이현대 기능) ---------- */
+.mycar { display: grid; gap: var(--g2); }
+.mc-head { display: grid; gap: 2px; }
+.mc-grid { display: grid; grid-template-columns: minmax(0, 1.618fr) minmax(0, 1fr); gap: var(--g2); }
+@media (max-width: 560px) { .mc-grid { grid-template-columns: minmax(0, 1fr); } }
+.mc-tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--g1); }
+.mc-tile { display: grid; justify-items: center; align-content: center; gap: var(--g1); min-height: 89px; border-radius: var(--g2); background: var(--line); color: var(--gray-700); font-size: 13px; font-weight: 600; }
+.mc-ghost { background: var(--line); color: var(--fg); text-decoration: none; display: flex; align-items: center; justify-content: center; }
+.mc-big { font-size: 34px; font-weight: 700; letter-spacing: -0.03em; line-height: 1.1; }
+.mc-big small, .mc-stats small { font-size: 15px; color: var(--fg-2); margin-left: 3px; font-weight: 600; text-shadow: none; }
+.mc-insight { align-content: start; gap: var(--g1); }
+.mc-parts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--g2) var(--g4); }
+@media (max-width: 560px) { .mc-parts { grid-template-columns: minmax(0, 1fr); } }
+.mc-part { display: grid; gap: var(--g1); font-size: 14px; }
+.mc-part.due .range-bar > div { background: var(--bad); box-shadow: 0 0 13px rgba(255, 107, 120, .6); }
+.mc-part .btn.text { justify-self: start; padding: 0; min-height: 0; color: var(--blue); }
+.mc-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--g1); }
+.mc-stats > div { display: grid; gap: 2px; padding: var(--g2); border-radius: var(--g2); background: var(--line); }
+.mc-stats b { font-size: 21px; font-weight: 700; }
+.mc-charge { display: inline-flex; align-items: center; gap: 6px; }
+.bad-text { color: var(--bad) !important; }
+.mc-list { gap: 0; }
+.mc-list > .label { margin-bottom: var(--g1); }
+.mc-row { display: flex; align-items: center; gap: var(--g2); padding: var(--g2) 0; color: var(--fg); text-decoration: none; border-top: 1px solid var(--line); min-height: 55px; }
+.mc-list > .label + .mc-row { border-top: 0; }
+.mc-row b { flex: 1; font-size: 15px; font-weight: 600; }
+.mc-ic { flex: none; width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; background: var(--ai-soft); color: var(--ai); }

@@ -49,9 +49,9 @@ html.pleos .tabbar button svg { width: 30px; height: 30px; }
 /* 앱 창 안 2열 */
 html.pleos .app > .screen {
   display: grid;
-  grid-template-columns: minmax(0, 1.08fr) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1.618fr) minmax(0, 1fr); /* 황금비 */
   grid-template-rows: auto auto auto 1fr;
-  column-gap: 44px;
+  column-gap: 34px;
   align-items: start;
 }
 html.pleos .app > .screen > :not(.side) { grid-column: 1; }
