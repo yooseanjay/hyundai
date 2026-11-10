@@ -34,13 +34,13 @@ export function writeDiary(opts: {
     ]),
   );
 
-  if (trip.hardBrakes >= 3) lines.push(pick(['급브레이크가 몇 번 있어서 깜짝 놀랐다. 다음엔 살살 부탁해요 🥺', '오늘은 조금 롤러코스터 같았다… 심장이 두근두근.']));
+  if (trip.hardBrakes >= 3) lines.push(pick(['급브레이크가 몇 번 있어서 깜짝 놀랐다. 다음엔 살살 부탁해요', '오늘은 조금 롤러코스터 같았다… 심장이 두근두근.']));
   else if (trip.hardBrakes === 0 && trip.avgSpeedKmh < 45) lines.push(pick(['주인이 부드럽게 운전해 줘서 기분이 몽글몽글했다.', '흔들림 없이 편안한 드라이브였다. 오늘 주인 운전 100점!']));
   else lines.push(pick(['평균 ' + trip.avgSpeedKmh + 'km/h로 신나게 달렸다.', '창밖 풍경이 휙휙 지나가서 재밌었다.']));
 
   if (newWarnings.length) lines.push(`그런데 ${newWarnings.map((k) => WARNING_LABELS[k]).join(', ')} 쪽이 좀 이상하다… 주인이 알아채 줬으면 좋겠다.`);
-  if (snapshot.fuelLevelPct < 20) lines.push(`배가 너무 고프다. 남은 힘으로 ${snapshot.dteKm}km 정도 갈 수 있을 것 같다. 🍙`);
-  else if (snapshot.fuelLevelPct > 70) lines.push('아직 힘이 넘친다! 내일도 문제없다 💪');
+  if (snapshot.fuelLevelPct < 20) lines.push(`배가 너무 고프다. 남은 힘으로 ${snapshot.dteKm}km 정도 갈 수 있을 것 같다.`);
+  else if (snapshot.fuelLevelPct > 70) lines.push('아직 힘이 넘친다! 내일도 문제없다');
 
   lines.push(`지금은 ${place}에서 쉬는 중.`);
 

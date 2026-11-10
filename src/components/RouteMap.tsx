@@ -82,7 +82,7 @@ export function RouteMap({ road, pos }: Props) {
   return (
     <div className="card route-map">
       <div className="card-head">
-        <b className="label">📍 {road.name}</b>
+        <b className="label">{road.name}</b>
         <span className="cap">{road.region}</span>
       </div>
       {naverOk && NAVER_ID ? (
@@ -96,7 +96,7 @@ export function RouteMap({ road, pos }: Props) {
         </svg>
       )}
       <div className="card-head">
-        <span className="cap">실제 도로 모양 그대로 달리는 중 · 끝나면 다시 이어져요</span>
+        <span className="cap">실제 도로 모양으로 주행 중</span>
         <a className="cap rm-link" href={`https://map.naver.com/p/search/${encodeURIComponent(`${road.name} ${road.region.split(' · ')[0]}`)}`} target="_blank" rel="noopener noreferrer">네이버 지도에서 보기</a>
       </div>
       <span className="cap rm-attr">도로 모양 © OpenStreetMap 기여자</span>

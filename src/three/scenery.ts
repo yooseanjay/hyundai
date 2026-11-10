@@ -10,11 +10,11 @@ import { InfiniteRoad, Track } from './roadPath';
 
 export type SceneId = 'city' | 'forest' | 'park' | 'sea';
 
-export const SCENES: { id: SceneId; label: string; emoji: string }[] = [
-  { id: 'city', label: '한국 도로', emoji: '🏙️' },
-  { id: 'forest', label: '숲속', emoji: '🌲' },
-  { id: 'park', label: '놀이공원', emoji: '🎡' },
-  { id: 'sea', label: '바닷가', emoji: '🌊' },
+export const SCENES: { id: SceneId; label: string }[] = [
+  { id: 'city', label: '도시' },
+  { id: 'forest', label: '숲' },
+  { id: 'park', label: '놀이공원' },
+  { id: 'sea', label: '바다' },
 ];
 
 export type Light = 'green' | 'yellow' | 'red';

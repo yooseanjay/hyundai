@@ -704,7 +704,7 @@ body { word-break: keep-all; overflow-wrap: anywhere; } /* 한국어: 단어 중
 .scene-pick { display: flex; gap: 5px; overflow-x: auto; scrollbar-width: none; }
 .scene-pick::-webkit-scrollbar { display: none; }
 .scene-pick .chip { display: inline-flex; align-items: center; gap: 5px; }
-@media (max-width: 420px) { .scene-pick .scene-name { display: none; } }
+@media (max-width: 420px) { .scene-pick .chip { padding: 0 10px; font-size: 13px; } }
 .scene-row { margin-bottom: 8px; }
 
 /* 주행 중 지도 (네이버 지도 / 도로 모양 그림) */

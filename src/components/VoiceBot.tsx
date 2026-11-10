@@ -232,7 +232,7 @@ export function VoiceBot({ ctx, onLine, variant = 'screen' }: {
     rec.interimResults = true;
     rec.maxAlternatives = 1;
     let final = '';
-    rec.onstart = () => { if (!muted) sfx.listen(); setPhase('listening'); setHeard(''); onLine('듣고 있어요… 👂', 'calm'); };
+    rec.onstart = () => { if (!muted) sfx.listen(); setPhase('listening'); setHeard(''); onLine('듣고 있어요', 'calm'); };
     rec.onresult = (e: any) => {
       const t = Array.from(e.results).map((x: any) => x[0].transcript).join('');
       setHeard(t);
@@ -240,7 +240,7 @@ export function VoiceBot({ ctx, onLine, variant = 'screen' }: {
     };
     rec.onerror = (e: any) => {
       setPhase('idle');
-      const msg = e.error === 'not-allowed' ? '마이크 권한이 필요해요. 주소창 옆 🔒에서 허용해 주세요!' : e.error === 'no-speech' ? '아무 말도 안 들렸어요. 다시 눌러서 말해 줄래요?' : '잘 못 들었어요. 글자로 물어봐도 돼요!';
+      const msg = e.error === 'not-allowed' ? '마이크 권한이 필요해요. 주소창 옆 자물쇠에서 허용해 주세요.' : e.error === 'no-speech' ? '아무 말도 안 들렸어요. 다시 눌러서 말해 줄래요?' : '잘 못 들었어요. 글자로 물어봐도 돼요!';
       onLine(msg, 'calm');
       finish();
     };
@@ -402,7 +402,7 @@ export function VoiceBot({ ctx, onLine, variant = 'screen' }: {
           if (!muted) sfx.listen();
           setHeard('');
           setPhase('listening');
-          onLine('듣고 있어요… 👂', 'calm');
+          onLine('듣고 있어요', 'calm');
           return;
         } catch {
           setPhase('idle');
@@ -546,12 +546,13 @@ export function VoiceBot({ ctx, onLine, variant = 'screen' }: {
 
       {wakeSupported() && (
         <div className="wake-row">
-          <button className={`chip sm ${wakeOn ? 'on' : ''}`} onClick={() => setWakePref(!wakeOn)} aria-pressed={wakeOn}>
-            🎙 “현대” 하고 부르면 듣기 · {wakeOn ? '켜짐' : '꺼짐'}
+          <button className="set-row" onClick={() => setWakePref(!wakeOn)} role="switch" aria-checked={wakeOn}>
+            <span className="set-txt">
+              <b>“현대”로 호출</b>
+              <span>{wakeOn ? '“현대”라고 부르면 음성 인식이 시작돼요' : '마이크 버튼을 눌러야 음성 인식이 시작돼요'}</span>
+            </span>
+            <span className={`switch ${wakeOn ? 'on' : ''}`} aria-hidden />
           </button>
-          <span className="cap">{wakeOn
-            ? '화면을 누르지 않아도 “현대”라고 부르면 대화가 시작돼요. “현대, 날씨 어때?”처럼 바로 물어봐도 돼요. 듣는 소리는 브라우저 음성 인식이 처리해요.'
-            : '끄면 마이크 버튼을 눌러야 들어요.'}</span>
         </div>
       )}
       <div className="mic-area">

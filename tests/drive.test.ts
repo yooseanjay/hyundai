@@ -108,7 +108,7 @@ describe('주행 규칙', () => {
     const sc = buildScenery(new THREE.Scene(), 'sea');
     const d = newDrive();
     untilTurnZone(sc, d, 0);
-    expect(steer(sc, d, -1)).toContain('왼쪽으로 꺾을 수 없어요');
+    expect(steer(sc, d, -1)).toContain('좌회전할 수 없는');
     expect(sc.nextJunction(d.S).turn).toBe(0);
     sc.dispose();
   });

@@ -77,12 +77,12 @@ export const FUEL_LABEL: Record<FuelType, string> = {
 };
 
 /** 에너지 용어 (캐릭터 대사·버튼) */
-export const ENERGY_TERMS: Record<FuelType, { refill: string; icon: string; unit: string }> = {
-  gasoline: { refill: '주유하기', icon: '⛽', unit: 'L' },
-  diesel: { refill: '주유하기', icon: '⛽', unit: 'L' },
-  hybrid: { refill: '주유하기', icon: '⛽', unit: 'L' },
-  ev: { refill: '충전하기', icon: '⚡', unit: 'kWh' },
-  hydrogen: { refill: '수소 충전', icon: '💧', unit: 'kg' },
+export const ENERGY_TERMS: Record<FuelType, { refill: string; unit: string }> = {
+  gasoline: { refill: '주유하기', unit: 'L' },
+  diesel: { refill: '주유하기', unit: 'L' },
+  hybrid: { refill: '주유하기', unit: 'L' },
+  ev: { refill: '충전하기', unit: 'kWh' },
+  hydrogen: { refill: '수소 충전', unit: 'kg' },
 };
 
 export const findModelById = (id: string) => HYUNDAI_MODELS.find((m) => m.id === id);

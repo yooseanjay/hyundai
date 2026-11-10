@@ -22,7 +22,7 @@ export function computeStatus(s: VehicleSnapshot, trips: Trip[], driving = false
   const fatigue = Math.min(100, Math.round(todayKm / 2.5));
 
   let mood: Mood = 'happy';
-  let line = '오늘도 같이 달려요! 🚗';
+  let line = '오늘도 같이 달려요!';
 
   if (driving) {
     mood = 'excited';
@@ -30,22 +30,22 @@ export function computeStatus(s: VehicleSnapshot, trips: Trip[], driving = false
   } else if (activeWarnings.length > 0) {
     mood = 'sick';
     const w = WARNING_LABELS[activeWarnings[0]];
-    line = activeWarnings.length > 1 ? `여기저기 아파요… (${w} 외 ${activeWarnings.length - 1}곳)` : `${w} 쪽이 불편해요… 🥺`;
+    line = activeWarnings.length > 1 ? `여기저기 아파요… (${w} 외 ${activeWarnings.length - 1}곳)` : `${w} 쪽이 불편해요…`;
   } else if (energy < 20) {
     mood = 'hungry';
-    line = `배고파요… 🍙 이대로면 ${s.dteKm}km밖에 못 가요`;
+    line = `배고파요… 이대로면 ${s.dteKm}km밖에 못 가요`;
   } else if (s.charging) {
     mood = 'calm';
-    line = '냠냠, 충전 중이에요 ⚡';
+    line = '냠냠, 충전 중이에요';
   } else if (fatigue > 70) {
     mood = 'tired';
-    line = `오늘 ${todayKm}km나 달렸어요. 좀 쉬고 싶어요 😪`;
+    line = `오늘 ${todayKm}km나 달렸어요. 좀 쉬고 싶어요`;
   } else if (new Date().getHours() >= 23 || new Date().getHours() < 6) {
     mood = 'sleepy';
-    line = '쿨쿨… 내일 봐요 💤';
+    line = '쿨쿨… 내일 봐요';
   } else if (energy > 70 && health === 100) {
     mood = 'happy';
-    line = '컨디션 최고! 어디든 갈 수 있어요 ✨';
+    line = '컨디션 최고! 어디든 갈 수 있어요';
   } else {
     mood = 'calm';
     line = '오늘은 어디 갈까요?';
@@ -55,11 +55,11 @@ export function computeStatus(s: VehicleSnapshot, trips: Trip[], driving = false
 }
 
 /** 경고별 아이콘과 캐릭터식 표현 (돌봐주세요 카드) */
-export const WARNING_UI: Record<WarningKey, { icon: string; hint: string }> = {
-  tirePressure: { icon: '🛞', hint: '바퀴가 말랑말랑해요…' },
-  engineOil: { icon: '🛢️', hint: '속이 더부룩해요…' },
-  brakeOil: { icon: '🛑', hint: '멈추기가 힘들어요…' },
-  washerFluid: { icon: '💧', hint: '앞이 잘 안 보여요…' },
-  lamp: { icon: '💡', hint: '눈이 침침해요…' },
-  smartKeyBattery: { icon: '🔑', hint: '열쇠가 졸려해요…' },
+export const WARNING_UI: Record<WarningKey, { hint: string }> = {
+  tirePressure: { hint: '바퀴가 말랑말랑해요…' },
+  engineOil: { hint: '속이 더부룩해요…' },
+  brakeOil: { hint: '멈추기가 힘들어요…' },
+  washerFluid: { hint: '앞이 잘 안 보여요…' },
+  lamp: { hint: '눈이 침침해요…' },
+  smartKeyBattery: { hint: '열쇠가 졸려해요…' },
 };

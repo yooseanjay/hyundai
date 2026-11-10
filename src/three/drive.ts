@@ -69,11 +69,11 @@ export function steer(sc: Scenery, d: DriveState, side: -1 | 1): string {
   const j = sc.nextJunction(d.S - 0.5);
   if (!d.reverse && canTurn(d.S, j)) {
     if (sc.requestTurn(d.S, side)) return side < 0 ? '다음 교차로에서 좌회전' : '다음 교차로에서 우회전';
-    return '여기선 왼쪽으로 꺾을 수 없어요';
+    return '좌회전할 수 없는 교차로예요';
   }
   // 반대편 차로까지는 갈 수 있음 (한 차로 길에서 막힌 곳 피하기)
   const next = Math.max(-sc.lanes, Math.min(sc.lanes - 1, d.lane + side));
-  const msg = next === d.lane ? (side > 0 ? '가장 오른쪽 차로예요' : '더 갈 차로가 없어요') : next < 0 ? '중앙선 넘음! 조심해요' : `${next + 1}차로로 이동`;
+  const msg = next === d.lane ? (side > 0 ? '가장 오른쪽 차로예요' : '가장 왼쪽 차로예요') : next < 0 ? '중앙선 침범' : `${next + 1}차로로 이동`;
   d.lane = next;
   return msg;
 }
