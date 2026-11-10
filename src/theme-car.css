@@ -1,0 +1,42 @@
+/* ───────────────────────────────────────────────────────────────
+   차 화면(Pleos Connect) 2열 배치
+   - html.car: 차 안 앱이거나 주소에 ?car (src/carScreen.ts)
+   - 넓은 가로 화면에서만: 왼쪽 = 3D 차·제목, 오른쪽(.side) = 상태·카드·대화
+   - 휴대폰에서는 .side 가 display: contents 라 배치가 그대로
+   ─────────────────────────────────────────────────────────────── */
+
+.side { display: contents; }
+
+@media (min-width: 900px) and (orientation: landscape) {
+  html.car .app { max-width: 1320px; padding: 16px 40px 112px; }
+
+  html.car .app > .screen {
+    grid-template-columns: minmax(0, 1.08fr) minmax(0, 1fr);
+    /* 왼쪽 열 최대 3칸 + 남는 높이는 마지막 빈 칸이 받음 → 왼쪽 항목 사이가 벌어지지 않음 */
+    grid-template-rows: auto auto auto 1fr;
+    column-gap: 40px;
+    align-items: start;
+  }
+  html.car .app > .screen > :not(.side) { grid-column: 1; }
+  html.car .app > .screen > .side {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--sp-3, 13px);
+    grid-column: 2;
+    grid-row: 1 / -1;
+    align-content: start;
+  }
+
+  /* 왼쪽이 차 한 대뿐인 화면(홈 · 꾸미기)은 스크롤해도 차가 그 자리에 */
+  html.car .home-x > .hero,
+  html.car .studio > .studio-stage { position: sticky; top: 16px; }
+  html.car .studio > .studio-stage { margin: 0; border-bottom: 0; border-radius: 21px; overflow: hidden; }
+
+  /* 기록 화면: 일기 카드를 2개씩 */
+  html.car .diary-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  html.car .diary-list .diary-item { height: 100%; }
+
+  /* 차 화면은 손가락이 멀어서 누르는 곳을 조금 크게 */
+  html.car .btn, html.car .chip { min-height: 48px; }
+  html.car .tabbar { max-width: 520px; }
+}
