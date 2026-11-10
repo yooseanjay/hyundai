@@ -1,0 +1,73 @@
+/* ───────────────────────────────────────────────────────────────
+   Pleos Connect 차 화면 모드 (html.pleos, src/carScreen.ts)
+   - 위 상태 바 · 아래 시스템 바(GNB) 사이가 앱 창
+   - 앱 메뉴는 왼쪽 세로 메뉴 (아래쪽은 시스템 바 자리라 비움)
+   - 앱 창 안은 2열: 왼쪽 = 3D 차 · 제목, 오른쪽(.side) = 상태 · 카드 · 대화
+   - 휴대폰에서는 .side 가 display: contents 라 배치가 그대로
+   ─────────────────────────────────────────────────────────────── */
+
+.side { display: contents; }
+.pf-status, .pf-gnb { display: none; }
+
+html.pleos { --pf-top: 44px; --pf-bot: 92px; --pf-rail: 124px; }
+html.pleos, html.pleos body { background: #000; overflow: hidden; }
+
+/* 시스템 테두리 (그림) */
+html.pleos .pf-status, html.pleos .pf-gnb {
+  display: flex; align-items: center; position: fixed; left: 0; right: 0; z-index: 60;
+  background: #050506; color: #e9ecf1; pointer-events: none; user-select: none;
+}
+html.pleos .pf-status { top: 0; height: var(--pf-top); padding: 0 28px; justify-content: space-between; font-size: 18px; }
+html.pleos .pf-note { font-size: 13px; color: #8a9099; letter-spacing: .02em; }
+html.pleos .pf-icons { display: flex; gap: 14px; color: #c4cad3; }
+html.pleos .pf-gnb { bottom: 0; height: var(--pf-bot); padding: 0 36px; justify-content: space-between; border-top: 1px solid #1c1f24; }
+html.pleos .pf-apps { display: flex; gap: 64px; color: #c4cad3; }
+html.pleos .pf-clim { display: flex; align-items: center; gap: 16px; font-size: 26px; min-width: 150px; color: #c4cad3; }
+html.pleos .pf-clim:last-child { justify-content: flex-end; }
+html.pleos .pf-clim b { color: #f2f4f7; font-weight: 600; }
+
+/* 앱 창 */
+html.pleos .app {
+  position: fixed; top: var(--pf-top); bottom: var(--pf-bot); left: 0; right: 0;
+  max-width: none; min-height: 0; margin: 0; overflow-y: auto; overscroll-behavior: contain;
+  padding: 28px 48px 40px calc(var(--pf-rail) + 40px);
+}
+html.pleos .brand { display: none; }
+
+/* 왼쪽 세로 메뉴 (휴대폰의 아래 탭바를 옮김) */
+html.pleos .tabbar {
+  position: fixed; left: 0; top: var(--pf-top); bottom: var(--pf-bot); transform: none;
+  width: var(--pf-rail); max-width: none; height: auto; margin: 0; padding: 20px 0;
+  display: flex; flex-direction: column; align-items: stretch; justify-content: center; gap: 12px;
+  border-radius: 0; border: 0; border-right: 1px solid rgba(127, 127, 127, .18); box-shadow: none;
+}
+html.pleos .tabbar.with-mic { padding-left: 0; }
+html.pleos .tabbar > * { align-self: center; }
+html.pleos .tabbar button { width: 100%; min-height: 88px; gap: 8px; font-size: 17px; }
+html.pleos .tabbar button svg { width: 30px; height: 30px; }
+
+/* 앱 창 안 2열 */
+html.pleos .app > .screen {
+  display: grid;
+  grid-template-columns: minmax(0, 1.08fr) minmax(0, 1fr);
+  grid-template-rows: auto auto auto 1fr;
+  column-gap: 44px;
+  align-items: start;
+}
+html.pleos .app > .screen > :not(.side) { grid-column: 1; }
+html.pleos .app > .screen > .side {
+  display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px;
+  grid-column: 2; grid-row: 1 / -1; align-content: start;
+}
+html.pleos .home-x > .hero,
+html.pleos .studio > .studio-stage { position: sticky; top: 0; }
+html.pleos .studio > .studio-stage { margin: 0; border-bottom: 0; border-radius: 21px; overflow: hidden; }
+html.pleos .diary-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+html.pleos .diary-list .diary-item { height: 100%; }
+
+/* 차 화면은 손가락이 멀어서 누르는 곳을 크게 */
+html.pleos .btn, html.pleos .chip { min-height: 52px; }
+
+/* 아래에서 올라오는 창 · 알림도 시스템 바 위에 */
+html.pleos .sheet-backdrop { bottom: var(--pf-bot); top: var(--pf-top); }
+html.pleos .toast { bottom: calc(var(--pf-bot) + 24px); }
