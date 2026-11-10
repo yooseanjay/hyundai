@@ -10,6 +10,7 @@ import type { Mood } from '../game/character';
 import type { CharStyle } from '../game/style';
 import { buildCar, type CarRig } from '../three/carModel';
 import { shapeOf } from '../three/shapes';
+import { buildScenery, type SceneId, type Scenery } from '../three/scenery';
 
 interface Props {
   mood: Mood;
@@ -24,12 +25,14 @@ interface Props {
   /** 급정거 순간 (차가 앞으로 쏠림) */
   braking?: boolean;
   talking?: boolean;
+  /** 주행 배경 장면 — drive 모드 */
+  scenery?: SceneId;
   height: number;
 }
 
 /** 화면 속도감: 실제 속도(m/s)에 곱하는 값 (100km/h ≈ 초당 도로 9.7m 흐름) */
 const VISUAL = 0.35;
-const ROAD_LEN = 80;
+const ROAD_LEN = 220;
 
 function roadTexture() {
   // 가로(u) = 도로 길이 방향, 세로(v) = 도로 폭
@@ -37,11 +40,15 @@ function roadTexture() {
   cv.width = 512;
   cv.height = 256;
   const g = cv.getContext('2d')!;
-  g.fillStyle = '#121315';
+  g.fillStyle = '#1f2124';
   g.fillRect(0, 0, 512, 256);
   for (let i = 0; i < 1400; i++) { g.fillStyle = `rgba(255,255,255,${Math.random() * 0.04})`; g.fillRect(Math.random() * 512, Math.random() * 256, 2, 2); }
-  g.fillStyle = 'rgba(255,255,255,.85)';
-  g.fillRect(0, 124, 260, 8); // 가운데 점선 (반복되면서 점선)
+  g.fillStyle = '#f2c230';
+  g.fillRect(0, 117, 512, 6); // 한국 도로 가운데 노란 겹선 (중앙선)
+  g.fillRect(0, 133, 512, 6);
+  g.fillStyle = 'rgba(255,255,255,.75)';
+  g.fillRect(0, 60, 260, 6); // 차로 점선
+  g.fillRect(0, 190, 260, 6);
   g.fillStyle = 'rgba(255,255,255,.6)';
   g.fillRect(0, 10, 512, 6);
   g.fillRect(0, 240, 512, 6);
@@ -66,10 +73,13 @@ function glowTexture() {
   return new THREE.CanvasTexture(cv);
 }
 
-export default function Car3D({ mood, color, shape, style, mode = 'show', speedKmh = 0, braking = false, talking = false, height }: Props) {
+export default function Car3D({ mood, color, shape, style, mode = 'show', speedKmh = 0, braking = false, talking = false, scenery = 'city', height }: Props) {
   const host = useRef<HTMLDivElement>(null);
   const rig = useRef<CarRig | null>(null);
   const sceneRef = useRef<THREE.Scene | null>(null);
+  const sceneryRef = useRef<Scenery | null>(null);
+  const sceneryId = useRef(scenery);
+  sceneryId.current = scenery;
   const look = useRef({ mood, color, style });
   look.current = { mood, color, style };
   const live = useRef({ speed: speedKmh, braking, talking });
@@ -89,7 +99,7 @@ export default function Car3D({ mood, color, shape, style, mode = 'show', speedK
     renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.35;
+    renderer.toneMappingExposure = mode === 'drive' ? 1.0 : 1.35; // 주행 배경은 밝은 하늘이라 조금 낮춤
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     el.appendChild(renderer.domElement);
@@ -146,7 +156,6 @@ export default function Car3D({ mood, color, shape, style, mode = 'show', speedK
 
     const extra: { dispose(): void }[] = [shadowFloor.geometry, shadowFloor.material as THREE.Material, envTex, pmrem];
     let roadTex: THREE.CanvasTexture | null = null;
-    const posts: THREE.Object3D[] = [];
 
     if (mode === 'show') {
       // 쇼룸: 발밑 스포트라이트 원
@@ -164,29 +173,9 @@ export default function Car3D({ mood, color, shape, style, mode = 'show', speedK
       road.position.set(0, 0.001, 0.9);
       road.receiveShadow = true;
       scene.add(road);
-      const side = new THREE.Mesh(new THREE.PlaneGeometry(ROAD_LEN, 40), new THREE.MeshStandardMaterial({ color: '#08080a', roughness: 1 }));
-      side.rotation.x = -Math.PI / 2;
-      side.position.y = -0.002;
-      scene.add(side);
-      extra.push(roadTex, road.geometry, road.material as THREE.Material, side.geometry, side.material as THREE.Material);
-      // 가로등 기둥 (흘러가며 반복)
-      const poleG = new THREE.CylinderGeometry(0.04, 0.05, 2.6, 8);
-      const lampG = new THREE.BoxGeometry(0.5, 0.06, 0.14);
-      const poleM = new THREE.MeshStandardMaterial({ color: '#3a3b40', metalness: 0.6, roughness: 0.4 });
-      const lampM = new THREE.MeshStandardMaterial({ color: '#fff', emissive: '#fff', emissiveIntensity: 3 });
-      extra.push(poleG, lampG, poleM, lampM);
-      for (let i = 0; i < 8; i++) {
-        const p = new THREE.Group();
-        const pole = new THREE.Mesh(poleG, poleM);
-        pole.position.y = 1.3;
-        const lamp = new THREE.Mesh(lampG, lampM);
-        lamp.position.set(0, 2.6, 0.2);
-        p.add(pole, lamp);
-        p.position.set(-ROAD_LEN / 2 + i * (ROAD_LEN / 8), 0, -2.0);
-        scene.add(p);
-        posts.push(p);
-      }
-      scene.fog = new THREE.Fog('#000000', 14, 34);
+      extra.push(roadTex, road.geometry, road.material as THREE.Material);
+      // 배경 장면 (한국 도로 · 숲속 · 놀이공원 · 바닷가)
+      sceneryRef.current = buildScenery(scene, sceneryId.current);
     }
 
     // 크기 맞추기
@@ -228,10 +217,7 @@ export default function Car3D({ mood, color, shape, style, mode = 'show', speedK
       if (!car) return;
       car.wheels.forEach((w) => { w.rotation.z -= (v / car.wheelR) * dt; });
       if (roadTex) roadTex.offset.x = (travelled / 8) % 1;
-      posts.forEach((p) => {
-        p.position.x -= v * dt;
-        if (p.position.x < -ROAD_LEN / 2) p.position.x += ROAD_LEN;
-      });
+      sceneryRef.current?.update(v * dt, dt, t);
 
       // 차체 움직임: 주행 진동 · 급정거 쏠림 · 말할 때 통통 · 대기 숨쉬기
       const targetLean = br ? 0.06 : 0;
@@ -260,7 +246,8 @@ export default function Car3D({ mood, color, shape, style, mode = 'show', speedK
       rig.current?.dispose();
       sceneRef.current = null;
       extra.forEach((d) => d.dispose());
-      posts.forEach((p) => scene.remove(p));
+      sceneryRef.current?.dispose();
+      sceneryRef.current = null;
       renderer.dispose();
       renderer.domElement.remove();
       rig.current = null;
@@ -278,6 +265,15 @@ export default function Car3D({ mood, color, shape, style, mode = 'show', speedK
     if (rig.current) { scene.remove(rig.current.group); rig.current.dispose(); }
     mountCar(scene, rig, shape, look.current);
   }, [shape]);
+  // 장면만 바꿔 끼움 (차 · 카메라는 그대로)
+  const firstScenery = useRef(true);
+  useEffect(() => {
+    if (firstScenery.current) { firstScenery.current = false; return; }
+    const scene = sceneRef.current;
+    if (!scene || mode !== 'drive') return;
+    sceneryRef.current?.dispose();
+    sceneryRef.current = buildScenery(scene, scenery);
+  }, [scenery, mode]);
   useEffect(() => { if (style) rig.current?.setStyle(style); }, [style]);
   useEffect(() => { rig.current?.setMood(mood); }, [mood]);
   useEffect(() => { rig.current?.setColor(color); }, [color]);

@@ -26,6 +26,7 @@ import SecurityPanel from './components/SecurityPanel';
 import type { Trip as TripT } from './api/types';
 import { loadProgress, saveProgress, type Progress } from './game/progress';
 import { wideCar } from './carScreen';
+import { SCENES, type SceneId } from './three/scenery';
 
 type Tab = 'home' | 'studio' | 'diary';
 type View = Tab | 'talk';
@@ -70,6 +71,8 @@ export default function App() {
   const [month, setMonth] = useState(() => { const d = new Date(); return { y: d.getFullYear(), m: d.getMonth() }; });
 
   const [driving, setDriving] = useState(false);
+  const [scene, setScene] = useState<SceneId>(() => { try { return (localStorage.getItem('drive-scene') as SceneId) || 'city'; } catch { return 'city'; } });
+  const pickScene = (id: SceneId) => { setScene(id); try { localStorage.setItem('drive-scene', id); } catch { /* 저장 안 돼도 괜찮음 */ } };
   const [driveProgress, setDriveProgress] = useState(0);
   const [live, setLive] = useState<LiveDrive & { braking: boolean }>({ speed: 0, km: 0, hardBrakes: 0, maxSpeed: 0, braking: false });
   const sim = useRef({ t: 0, speed: 0, km: 0, hardBrakes: 0, maxSpeed: 0, sum: 0, n: 0, brakeUntil: 0 });
@@ -307,7 +310,10 @@ export default function App() {
             <Suspense fallback={<div className="highway"><CarCharacter mood={st.mood} color={carColor} size={232} /></div>}>
               <div className="drive3d">
                 <Car3D mode="drive" mood={driving ? (live.braking ? 'sick' : 'excited') : st.mood} color={carColor} shape={carShape} style={look}
-                  speedKmh={driving ? live.speed : 0} braking={live.braking} height={goldH()} />
+                  speedKmh={driving ? live.speed : 0} braking={live.braking} scenery={scene} height={goldH()} />
+                <button className="scene-btn" onClick={() => pickScene(SCENES[(SCENES.findIndex((x) => x.id === scene) + 1) % SCENES.length].id)} aria-label="주행 장면 바꾸기">
+                  {SCENES.find((x) => x.id === scene)?.emoji} {SCENES.find((x) => x.id === scene)?.label}
+                </button>
                 {driving && (
                   <div className="hud">
                     <b>{Math.round(live.speed)}</b><span>km/h</span>
@@ -336,6 +342,12 @@ export default function App() {
           {!driving && (
             <div className="card drive-card">
               <div className="card-head"><b className="h3">함께 달려볼까요?</b><Route size={18} className="muted" /></div>
+              <div className="card-head"><b className="label">달릴 곳</b><span className="cap">주행하면 이 장면이 펼쳐져요</span></div>
+              <div className="chip-row scene-row">
+                {SCENES.map((x) => (
+                  <button key={x.id} className={`chip ${scene === x.id ? 'on' : ''}`} onClick={() => pickScene(x.id)}>{x.emoji} {x.label}</button>
+                ))}
+              </div>
               <div className="card-head"><b className="label">측정 방식</b><span className="cap">{source === 'gps' ? '휴대폰 GPS로 실제 속도' : '데모 시뮬레이션'}</span></div>
               <div className="chip-row">
                 <button className={`chip ${source === 'gps' ? 'on' : ''}`} onClick={() => setSource('gps')} disabled={!gpsSupported()}>실제 GPS</button>

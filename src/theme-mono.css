@@ -697,3 +697,8 @@ body { word-break: keep-all; overflow-wrap: anywhere; } /* 한국어: 단어 중
 .sec-actions { flex-wrap: wrap; gap: 8px; justify-content: flex-start; }
 .sec-form { display: grid; gap: 8px; }
 .sec-erase { justify-self: start; color: var(--bad); padding-left: 0; }
+
+/* 주행 장면 바꾸기 (3D 주행 화면 오른쪽 위) */
+.scene-btn { position: absolute; right: 12px; top: 10px; z-index: 2; height: 34px; padding: 0 13px; border-radius: 999px;
+  background: rgba(0, 0, 0, .45); color: #fff; font-size: var(--fs-1); font-weight: 600; backdrop-filter: blur(6px); border: 1px solid rgba(255, 255, 255, .25); }
+.scene-row { margin-bottom: 8px; }
