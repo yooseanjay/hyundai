@@ -4,6 +4,7 @@ import type { ActionCard } from '../voice/actions';
 
 import { PlayerControls } from './SpotifyPanel';
 import { connectSpotify, linkSpotify, SPOTIFY_HOME } from '../voice/spotify';
+import { showWindow } from '../voice/spotifyEmbed';
 
 type MusicCard = Extract<ActionCard, { kind: 'music' }>;
 
@@ -11,6 +12,14 @@ type MusicCard = Extract<ActionCard, { kind: 'music' }>;
 function MusicCardView({ card }: { card: MusicCard }) {
   const [i, setI] = useState(0);
   const t = card.tracks[i];
+  if (card.inApp) {
+    return (
+      <div className="act act-inline music">
+        <div className="act-main"><b>{card.inApp}</b><span>Spotify 창에서 재생 중 · 멈추면 원래 화면으로</span></div>
+        <div className="act-links"><button className="btn text sm" onClick={showWindow}>Spotify 창 보기</button></div>
+      </div>
+    );
+  }
   if (!t) {
     return (
       <div className="act act-inline music">
@@ -87,6 +96,13 @@ export function ActionCardView({ card }: { card: ActionCard }) {
       );
     case 'music':
       return <MusicCardView card={card} />;
+    case 'embed':
+      return (
+        <div className="act act-inline music">
+          <div className="act-main"><b>{card.title}</b><span>{card.action === 'pause' ? '멈춤' : card.action === 'skip' ? '다음 곡은 Spotify 창에서' : '재생 중'}</span></div>
+          {card.action !== 'pause' && <div className="act-links"><button className="btn text sm" onClick={showWindow}>Spotify 창 보기</button></div>}
+        </div>
+      );
     case 'player':
       return (
         <div className="act">

@@ -10,6 +10,7 @@
 import { secureStorage } from '../security/secureStorage';
 import type { CarProfile, Trip, VehicleSnapshot } from '../api/types';
 import { recommendTrips, type TripIdea } from './gemini';
+import { embedState, hideWindow, pauseInApp, playInApp, presetFor, resumeInApp, showWindow } from './spotifyEmbed';
 import { clientId, connectSpotify, control, linkSpotify, openSpotify, searchAndPlay, spotifyConnected, spotifyLinked, spotifySearchUrl, SpotifyError, type NowPlaying, type PlayedTrack, type PlayerAction } from './spotify';
 
 export interface ActionCtx { car: CarProfile; snap: VehicleSnapshot; trips: Trip[] }
@@ -21,7 +22,8 @@ export type ActionCard =
   | { kind: 'weather'; place: string; temp: number; text: string; max: number; min: number; rain: number; tip: string }
   | { kind: 'parts'; items: { name: string; left: number; pct: number }[] }
   | { kind: 'report'; n: number; km: number; avg: number; brakes: number; calm: number }
-  | { kind: 'music'; query: string; tracks: SpotifyTrack[]; search: string; note?: string; opened?: boolean }
+  | { kind: 'music'; query: string; tracks: SpotifyTrack[]; search: string; note?: string; opened?: boolean; inApp?: string }
+  | { kind: 'embed'; action: PlayerAction | 'skip'; title: string }
   | { kind: 'player'; action: PlayerAction | 'play'; track?: PlayedTrack; now?: NowPlaying | null; note?: string }
   /** mode login: 계정 로그인(재생 제어) / app: 키 없이 Spotify 앱 · 웹으로 연결 */
   | { kind: 'spotify-connect'; mode: 'login' | 'app'; connected: boolean; opened?: boolean; note?: string };
@@ -194,7 +196,16 @@ export async function playMusic(query: string): Promise<ActionResult> {
     const r = await fetch(`${apiBase()}/api/spotify?q=${encodeURIComponent(q)}`);
     if (r.ok) tracks = ((await r.json()) as { tracks?: SpotifyTrack[] }).tracks ?? [];
   } catch { /* 서버·키가 없으면 검색 링크만 */ }
-  // 키 없이 연결한 상태: Spotify 앱 · 웹에서 바로 찾아 열기 (창이 막히면 화면 버튼으로)
+  // 앱 안 Spotify 창에서 바로 재생: 찾은 곡, 아니면 말에 맞는 플레이리스트("노래 틀어 줘", "신나는 노래")
+  const inApp = tracks[0] ? { path: `track/${tracks[0].id}`, title: tracks[0].name, sub: tracks[0].artist } : presetFor(query);
+  if (!note && inApp) {
+    playInApp(inApp);
+    return {
+      card: { kind: 'music', query: q, tracks: [], search, inApp: inApp.title },
+      data: { 재생: `${inApp.title}${inApp.sub ? ` (${inApp.sub})` : ''}`, 화면: 'Spotify 창을 띄움. 곡을 멈추면 원래 화면으로 돌아감' },
+    };
+  }
+  // 곡 · 가수를 콕 집었는데 검색 키가 없음: Spotify 앱 · 웹에서 바로 찾아 열기 (창이 막히면 화면 버튼으로)
   const opened = !note && !tracks.length && spotifyLinked() ? openSpotify(search) : false;
   return {
     card: { kind: 'music', query: q, tracks, search, note, opened },
@@ -206,6 +217,16 @@ const ACTION_KO: Record<PlayerAction, string> = { pause: '멈춤', resume: '다�
 
 export async function musicControl(action: string): Promise<ActionResult> {
   const a = (['pause', 'resume', 'next', 'previous', 'now'] as PlayerAction[]).find((x) => x === action) ?? 'now';
+  // 앱 안 Spotify 창에서 틀고 있으면 그걸 조작
+  const em = embedState();
+  if (em.item && !spotifyConnected()) {
+    const title = em.item.title;
+    if (a === 'pause') { pauseInApp(); window.setTimeout(hideWindow, 400); return { card: { kind: 'embed', action: a, title }, data: { 한일: '멈춤, 원래 화면으로' } }; }
+    if (a === 'resume') { resumeInApp(); return { card: { kind: 'embed', action: a, title }, data: { 한일: '다시 재생' } }; }
+    if (a === 'now') return { card: { kind: 'embed', action: a, title }, data: { 지금: title, 재생중: em.playing } };
+    showWindow();
+    return { card: { kind: 'embed', action: 'skip', title }, data: { 안내: '다음 · 이전 곡은 Spotify 창에서 넘길 수 있음. 창을 띄움' } };
+  }
   if (!spotifyConnected()) {
     // 계정 로그인 없이는 다른 앱의 재생을 직접 못 바꿈 → Spotify 앱을 열어 줌
     const note = clientId() ? 'Spotify 계정으로 로그인하면 말로 재생을 조작할 수 있어요.' : '재생 · 멈춤 · 다음 곡은 Spotify 앱에서 바로 해 주세요.';
@@ -255,7 +276,7 @@ export function detectTool(text: string): { name: string; args: Record<string, u
   const has = (...w: string[]) => w.some((x) => q.includes(x));
   const music = has('노래', '음악', '곡', '스포티파이', 'spotify', 'Spotify');
   if (has('스포티파이', 'spotify', 'Spotify') && has('연결', '로그인', '연동')) return { name: 'connect_spotify', args: {} };
-  if (music || spotifyConnected()) {
+  if (music || spotifyConnected() || embedState().item) {
     if (/(다음곡|다음노래|넘겨|스킵|skip)/i.test(q)) return { name: 'music_control', args: { action: 'next' } };
     if (/(이전곡|이전노래|앞곡|전곡)/.test(q)) return { name: 'music_control', args: { action: 'previous' } };
     if ((music && /(멈춰|멈춤|정지|꺼|그만)/.test(q)) || /^(멈춰|정지|일시정지)/.test(q)) return { name: 'music_control', args: { action: 'pause' } };
@@ -320,7 +341,12 @@ export function summaryOf(card: ActionCard): string {
       if (card.note) return card.note;
       if (card.mode === 'login') return card.connected ? 'Spotify는 이미 연결돼 있어요.' : '잠시 뒤 Spotify 로그인 화면으로 넘어갈게요. 로그인하면 바로 연결돼요.';
       return card.opened ? 'Spotify를 연결하고 열었어요. 듣고 싶은 노래를 말해 주세요.' : 'Spotify를 연결했어요. 화면의 Spotify 열기를 눌러 주세요.';
-    case 'music': if (card.note) return `${card.note} 대신 화면에 재생 카드를 띄웠어요.`;
+    case 'embed': return card.action === 'pause' ? '음악을 멈췄어요. 원래 화면으로 돌아갈게요.'
+      : card.action === 'resume' ? `${card.title} 다시 틀었어요.`
+      : card.action === 'now' ? `지금 Spotify에서 ${card.title} 듣고 있어요.`
+      : '다음 곡은 Spotify 창에서 바로 넘길 수 있어요. 창을 열어 드렸어요.';
+    case 'music': if (card.inApp) return `Spotify 창에서 ${card.inApp} 틀었어요. 멈추면 원래 화면으로 돌아가요.`;
+      if (card.note) return `${card.note} 대신 화면에 재생 카드를 띄웠어요.`;
       if (card.opened) return `Spotify에서 '${card.query}'를 찾아 열었어요.`;
       return card.tracks.length ? `${card.tracks[0].artist}의 ${card.tracks[0].name}, 화면에서 재생을 눌러 주세요!` : `Spotify에서 '${card.query}'를 바로 찾을 수 있게 띄워 드렸어요.`;
     case 'report': return card.n ? `이번 주 ${card.n}번, ${card.km}km 함께 달렸고 급정거는 ${card.brakes}번이었어요.` : '이번 주에는 아직 함께 달린 기록이 없어요.';

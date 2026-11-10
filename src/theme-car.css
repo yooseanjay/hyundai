@@ -71,3 +71,45 @@ html.pleos .btn, html.pleos .chip { min-height: 52px; }
 /* 아래에서 올라오는 창 · 알림도 시스템 바 위에 */
 html.pleos .sheet-backdrop { bottom: var(--pf-bot); top: var(--pf-top); }
 html.pleos .toast { bottom: calc(var(--pf-bot) + 24px); }
+
+/* ───── Spotify: 홈 맨 위 줄 + 재생 창 ───── */
+.sp-bar { display: grid; gap: var(--g2, 13px); }
+.sp-bar-head { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.sp-bar-txt { display: grid; flex: 1; min-width: 0; }
+.sp-bar-txt .cap { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.spw-presets { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; }
+.spw-presets .chip { flex: none; }
+.spw-presets .chip.on { background: #1DB954; color: #000; border-color: #1DB954; box-shadow: 0 0 13px rgba(29, 185, 84, .45); }
+
+/* 재생 창: 휴대폰은 탭바 위 전체, 차 화면은 Pleos Connect 앱 창 자리 전체 */
+.spw {
+  position: fixed; inset: 0 0 calc(72px + env(safe-area-inset-bottom)) 0; z-index: 25;
+  display: grid; grid-template-rows: auto minmax(0, 1fr) auto auto; gap: 13px;
+  padding: calc(16px + env(safe-area-inset-top)) 16px 16px;
+  background: radial-gradient(120% 60% at 50% 0%, rgba(29, 185, 84, .28), transparent 62%), #0b0d0c; color: #f2f4f7;
+  transition: transform .34s cubic-bezier(.2, .8, .2, 1), opacity .34s;
+}
+.spw.closed { transform: translateY(104%); opacity: 0; visibility: hidden; pointer-events: none; }
+.spw-head { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.spw-head .sp-logo { width: 28px; height: 28px; }
+.spw-title { display: grid; flex: 1; min-width: 0; }
+.spw-title b { font-size: 21px; }
+.spw-title .cap { color: #b5bcc6; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.spw-back { flex: none; display: inline-flex; align-items: center; gap: 4px; color: #f2f4f7 !important; border-color: rgba(255, 255, 255, .22) !important; background: transparent !important; }
+.spw-frame { width: 100%; height: 100%; min-height: 232px; border: 0; border-radius: 13px; background: #121212; box-shadow: 0 0 34px rgba(29, 185, 84, .22); }
+.spw .chip { background: rgba(255, 255, 255, .08); color: #e9ecf1; border-color: rgba(255, 255, 255, .14); }
+.spw-note { color: #8a9099; margin: 0; }
+
+html.pleos .spw {
+  inset: var(--pf-top) 0 var(--pf-bot) var(--pf-rail);
+  padding: 28px 48px 24px 40px; gap: 21px;
+}
+html.pleos .spw-title b { font-size: 26px; }
+html.pleos .spw .chip { font-size: 17px; padding: 10px 21px; }
+/* 아래 시스템 바의 음악 아이콘에 불 */
+html.pleos.spotify-on .pf-apps svg:nth-child(3) { color: #1DB954; filter: drop-shadow(0 0 8px rgba(29, 185, 84, .8)); }
+
+/* 차 화면 홈: Spotify 줄은 두 열을 가로질러 맨 위 */
+html.pleos .app > .screen.home-x > .sp-bar { grid-column: 1 / -1; grid-row: 1; }
+html.pleos .app > .screen.home-x > .side { grid-row: 2 / -1; }
+html.pleos .sp-bar { grid-template-columns: minmax(0, 1fr) auto; align-items: center; }

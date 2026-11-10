@@ -14,6 +14,7 @@ import { VehicleStatus, type LiveDrive } from './components/VehicleStatus';
 import { markReplaced, partsStatus } from './voice/actions';
 import { gpsSupported, startGpsTrip, type GpsUpdate } from './game/gpsTrip';
 import { VoiceBot } from './components/VoiceBot';
+import { SpotifyBar, SpotifyWindow } from './components/SpotifyWindow';
 import { ThemeToggle } from './components/ThemeToggle';
 
 // 3D(three.js)는 용량이 커서 필요할 때 불러온다. 불러오는 동안은 사진 캐릭터
@@ -302,6 +303,8 @@ export default function App() {
       {/* ---------- 홈: Future Mobility · Premium Minimal · AI Mobility ---------- */}
       {view === 'home' && (
         <section className="screen home-x">
+          {/* 맨 위: Spotify (재생하면 Spotify 창이 뜨고, 멈추면 다시 이 화면) */}
+          <SpotifyBar />
           {/* Future Mobility: 쇼룸 히어로 + 주행 가능 거리 + 연결 상태 */}
           <div className="hero">
             <div className="hero-top">
@@ -549,6 +552,9 @@ export default function App() {
           }
         />
       )}
+
+      {/* ---------- Spotify 창 (재생 중에만 뜸) ---------- */}
+      <SpotifyWindow />
 
       {/* ---------- 하단 탭바 ---------- */}
       <nav className={`tabbar ${view === 'talk' ? '' : 'with-mic'}`}>
