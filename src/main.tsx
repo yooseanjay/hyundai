@@ -3,14 +3,11 @@ import { createRoot } from 'react-dom/client';
 import './styles.css';
 import './theme-mono.css';
 import './theme-toss.css';
-import './theme-car.css';
 import { applyTheme } from './theme';
-import { applyCarScreen } from './carScreen';
 import { bootSecurity } from './security';
 import LockScreen from './components/LockScreen';
 
 applyTheme(); // 첫 화면부터 저장된 밝기로 (깜빡임 방지)
-applyCarScreen(); // 차 안 넓은 화면이면 2열 배치
 
 const root = createRoot(document.getElementById('root')!);
 

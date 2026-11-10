@@ -39,7 +39,6 @@ export function Studio({ car, look, onLook, config, onConfig, tab, onTab, previe
         </div>
       </div>
 
-      <div className="side">
       <div className="studio-tabs" role="tablist" aria-label="꾸미기">
         {TABS.map(([id, label]) => (
           <button key={id} role="tab" aria-selected={tab === id} className={tab === id ? 'on' : ''} onClick={() => onTab(id)}>{label}</button>
@@ -108,7 +107,6 @@ export function Studio({ car, look, onLook, config, onConfig, tab, onTab, previe
       )}
 
       {footer}
-      </div>
     </section>
   );
 }

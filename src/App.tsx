@@ -25,7 +25,6 @@ import { secureStorage } from './security';
 import SecurityPanel from './components/SecurityPanel';
 import type { Trip as TripT } from './api/types';
 import { loadProgress, saveProgress, type Progress } from './game/progress';
-import { wideCar } from './carScreen';
 
 type Tab = 'home' | 'studio' | 'diary';
 /** 주행을 재는 기기 이름 (차 안 앱이면 차, 아니면 휴대폰) */
@@ -341,8 +340,6 @@ export default function App() {
             </div>
           </div>
 
-          {/* 차 화면(가로)에서는 오른쪽 열, 휴대폰에서는 그대로 이어짐 (display: contents) */}
-          <div className="side">
           {/* 운전: 홈에서 바로 출발 · 주행 중이면 실시간 카드만 */}
           {!driving && (
             <div className="card drive-card">
@@ -460,7 +457,6 @@ export default function App() {
             </button>
           </div>
           </>)}
-          </div>
         </section>
       )}
 
@@ -472,9 +468,7 @@ export default function App() {
             <span className="cap conn"><i className="dot good" />{dataSource.kind !== 'mock' ? '차량 연결됨' : '데모 차량 연결됨'}</span>
           </div>
           <Show3D car={car} look={look} mood={bot?.mood ?? st.mood} talking={!!bot?.speaking} height={goldH()} />
-          <div className="side">
           <VoiceBot ctx={{ car, snap, status: st, trips, progress }} onLine={(line, mood, speaking) => setBot(line ? { line, mood, speaking } : null)} />
-          </div>
         </section>
       )}
 
@@ -490,7 +484,6 @@ export default function App() {
             <div className="tile-stat"><span className="cap">일기 수</span><b className="num">{progress.diaries.length}<small>편</small></b></div>
             <div className="tile-stat"><span className="cap">정비 횟수</span><b className="num">{progress.fixes}<small>회</small></b></div>
           </div>
-          <div className="side">
           <div className="card-head month">
             <b className="h3">{month.y}년 {month.m + 1}월</b>
             <span className="month-nav">
@@ -522,7 +515,6 @@ export default function App() {
               })}
             </ul>
           )}
-          </div>
         </section>
       )}
 
@@ -614,8 +606,6 @@ function Brand({ live }: { live?: boolean }) {
 /** 황금 직사각형 무대: 세로 = 가로 ÷ φ (bleed: 화면 끝까지 꽉 찬 무대) */
 const PHI = 1.618;
 function goldH(bleed = false) {
-  // 차 화면(가로): 왼쪽 열에 크게
-  if (wideCar()) return Math.round(Math.max(220, Math.min(window.innerHeight - 390, 480)));
   const w = Math.min(typeof window === 'undefined' ? 390 : window.innerWidth, 430);
   return Math.round((w - (bleed ? 0 : 42)) / PHI);
 }
