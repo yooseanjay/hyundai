@@ -2,7 +2,7 @@ import type { Mood } from '../game/character';
 import { PAINTS, type BodyColor } from '../data/hyundaiModels';
 import plate from '../data/ioniq5-screen.json';
 
-// 배포 주소가 하위 경로(/our-car-alive/)여도 이미지가 열리도록
+// 배포 주소가 하위 경로(/hyundai/)여도 이미지가 열리도록
 const ASSET = import.meta.env.BASE_URL;
 
 interface Props {

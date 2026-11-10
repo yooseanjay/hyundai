@@ -4,7 +4,7 @@ import { execSync } from 'node:child_process';
 import { existsSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-const REPO = 'our-car-alive';
+const REPO = 'hyundai';
 const OUT = 'dist-pages';
 const sh = (cmd, opts = {}) => execSync(cmd, { stdio: 'inherit', ...opts });
 
@@ -35,7 +35,7 @@ const remote = execSync('git remote get-url origin').toString().trim();
 const git = (c) => sh(`git ${c}`, { cwd: OUT });
 git('init -q -b gh-pages');
 git('add -A');
-git('-c user.name="our-car-alive deploy" -c user.email="deploy@users.noreply.github.com" commit -q -m "deploy"');
+git('-c user.name="hyundai deploy" -c user.email="deploy@users.noreply.github.com" commit -q -m "deploy"');
 git(`push -q -f ${remote} gh-pages`);
 rmSync(join(OUT, '.git'), { recursive: true, force: true });
-console.log(`🚀 배포 완료 → https://<GitHub 아이디>.github.io/${REPO}/  (반영까지 1~2분)`);
+console.log(`🚀 배포 완료 → https://yooseanjay.github.io/${REPO}/  (반영까지 1~2분)`);

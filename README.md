@@ -3,7 +3,7 @@
 > 내 차가 말하는 캐릭터가 되어, 실제 차량 데이터에 반응하고 함께 달린 하루를 일기로 남기는 서비스
 > 현대자동차 Open API 공모전 출품작
 
-**체험하기 → https://yooseanjay.github.io/our-car-alive/** (데모 모드: 차량 데이터는 시뮬레이터, 대화 AI는 실제 동작)
+**체험하기 → https://yooseanjay.github.io/hyundai/** (데모 모드: 차량 데이터는 시뮬레이터, 대화 AI는 실제 동작)
 
 ## 핵심 경험
 
