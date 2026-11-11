@@ -38,7 +38,7 @@ export const CSP = {
   'object-src': ["'none'"],
   'base-uri': ["'self'"],
   'form-action': ["'self'"],
-  'frame-src': ['https://open.spotify.com'], // 음성으로 튼 노래: Spotify 공식 재생기(embed)만
+  'frame-src': ['https://open.spotify.com', 'https://www.youtube-nocookie.com'], // 음성으로 튼 노래: Spotify · YouTube(쿠키 없는) 공식 재생기만
   'manifest-src': ["'self'"],
 };
 

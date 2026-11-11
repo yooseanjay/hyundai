@@ -90,3 +90,49 @@ describe('앱 안 Spotify 창', () => {
     vi.useRealTimers();
   });
 });
+
+describe('앱 안 YouTube Music 창', () => {
+  const yt = (data: unknown, origin = 'https://www.youtube-nocookie.com') => ({ origin, source: frame, data: JSON.stringify(data) });
+  const cmds = () => sent.filter((m): m is string => typeof m === 'string').map((m) => JSON.parse(m));
+
+  it('"유튜브 뮤직으로 노래 틀어 줘" → YouTube 창, 준비되면 playVideo, 멈추면 원래 화면으로', async () => {
+    vi.useFakeTimers();
+    const { em, actions } = await load();
+    const t = actions.detectTool('유튜브 뮤직으로 신나는 케이팝 틀어 줘');
+    expect(t?.name).toBe('play_music');
+    const r = await actions.runTool(t!.name, t!.args, {} as never);
+    expect(r.card).toMatchObject({ kind: 'music', inApp: 'K-POP', via: 'YouTube Music' });
+    expect(em.embedState().item?.provider).toBe('youtube');
+    expect(em.embedUrl(em.embedState().item!)).toMatch(/^https:\/\/www\.youtube-nocookie\.com\/embed\/videoseries\?.*list=PL/);
+    em.attachFrame(frame as unknown as Window);
+    // 재생기에게 신호 요청
+    expect(cmds()).toContainEqual({ event: 'listening', id: 1, channel: 'widget' });
+    // Spotify 출처 · 다른 곳에서 온 메시지는 무시
+    em.handleEmbedMessage(msg({ type: 'ready' }));
+    em.handleEmbedMessage(yt({ event: 'onReady' }, 'https://evil.example'));
+    expect(em.embedState().ready).toBe(false);
+    em.handleEmbedMessage(yt({ event: 'onReady' }));
+    expect(cmds()).toContainEqual(expect.objectContaining({ event: 'command', func: 'playVideo' }));
+    em.handleEmbedMessage(yt({ event: 'onStateChange', info: 1 }));
+    expect(em.embedState()).toMatchObject({ open: true, playing: true });
+    // "멈춰" → pauseVideo, 원래 화면
+    const stop = await actions.runTool('music_control', { action: 'pause' }, {} as never);
+    expect(stop.card).toMatchObject({ kind: 'embed', action: 'pause', via: 'YouTube Music' });
+    expect(cmds()).toContainEqual(expect.objectContaining({ func: 'pauseVideo' }));
+    em.handleEmbedMessage(yt({ event: 'infoDelivery', info: { playerState: 2 } }));
+    vi.advanceTimersByTime(1300);
+    expect(em.embedState()).toMatchObject({ open: false, playing: false });
+    vi.useRealTimers();
+  });
+
+  it('고른 서비스 기억 · 곡을 콕 집으면 YouTube Music 검색', async () => {
+    const { em, actions } = await load();
+    expect(em.providerFor('노래 틀어 줘')).toBe('spotify');
+    em.setMusicProvider('youtube');
+    expect(em.providerFor('노래 틀어 줘')).toBe('youtube');
+    expect(em.providerFor('스포티파이로 틀어 줘')).toBe('spotify');
+    expect(em.presetFor('집중할 때 음악')?.path).toBe('video/jfKfPfyJRdk');
+    const r = await actions.runTool('play_music', { query: '아이유 밤편지 틀어줘' }, {} as never);
+    expect(r.card).toMatchObject({ kind: 'music', via: 'YouTube Music', search: 'https://music.youtube.com/search?q=' + encodeURIComponent('아이유 밤편지') });
+  });
+});

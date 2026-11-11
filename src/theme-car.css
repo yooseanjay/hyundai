@@ -126,6 +126,38 @@ html.pleos .spw-tiles { grid-template-columns: minmax(0, 1fr); }
 html.pleos .spw-tile { padding: 14px 18px; }
 html.pleos .spw-tile b { font-size: 19px; }
 html.pleos .spw-tile span { font-size: 14px; }
+/* ───── YouTube Music ───── */
+.yt-logo {
+  flex: none; width: 18px; height: 18px; border-radius: 50%; background: #ff0033; box-shadow: 0 0 10px rgba(255, 0, 51, .55);
+  /* 가운데 흰 재생 삼각형 */
+  background-image: linear-gradient(#ff0033, #ff0033); position: relative;
+}
+.yt-logo::after {
+  content: ''; position: absolute; left: 38%; top: 30%; width: 0; height: 0;
+  border-left: 7px solid #fff; border-top: 4.5px solid transparent; border-bottom: 4.5px solid transparent;
+  transform: scale(var(--yt-k, 1)); transform-origin: left center;
+}
+.spw-head .yt-logo { width: 28px; height: 28px; --yt-k: 1.5; }
+.sp-bar-row { display: flex; align-items: center; gap: 13px; min-width: 0; }
+.sp-bar-row .spw-presets { flex: 1; min-width: 0; }
+.mp-switch { flex: none; display: inline-flex; gap: 2px; padding: 3px; border-radius: 999px; background: rgba(127, 127, 127, .14); }
+.mp-opt {
+  display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border: 0; border-radius: 999px; cursor: pointer;
+  background: transparent; color: inherit; font: inherit; font-size: 13px; font-weight: 600; opacity: .65; transition: background .2s, opacity .2s;
+}
+.mp-opt .sp-logo, .mp-opt .yt-logo { width: 12px; height: 12px; box-shadow: none; --yt-k: .62; }
+.mp-opt.on { opacity: 1; background: rgba(127, 127, 127, .22); }
+.mp-opt.spotify.on { box-shadow: inset 0 0 0 1px rgba(29, 185, 84, .6); }
+.mp-opt.youtube.on { box-shadow: inset 0 0 0 1px rgba(255, 0, 51, .6); }
+.spw .mp-switch { background: rgba(255, 255, 255, .08); justify-self: start; }
+.spw .mp-opt { color: #f2f4f7; }
+.spw-presets.youtube .chip.on { background: #ff0033; color: #fff; border-color: #ff0033; box-shadow: 0 0 13px rgba(255, 0, 51, .45); }
+.spw.youtube { background: radial-gradient(120% 60% at 50% 0%, rgba(255, 0, 51, .24), transparent 62%), #0d0b0b; }
+.spw-frame.youtube { height: auto; aspect-ratio: 16 / 9; background: #000; box-shadow: 0 0 34px rgba(255, 0, 51, .2); }
+.spw-tiles.youtube .spw-tile.on { background: rgba(255, 0, 51, .18); border-color: #ff0033; box-shadow: 0 0 21px rgba(255, 0, 51, .28); }
+.spw-tiles.youtube .spw-tile.on span { color: #ff9aae; }
+html.pleos.yt-on .pf-apps svg:nth-child(3) { color: #ff3355 !important; filter: drop-shadow(0 0 8px rgba(255, 0, 51, .8)) !important; }
+
 /* 아래 시스템 바의 음악 아이콘에 불 */
 html.pleos.spotify-on .pf-apps svg:nth-child(3) { color: #1DB954; filter: drop-shadow(0 0 8px rgba(29, 185, 84, .8)); }
 

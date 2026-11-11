@@ -15,16 +15,16 @@ function MusicCardView({ card }: { card: MusicCard }) {
   if (card.inApp) {
     return (
       <div className="act act-inline music">
-        <div className="act-main"><b>{card.inApp}</b><span>Spotify 창에서 재생 중 · 멈추면 원래 화면으로</span></div>
-        <div className="act-links"><button className="btn text sm" onClick={showWindow}>Spotify 창 보기</button></div>
+        <div className="act-main"><b>{card.inApp}</b><span>{card.via ?? 'Spotify'} 창에서 재생 중 · 멈추면 원래 화면으로</span></div>
+        <div className="act-links"><button className="btn text sm" onClick={showWindow}>{card.via ?? 'Spotify'} 창 보기</button></div>
       </div>
     );
   }
   if (!t) {
     return (
       <div className="act act-inline music">
-        <div className="act-main"><b>{card.query}</b><span>{card.note ?? 'Spotify에서 찾아 들어요'}</span></div>
-        <div className="act-links"><a href={card.search} target="_blank" rel="noreferrer">Spotify에서 열기</a></div>
+        <div className="act-main"><b>{card.query}</b><span>{card.note ?? `${card.via ?? 'Spotify'}에서 찾아 들어요`}</span></div>
+        <div className="act-links"><a href={card.search} target="_blank" rel="noreferrer">{card.via ?? 'Spotify'}에서 열기</a></div>
       </div>
     );
   }
@@ -99,8 +99,8 @@ export function ActionCardView({ card }: { card: ActionCard }) {
     case 'embed':
       return (
         <div className="act act-inline music">
-          <div className="act-main"><b>{card.title}</b><span>{card.action === 'pause' ? '멈춤' : card.action === 'skip' ? '다음 곡은 Spotify 창에서' : '재생 중'}</span></div>
-          {card.action !== 'pause' && <div className="act-links"><button className="btn text sm" onClick={showWindow}>Spotify 창 보기</button></div>}
+          <div className="act-main"><b>{card.title}</b><span>{card.action === 'pause' ? '멈춤' : card.action === 'skip' ? `다음 곡은 ${card.via ?? 'Spotify'} 창에서` : '재생 중'}</span></div>
+          {card.action !== 'pause' && <div className="act-links"><button className="btn text sm" onClick={showWindow}>{card.via ?? 'Spotify'} 창 보기</button></div>}
         </div>
       );
     case 'player':

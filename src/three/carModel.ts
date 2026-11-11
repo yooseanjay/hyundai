@@ -246,7 +246,11 @@ export function buildCar(shapeId?: string): CarRig {
           sm.envMapIntensity = 1.3;
           modelMats.push(sm);
           disposables.push(sm);
-          if (sm.map) disposables.push(sm.map);
+          if (sm.map) {
+            sm.map.anisotropy = 8; // 비스듬히 볼 때도 텍스처 디테일(라인·램프·휠)이 뭉개지지 않게
+            sm.map.needsUpdate = true;
+            disposables.push(sm.map);
+          }
         });
         disposables.push(m.geometry);
       });
