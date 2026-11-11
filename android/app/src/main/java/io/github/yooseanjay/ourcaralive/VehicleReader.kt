@@ -80,12 +80,18 @@ class VehicleReader(context: Context, private val onValues: (Map<String, Any?>) 
         runCatching { m.invoke(api, *args.toTypedArray()) }
     }
 
-    private fun callbackFor(type: Class<*>, success: Boolean, onValue: (Any?) -> Unit): Any? = when (type.name) {
-        "kotlin.jvm.functions.Function0" -> { -> Unit }
-        "kotlin.jvm.functions.Function1" -> { a: Any? -> if (success) onValue(a) }
-        "kotlin.jvm.functions.Function2" -> { a: Any?, _: Any? -> if (success) onValue(a) }
-        "kotlin.jvm.functions.Function3" -> { a: Any?, _: Any?, _: Any? -> if (success) onValue(a) }
-        else -> null
+    private fun callbackFor(type: Class<*>, success: Boolean, onValue: (Any?) -> Unit): Any? {
+        val f0: () -> Unit = {}
+        val f1: (Any?) -> Unit = { a -> if (success) onValue(a) }
+        val f2: (Any?, Any?) -> Unit = { a, _ -> if (success) onValue(a) }
+        val f3: (Any?, Any?, Any?) -> Unit = { a, _, _ -> if (success) onValue(a) }
+        return when (type.name) {
+            "kotlin.jvm.functions.Function0" -> f0
+            "kotlin.jvm.functions.Function1" -> f1
+            "kotlin.jvm.functions.Function2" -> f2
+            "kotlin.jvm.functions.Function3" -> f3
+            else -> null
+        }
     }
 
     private fun publish(key: String, raw: Any?) {

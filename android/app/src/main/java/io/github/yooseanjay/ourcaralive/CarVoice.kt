@@ -51,9 +51,10 @@ class CarVoice(private val context: Context, private val send: (JSONObject) -> U
         send(JSONObject().put("type", "tts").put("event", event).put("id", id))
 
     fun speak(id: String, text: String, pitch: Float, rate: Float) {
-        val run = {
-            if (!ttsReady) ttsEvent(id, "end")
-            else {
+        val run: () -> Unit = {
+            if (!ttsReady) {
+                ttsEvent(id, "end")
+            } else {
                 tts.setPitch(pitch)
                 tts.setSpeechRate(rate)
                 tts.speak(text, TextToSpeech.QUEUE_ADD, Bundle(), id)

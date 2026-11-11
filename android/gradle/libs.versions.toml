@@ -4,7 +4,7 @@ kotlin = "2.0.0"
 coreKtx = "1.16.0"
 activity = "1.10.1"
 webkit = "1.13.0"
-vehicleSdk = "2.3.1"
+vehicleSdk = "2.3.2"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
