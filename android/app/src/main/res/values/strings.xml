@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">우리 차가 살아있다면</string>
+    <string name="offline">인터넷에 연결되면 다시 불러올게요</string>
+</resources>

@@ -14,6 +14,7 @@ import { VehicleStatus, type LiveDrive } from './components/VehicleStatus';
 import { markReplaced, partsStatus } from './voice/actions';
 import { gpsSupported, startGpsTrip, type GpsUpdate } from './game/gpsTrip';
 import { VoiceBot } from './components/VoiceBot';
+import { inPleosApp, onNative, snapshotFromVehicle, vehicleNow } from './pleos/native';
 import { SpotifyBar, SpotifyWindow } from './components/SpotifyWindow';
 import { ThemeToggle } from './components/ThemeToggle';
 
@@ -131,6 +132,21 @@ export default function App() {
       return next;
     });
   }, []);
+
+  // Pleos Connect 차 앱 안: 차량 SDK가 주는 실제 값(배터리 · 주행 가능 거리 · 누적 거리 · 충전)으로 덮어씀
+  const [pleosCar, setPleosCar] = useState(false);
+  useEffect(() => {
+    if (!inPleosApp()) return;
+    const apply = () => {
+      const ev = car?.fuelType === 'ev';
+      const over = snapshotFromVehicle(vehicleNow(), ev);
+      if (!Object.keys(over).length) return;
+      setPleosCar(true);
+      setSnap((s) => (s ? { ...s, ...over } : s));
+    };
+    apply();
+    return onNative((m) => { if (m.type === 'vehicle') apply(); });
+  }, [car?.fuelType, snap === null]);
 
   /** 데이터 새로고침 + 경고 해결/충전 감지 → 경험치 */
   const refresh = useCallback(async (prevSnap?: VehicleSnapshot | null) => {
@@ -312,7 +328,7 @@ export default function App() {
                 <span className="hero-model">{car.model} · {snap.odometerKm.toLocaleString()}km</span>
                 <h1 className="hero-name">{car.nickname}</h1>
               </div>
-              <span className="ready"><i className="dot good pulse" />{driving ? '주행 중' : dataSource.kind !== 'mock' ? '연결됨' : '주행 가능'}</span>
+              <span className="ready"><i className="dot good pulse" />{driving ? '주행 중' : pleosCar ? '차량 연결됨' : dataSource.kind !== 'mock' ? '연결됨' : '주행 가능'}</span>
             </div>
             {driving ? (
             <Suspense fallback={<div className="highway"><CarCharacter mood={st.mood} color={carColor} size={232} /></div>}>

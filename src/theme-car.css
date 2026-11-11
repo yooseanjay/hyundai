@@ -133,3 +133,7 @@ html.pleos.spotify-on .pf-apps svg:nth-child(3) { color: #1DB954; filter: drop-s
 html.pleos .app > .screen.home-x > .sp-bar { grid-column: 1 / -1; grid-row: 1; }
 html.pleos .app > .screen.home-x > .side { grid-row: 2 / -1; }
 html.pleos .sp-bar { grid-template-columns: minmax(0, 1fr) auto; align-items: center; }
+
+/* 진짜 Pleos Connect 앱 안(android/): 위 상태 바 · 아래 시스템 바는 차가 그리므로 미리보기 그림을 숨기고 앱 창을 꽉 채움 */
+html.pleos.pleos-app { --pf-top: 0px; --pf-bot: 0px; }
+html.pleos-app .pf-status, html.pleos-app .pf-gnb { display: none !important; }
