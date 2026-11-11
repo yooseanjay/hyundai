@@ -6,11 +6,14 @@ import './theme-toss.css';
 import './theme-car.css';
 import { applyTheme } from './theme';
 import { installPleosNative } from './pleos/native';
+import { installFakeCar } from './pleos/fakeCar';
 import { applyCarScreen } from './carScreen';
 import PleosChrome from './components/PleosChrome';
 import { bootSecurity } from './security';
 import LockScreen from './components/LockScreen';
 
+// 개발 서버에서 ?fakecar: 에뮬레이터 없이 차 앱 통로 흉내 (배포 빌드에서는 import.meta.env.DEV가 false라 빠짐)
+if (import.meta.env.DEV && new URLSearchParams(location.search).has('fakecar')) installFakeCar();
 installPleosNative(); // Pleos Connect 차 앱 안이면 차량 정보 · 차 음성 통로 열기 (브라우저에선 아무것도 안 함)
 applyTheme(); // 첫 화면부터 저장된 밝기로 (깜빡임 방지)
 applyCarScreen(); // 넓은 가로 화면이면 Pleos Connect 차 화면처럼
