@@ -169,3 +169,117 @@ html.pleos .sp-bar { grid-template-columns: minmax(0, 1fr) auto; align-items: ce
 /* 진짜 Pleos Connect 앱 안(android/): 위 상태 바 · 아래 시스템 바는 차가 그리므로 미리보기 그림을 숨기고 앱 창을 꽉 채움 */
 html.pleos.pleos-app { --pf-top: 0px; --pf-bot: 0px; }
 html.pleos-app .pf-status, html.pleos-app .pf-gnb { display: none !important; }
+
+/* ───────────────────────────────────────────────────────────────
+   한 화면 배치 (차 화면 · 스크롤 없음) — 피그마 "한 화면 레이아웃"
+   홈 3칸 · 내 차 4칸 · 꾸미기 3칸. 휴대폰 배치는 그대로
+   ─────────────────────────────────────────────────────────────── */
+.gps-mini { display: none; }
+.drive-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+
+html.pleos .app.view-home, html.pleos .app.view-mycar, html.pleos .app.view-studio {
+  padding: 20px 24px 20px calc(var(--pf-rail) + 20px);
+}
+html.pleos .app > .screen.home-x.fit,
+html.pleos .app > .screen.mycar,
+html.pleos .app > .screen.studio { height: 100%; min-height: 0; gap: 14px; align-items: stretch; }
+html.pleos .app > .screen.home-x.fit > *,
+html.pleos .app > .screen.mycar > *,
+html.pleos .app > .screen.studio > * { min-height: 0; margin: 0; }
+html.pleos .app > .screen.home-x.fit > .side,
+html.pleos .app > .screen.mycar > .side,
+html.pleos .app > .screen.mycar > .mc-grid,
+html.pleos .app > .screen.studio > .side { display: contents; }
+
+/* ── 홈: 음악 줄 / 차 · 차량 상태 · 주행 ── */
+html.pleos .app > .screen.home-x.fit {
+  grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  grid-template-areas:
+    "bar  bar    bar"
+    "hero status drive"
+    "hero status links"
+    "hero care   links";
+}
+html.pleos .home-x.fit > .sp-bar { grid-area: bar; padding: 10px 16px; }
+html.pleos .home-x.fit .sp-bar .chip { min-height: 42px; }
+html.pleos .home-x.fit > .hero {
+  grid-area: hero; position: static; display: flex; flex-direction: column; overflow: hidden;
+  padding: 18px 20px; border-radius: 21px; background: var(--card); border: 1px solid var(--line);
+}
+html.pleos .home-x.fit > .hero > :nth-child(2) { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; }
+html.pleos .home-x.fit .hero-range { margin-top: 0; }
+html.pleos .home-x.fit .home-status { grid-area: status; display: flex; flex-direction: column; gap: 10px; overflow: hidden; }
+html.pleos .home-x.fit .home-status .vs-grid { grid-auto-flow: row; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+html.pleos .home-x.fit .home-status .vs-cell { padding: 8px 10px; }
+html.pleos .home-x.fit .home-status .vstatus { gap: 10px; }
+html.pleos .home-x.fit .care-list { grid-area: care; }
+html.pleos .home-x.fit .care-list .list-row { min-height: 0; padding: 8px 13px; }
+html.pleos .home-x.fit .care-list .btn { min-height: 38px; }
+html.pleos .home-x.fit .drive-card { grid-area: drive; gap: 10px; }
+html.pleos .home-x.fit .drive-card .field-label,
+html.pleos .home-x.fit .drive-card .gps-note { display: none; }
+html.pleos .home-x.fit .gps-mini { display: inline; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+html.pleos .home-x.fit .drive-card .seg button { height: 42px; min-height: 0; }
+html.pleos .home-x.fit .drive-card .safety { margin: 0; padding: 6px 10px; font-size: 12px; }
+html.pleos .home-x.fit .link-list { grid-area: links; align-content: center; }
+html.pleos .home-x.fit .link-list .list-row { min-height: 0; padding: 12px 16px; }
+
+/* ── 내 차: 원격 제어 · 인사이트/소모품 · 원격 진단 · 관리/지원 ── */
+html.pleos .app > .screen.mycar {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  grid-template-areas:
+    "head   head    head  head"
+    "remote insight diag  manage"
+    "remote parts   diag  support"
+    "spot   parts   apps  support";
+}
+html.pleos .mycar > .mc-head { grid-area: head; display: flex; align-items: baseline; gap: 12px; flex-direction: row-reverse; justify-content: flex-end; }
+html.pleos .mycar > .mc-head .hero-name { font-size: 26px; }
+html.pleos .mycar .card { min-height: 0; overflow: hidden; padding: 16px; }
+html.pleos .mycar .mc-remote { grid-area: remote; display: flex; flex-direction: column; gap: 10px; }
+html.pleos .mycar .mc-remote .cap { margin: 0; }
+html.pleos .mycar .mc-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+html.pleos .mycar .mc-tile { min-height: 62px; }
+html.pleos .mycar .mc-remote .btn { min-height: 44px; margin-top: auto; }
+html.pleos .mycar .mc-insight { grid-area: insight; }
+html.pleos .mycar .mc-partscard { grid-area: parts; }
+html.pleos .mycar .mc-parts { grid-template-columns: minmax(0, 1fr); gap: 8px; }
+html.pleos .mycar .mc-part .btn { min-height: 32px; }
+html.pleos .mycar .mc-diag { grid-area: diag; }
+html.pleos .mycar .mc-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+html.pleos .mycar .mc-spotify { grid-area: spot; min-height: 0; overflow: hidden; }
+html.pleos .mycar .mc-spotify .btn { min-height: 44px; }
+html.pleos .mycar .mc-manage { grid-area: manage; }
+html.pleos .mycar .mc-support { grid-area: support; }
+html.pleos .mycar .mc-apps { grid-area: apps; display: flex; flex-wrap: wrap; gap: 6px; align-content: flex-start; }
+html.pleos .mycar .mc-apps > .label { flex-basis: 100%; }
+html.pleos .mycar .mc-apps .mc-row { min-height: 0; padding: 6px 12px; border: 0; border-radius: 999px; background: var(--card-2); gap: 6px; }
+html.pleos .mycar .mc-apps .mc-row b { font-size: 13px; }
+html.pleos .mycar .mc-apps .mc-ic, html.pleos .mycar .mc-apps .mc-row svg.muted { display: none; }
+html.pleos .mycar .mc-row { min-height: 0; padding: 9px 0; }
+html.pleos .mycar .mc-ic { width: 30px; height: 30px; }
+
+/* ── 꾸미기: 미리보기 · 설정 · 내 정보 보호 ── */
+html.pleos .app > .screen.studio {
+  grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr) minmax(0, .8fr);
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  grid-template-areas:
+    "stage tabs  sec"
+    "stage panel sec"
+    "stage panel reset";
+}
+html.pleos .studio > .studio-stage { grid-area: stage; position: static; display: flex; flex-direction: column; justify-content: center; background: var(--card); border: 1px solid var(--line); }
+html.pleos .studio .studio-tabs { grid-area: tabs; position: static; }
+html.pleos .studio .studio-panel { grid-area: panel; overflow-y: auto; align-content: start; }
+html.pleos .studio .security-panel { grid-area: sec; margin: 0; overflow: hidden; }
+html.pleos .studio .row-center { grid-area: reset; }
+/* 홈 차량 상태: 숫자 3칸 한 줄, 경고 줄은 아래 "점검 필요"가 대신 보여 줌 */
+html.pleos .home-x.fit .home-status .vs-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+html.pleos .home-x.fit .home-status .vs-cell .num { font-size: 22px; }
+html.pleos .home-x.fit .home-status .vs-warn.has { display: none; }
+/* 기본 2열 규칙(> :not(.side) { grid-column: 1 })보다 우선 */
+html.pleos .app > .screen.mycar > .mc-head { grid-column: 1 / -1; }
+html.pleos .app > .screen.mycar > .mc-partscard { grid-column: 2; }
+html.pleos .app > .screen.studio > .studio-stage { grid-column: 1; }

@@ -89,7 +89,7 @@ export function MyCar({ car, snap, trips, onReplaced }: Props) {
       </div>
 
       {/* 소모품 */}
-      <div className="card">
+      <div className="card mc-partscard">
         <div className="card-head"><b className="label">소모품</b><span className="cap">교체 주기 기준</span></div>
         <div className="mc-parts">
           {parts.map((p) => (
@@ -109,7 +109,7 @@ export function MyCar({ car, snap, trips, onReplaced }: Props) {
 
       <div className="side">
         {/* 상태 · 원격 진단 */}
-        <div className="card">
+        <div className="card mc-diag">
           <div className="card-head"><b className="label">원격 진단</b><span className={`cap ${warns.length ? 'bad-text' : ''}`}>{warns.length ? `경고 ${warns.length}건` : '이상 없음'}</span></div>
           <div className="mc-stats">
             <div><span className="cap">주행 가능</span><b>{snap.dteKm}<small>km</small></b></div>
@@ -120,9 +120,9 @@ export function MyCar({ car, snap, trips, onReplaced }: Props) {
           {warns.length > 0 && <span className="cap bad-text">{warns.map((k) => WARNING_LABELS[k]).join(' · ')}</span>}
         </div>
 
-        <SpotifyPanel />
+        <div className="mc-spotify"><SpotifyPanel /></div>
 
-        <div className="card mc-list">
+        <div className="card mc-list mc-manage">
           <b className="label">차량 관리</b>
           {snap.parking && (
             <Row icon={<MapPin size={18} />} title="내 차 찾기" sub={snap.parking.label}
@@ -133,14 +133,14 @@ export function MyCar({ car, snap, trips, onReplaced }: Props) {
           <Row icon={ev ? <BatteryCharging size={18} /> : <Fuel size={18} />} title={ev ? '충전소 찾기' : h2 ? '수소충전소 찾기' : '주유소 찾기'} href={kakao(station)} />
         </div>
 
-        <div className="card mc-list">
+        <div className="card mc-list mc-support">
           <b className="label">고객 지원</b>
           <Row icon={<Siren size={18} />} title="긴급출동" sub="080-600-6000" href={TEL} />
           <Row icon={<Phone size={18} />} title="고객센터" sub="080-600-6000" href={TEL} />
           <Row icon={<ShieldAlert size={18} />} title="리콜 조회" sub="자동차리콜센터" href={RECALL_URL} />
         </div>
 
-        <div className="card mc-list">
+        <div className="card mc-list mc-apps">
           <b className="label">마이현대 앱에서</b>
           <Row icon={<Gift size={18} />} title="블루멤버스 포인트" href={MYHYUNDAI_URL} />
           <Row icon={<CarIcon size={18} />} title="시승 신청 · 구매 상담" href={MYHYUNDAI_URL} />

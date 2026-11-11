@@ -318,7 +318,7 @@ export default function App() {
 
       {/* ---------- 홈: Future Mobility · Premium Minimal · AI Mobility ---------- */}
       {view === 'home' && (
-        <section className="screen home-x">
+        <section className={`screen home-x ${driving ? 'driving' : 'fit'}`}>
           {/* 맨 위: Spotify (재생하면 Spotify 창이 뜨고, 멈추면 다시 이 화면) */}
           <SpotifyBar />
           {/* Future Mobility: 쇼룸 히어로 + 주행 가능 거리 + 연결 상태 */}
@@ -371,7 +371,7 @@ export default function App() {
           {/* 운전: 홈에서 바로 출발 · 주행 중이면 실시간 카드만 */}
           {!driving && (
             <div className="card drive-card">
-              <b className="h3">주행</b>
+              <div className="drive-head"><b className="h3">주행</b>{gpsSupported() && <span className="cap gps-mini" title="휴대폰 GPS로 실제 위치·속도·거리를 측정해요. 위치는 도로 검색(OpenStreetMap)에만 쓰고 저장하지 않아요.">ⓘ 위치는 저장하지 않아요</span>}</div>
               <div className="field">
                 <span className="field-label">도로</span>
                 <div className="set-row static">
@@ -431,7 +431,7 @@ export default function App() {
           </div>
 
           {careCount > 0 && (
-            <div className="list">
+            <div className="list care-list">
               <div className="list-title"><b className="label">점검 필요</b><span className="cap">{careCount}건</span></div>
               {st.activeWarnings.map((k) => (
                 <div key={k} className="list-row">
@@ -457,7 +457,7 @@ export default function App() {
             </div>
           )}
 
-          <div className="list">
+          <div className="list link-list">
             {snap.parking && (
               <a className="list-row link" href={`https://map.kakao.com/link/map/${encodeURIComponent(car.nickname)},${snap.parking.lat},${snap.parking.lng}`} target="_blank" rel="noreferrer">
                 <MapPin size={18} strokeWidth={1.6} />
@@ -636,7 +636,7 @@ function Brand({ live }: { live?: boolean }) {
 const PHI = 1.618;
 function goldH(bleed = false) {
   // 차 화면(가로): 왼쪽 열에 크게
-  if (wideCar()) return Math.round(Math.max(200, Math.min(window.innerHeight - 420, 520)));
+  if (wideCar()) return Math.round(Math.max(200, Math.min(window.innerHeight - 300, 520)));
   const w = Math.min(typeof window === 'undefined' ? 390 : window.innerWidth, 430);
   return Math.round((w - (bleed ? 0 : 42)) / PHI);
 }
