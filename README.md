@@ -1,9 +1,39 @@
 # 🚗 우리 차가 살아있다면
 
 > 내 차가 말하는 캐릭터가 되어, 실제 차량 데이터에 반응하고 함께 달린 하루를 일기로 남기는 서비스
-> 현대자동차 Open API 공모전 출품작
+> 현대자동차그룹 차량용 앱 개발 공모전 출품작 · Pleos Connect 차량용 앱
 
 **체험하기 → https://yooseanjay.github.io/hyundai/** (데모 모드: 차량 데이터는 시뮬레이터, 대화 AI는 실제 동작)
+
+## 📦 공모전 제출 정보
+
+| 항목 | 내용 |
+|---|---|
+| 앱 이름 | 우리 차가 살아있다면 (캐릭터: 오닉이) |
+| 한 줄 소개 | 차량 데이터를 표정과 말로 바꿔, 운전 중에도 화면을 만지지 않고 내 차와 대화하며 상태 확인·음악·정비·주행 기록을 해결하는 AI 동반자 앱 |
+| APK | [`apk/ysj_우리차가살아있다면_release.apk`](apk/) (release, 서명됨, 패키지 `io.github.yooseanjay.ourcaralive`, minSdk 28) |
+| 개발 · 테스트 에뮬레이터 | **Pleos Connect Emulator v2.1.0** (시스템 이미지 `release_connect_v2.1.0`, Android 14 · API 34 Automotive, x86_64) |
+| 화면 규격 | 기기 정의 **Pleos Connect v2.1.0**: 2560×1440 px 가로, 12.8인치. 앱 화면은 가로 **1280×720 (CSS px)** 기준으로 한 화면에 스크롤 없이 배치 |
+| 사용 Pleos SDK | Vehicle 2.3.2 · SpeechToText 3.3.1 (On-device) — `android/` / Vehicle 2.3.2 · TextToSpeech 3.3.1 — `pleos/` |
+
+### APK 실행 방법
+
+1. Android Studio에서 Pleos Connect Emulator v2.1.0을 설치하고, 기기 정의 **Pleos Connect v2.1.0**으로 AVD를 만듭니다 ([설치 안내](https://document.pleos.ai/docs/connect/guide/getting-started/application-development/setup-connect-sdk-emulator)).
+2. 에뮬레이터를 켠 뒤 APK를 설치합니다.
+   ```bash
+   adb install -r "apk/ysj_우리차가살아있다면_release.apk"
+   ```
+3. 앱 목록에서 **우리 차가 살아있다면**을 엽니다. 처음 말 걸기와 위치 사용 때 권한을 허용합니다.
+4. 차량 값은 Pleos Connect Virtual Console에서 배터리 · 기어(P↔D) · 경고를 바꿔 보면 캐릭터 표정 · 일기에 바로 반영됩니다.
+
+### 테스트 환경 · 필요한 설정
+
+- **인터넷 연결 필요**: 출품 APK(`android/`)는 Kotlin 앱이 차량 SDK · 음성 SDK를 맡고, 화면(3D 차 · 대화 · 음악)은 배포된 웹 화면(`https://yooseanjay.github.io/hyundai/?pleos`)을 WebView로 엽니다.
+- **API 키 불필요**: 대화 AI(Gemini)와 음악 검색은 배포 서버가 대신 호출합니다. 저장소에는 비밀값이 없습니다.
+- **음성**: 차 마이크 음성은 Pleos SpeechToText SDK(On-device)로만 글자로 바꾸고, AI에는 인식된 글자만 보냅니다. 웹 화면에는 마이크 권한을 주지 않습니다.
+- **SDK 저장소**: `https://nexus-playground.pleos.ai/repository/maven-releases/` (로그인 없이 받음)
+- **빌드**: JDK 17, Gradle 8.10, Kotlin. `cd android && ./gradlew assembleRelease` (서명 키는 저장소 밖 `~/.gradle/gradle.properties`의 `OURCAR_*` 값을 씀. 없으면 서명 안 된 APK)
+- **웹 화면만 보기**: 에뮬레이터 없이 [체험 링크](https://yooseanjay.github.io/hyundai/)를 넓은 가로 화면에서 열면 차 화면 배치로 보입니다.
 
 ## 핵심 경험
 
@@ -69,10 +99,10 @@
 cd pleos
 ./gradlew testDebugUnitTest   # 캐릭터 · 주행 · 일기 규칙 테스트
 ./gradlew assembleDebug       # 폰 · 일반 에뮬레이터에서는 가짜 차로 화면 확인
-./gradlew assembleRelease     # 출품용 (서명 필요)
+./gradlew assembleRelease     # 네이티브 버전 (출품 APK는 android/ 쪽)
 ```
 
-실제 차 값은 **Pleos Connect Emulator**(Android 14, API 34)나 Pleos 차에서 확인합니다. 에뮬레이터 설치와 SDK 사용 신청은 [Pleos 개발자 문서](https://document.pleos.ai/docs/connect/guide/getting-started/application-development/setup-connect-sdk-emulator) 참고. SDK(`ai.pleos.playground:Vehicle:2.3.2`, `TextToSpeech:3.3.1`)는 공개 Maven 저장소에서 받습니다.
+실제 차 값은 **Pleos Connect Emulator**(Android 14, API 34)나 Pleos 차에서 확인합니다. 에뮬레이터 설치와 SDK 사용 신청은 [Pleos 개발자 문서](https://document.pleos.ai/docs/connect/guide/getting-started/application-development/setup-connect-sdk-emulator) 참고. SDK(`ai.pleos.playground:Vehicle:2.3.2`, `TextToSpeech:3.3.1`, `SpeechToText:3.3.1`)는 공개 Maven 저장소에서 받습니다.
 
 ## 실행
 
@@ -101,7 +131,7 @@ npm run dev     # http://localhost:5173  (?demo 를 붙이면 데모 모드)
 | 3 · 내 기기 금고 | 저장 데이터 AES-256-GCM 암호화, PIN(PBKDF2 310,000회) 잠금·자동 잠금, AI 전송 전 개인정보 가리기 |
 
 ```bash
-npm run verify   # 타입 검사 + 테스트 56개 + 비밀값·헤더·의존성 검사
+npm run verify   # 타입 검사 + 테스트 87개 + 비밀값·헤더·의존성 검사
 ```
 
 ## 구조
@@ -114,6 +144,8 @@ src/
   voice/        대화 AI · 음성 · 말로 하는 기능(지도·날씨·음악 등)
   components/   화면 구성 요소
   security/     기기 저장 암호화 · PIN 잠금 · 개인정보 가리기
+android/        출품 APK: Kotlin 차 앱 (Vehicle · SpeechToText SDK) + 웹 화면 WebView
+apk/            release APK
 pleos/          Pleos Connect 차 안 네이티브 앱 (Kotlin · Compose · Vehicle SDK · TTS)
 api/            배포 서버 함수 (현대 OAuth · 차량 API 중계 · Gemini · Spotify)
 ```

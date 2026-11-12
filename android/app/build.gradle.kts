@@ -19,8 +19,25 @@ android {
         buildConfigField("String", "APP_URL", "\"$appUrl\"")
     }
 
+    // release 서명: 키와 비밀번호는 저장소 밖(~/.gradle/gradle.properties의 OURCAR_*)에만 둠. 없으면 서명 안 된 release
+    val storeFilePath = findProperty("OURCAR_STORE_FILE") as String?
+    if (storeFilePath != null) {
+        signingConfigs {
+            create("release") {
+                storeFile = file(storeFilePath)
+                storePassword = findProperty("OURCAR_STORE_PASSWORD") as String?
+                keyAlias = findProperty("OURCAR_KEY_ALIAS") as String?
+                keyPassword = findProperty("OURCAR_KEY_PASSWORD") as String?
+                enableV1Signing = true
+                enableV2Signing = true
+                enableV3Signing = true // 서명 키 교체 · 계보 (Pleos Connect 보안 요건)
+            }
+        }
+    }
+
     buildTypes {
         release {
+            if (storeFilePath != null) signingConfig = signingConfigs.getByName("release")
             isMinifyEnabled = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
