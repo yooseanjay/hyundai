@@ -82,14 +82,9 @@ class MainActivity : ComponentActivity() {
         }
 
         web.webChromeClient = object : WebChromeClient() {
-            override fun onPermissionRequest(request: PermissionRequest) {
-                val ours = "${request.origin.scheme}://${request.origin.authority}" == appOrigin
-                val wantsMic = PermissionRequest.RESOURCE_AUDIO_CAPTURE in request.resources
-                if (!ours || !wantsMic) return request.deny()
-                withPermissions(arrayOf(Manifest.permission.RECORD_AUDIO)) { ok ->
-                    if (ok) request.grant(arrayOf(PermissionRequest.RESOURCE_AUDIO_CAPTURE)) else request.deny()
-                }
-            }
+            // 웹 화면에는 마이크 · 카메라를 주지 않음: 차 마이크 음성이 외부 음성 인식(예: Gemini Live)으로
+            // 나가지 않도록, 듣기는 네이티브 Pleos SpeechToText SDK(CarVoice)로만 함
+            override fun onPermissionRequest(request: PermissionRequest) = request.deny()
 
             override fun onGeolocationPermissionsShowPrompt(origin: String, callback: GeolocationPermissions.Callback) {
                 if (origin.trimEnd('/') != appOrigin) return callback.invoke(origin, false, false)

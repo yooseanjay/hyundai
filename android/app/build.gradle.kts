@@ -35,6 +35,7 @@ android {
 
 dependencies {
     implementation(libs.pleos.vehicle)
+    implementation(libs.pleos.stt)
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.activity.ktx)
     implementation(libs.androidx.webkit)

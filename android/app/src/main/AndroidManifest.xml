@@ -2,8 +2,9 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <uses-permission android:name="android.permission.INTERNET" />
-    <!-- 말 걸기 (Gemini 실시간 대화 · 차 음성 인식) -->
+    <!-- 말 걸기: 차 마이크는 Pleos SpeechToText SDK로만 (웹 화면에는 마이크를 주지 않음) -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="pleos.car.permission.STT_SERVICE" />
     <!-- 실제 위치로 주행 (GPS) -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
@@ -23,9 +24,8 @@
     <uses-feature android:name="android.hardware.microphone" android:required="false" />
     <uses-feature android:name="android.hardware.location.gps" android:required="false" />
 
-    <!-- 안드로이드 11+: 음성 인식 · 읽어 주기 엔진 찾기 -->
+    <!-- 안드로이드 11+: 읽어 주기 엔진 찾기 -->
     <queries>
-        <intent><action android:name="android.speech.RecognitionService" /></intent>
         <intent><action android:name="android.intent.action.TTS_SERVICE" /></intent>
     </queries>
 

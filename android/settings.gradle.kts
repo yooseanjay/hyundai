@@ -13,7 +13,7 @@ dependencyResolutionManagement {
         mavenCentral()
         // Pleos Connect SDK (현대 공식 저장소, 로그인 없이 받음)
         maven("https://nexus-playground.pleos.ai/repository/maven-releases/") {
-            content { includeGroup("ai.pleos.playground") }
+            content { includeGroupByRegex("""ai\.pleos\.playground(\..*)?""") }
         }
     }
 }

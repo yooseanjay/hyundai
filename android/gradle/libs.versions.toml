@@ -5,12 +5,14 @@ coreKtx = "1.16.0"
 activity = "1.10.1"
 webkit = "1.13.0"
 vehicleSdk = "2.3.2"
+sttSdk = "3.3.1"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
 androidx-activity-ktx = { group = "androidx.activity", name = "activity-ktx", version.ref = "activity" }
 androidx-webkit = { group = "androidx.webkit", name = "webkit", version.ref = "webkit" }
 pleos-vehicle = { module = "ai.pleos.playground:Vehicle", version.ref = "vehicleSdk" }
+pleos-stt = { module = "ai.pleos.playground:SpeechToText", version.ref = "sttSdk" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

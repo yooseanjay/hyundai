@@ -8,7 +8,7 @@
 | 웹 앱이 받는 것 | 어디서 |
 | --- | --- |
 | 배터리 · 연료 %, 주행 가능 거리, 누적 거리, 충전 상태 | Pleos **Vehicle SDK** (읽기만 함) |
-| 음성 인식 (호출어 "현대", 말 걸기) | 차의 음성 인식 엔진 → 나중에 **Gleo AI SpeechToText** |
+| 음성 인식 (호출어 "현대", 말 걸기) | **Pleos SpeechToText SDK 3.3.1** (On-device 모드: 음성이 차 밖으로 나가지 않음, 앱 등록 불필요) |
 | 읽어 주기 | 차의 음성 합성 엔진 → 나중에 **Gleo AI TextToSpeech** |
 
 Gleo AI 음성 SDK는 2026년 11월 현재 Pleos Playground에서 "준비 중(Coming Soon)" 상태예요. 열리면 `CarVoice.kt` 안만 바꾸면 돼요. 웹 앱과 주고받는 메시지 모양은 그대로예요.
@@ -17,10 +17,10 @@ Gleo AI 음성 SDK는 2026년 11월 현재 Pleos Playground에서 "준비 중(Co
 
 ```
 android/app/src/main/java/io/github/yooseanjay/ourcaralive/
-  MainActivity.kt   WebView, 마이크 · 위치 권한(우리 주소에만), 바깥 링크는 바깥 앱으로
+  MainActivity.kt   WebView, 위치 권한(우리 주소에만), 웹 화면 마이크는 막음, 바깥 링크는 바깥 앱으로
   NativeBridge.kt   웹 ↔ 차 통로 (addWebMessageListener, 우리 출처에만)
   VehicleReader.kt  Vehicle SDK 값을 3초마다 읽어 보냄 (리플렉션, 읽기 전용)
-  CarVoice.kt       음성 인식 · 읽어 주기 (Gleo AI 음성 SDK로 바꿀 자리)
+  CarVoice.kt       음성 인식(Pleos SpeechToText SDK) · 읽어 주기
 ```
 
 웹 쪽 짝은 `src/pleos/native.ts`예요. 차 앱 안에서 열리면 하는 일은 아래와 같아요.
@@ -31,7 +31,7 @@ android/app/src/main/java/io/github/yooseanjay/ourcaralive/
 ## 보안
 
 - **통로:** 허용한 출처(`https://yooseanjay.github.io`)의 메인 프레임에만 열려요. Spotify 같은 iframe이나 다른 사이트는 통로를 볼 수 없어요.
-- **권한:** 마이크와 위치는 우리 주소가 요청할 때만 허락해요. 차량 권한은 읽기 권한만 받고 제어 권한은 받지 않아요.
+- **권한:** 위치는 우리 주소가 요청할 때만 허락해요. 웹 화면에는 마이크를 주지 않고, 차 마이크는 SpeechToText SDK로만 써요 (Gemini에는 인식된 글자만 보냄). 차량 권한은 읽기 권한만 받고 제어 권한은 받지 않아요.
 - **WebView:** http, 파일, 콘텐츠 접근을 막았어요. 우리 주소가 아닌 링크는 바깥 앱으로 열어요.
 
 ## 빌드 · 실행

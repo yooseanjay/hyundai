@@ -12,6 +12,7 @@ import { loadVoicePrefs, saveVoicePrefs, type VoicePrefs } from '../voice/voiceP
 import { buildContext, reply, type BotContext } from '../game/voiceBot';
 import { chatReply, GEMINI_VOICES, geminiSource, geminiSpeech, geminiSpeechStream, setUserKey, type Turn } from '../voice/gemini';
 import { LiveSession } from '../voice/live';
+import { inPleosApp } from '../pleos/native';
 import { detectTool, runTool, summaryOf, type ActionCard } from '../voice/actions';
 import { ActionCardView } from './ActionCardView';
 import { VoiceOrb } from './VoiceOrb';
@@ -393,7 +394,8 @@ export function VoiceBot({ ctx, onLine, variant = 'screen' }: {
       return;
     }
     if (phase === 'listening') return recRef.current?.stop();
-    if (typeof navigator.mediaDevices?.getUserMedia === 'function' && prefsRef.current.engine === 'gemini') {
+    // 차 안(Pleos 앱)에서는 마이크 소리를 Gemini로 보내지 않음 → 아래 차 음성 인식(SpeechToText SDK)으로 글자만
+    if (!inPleosApp() && typeof navigator.mediaDevices?.getUserMedia === 'function' && prefsRef.current.engine === 'gemini') {
       setPhase('thinking');
       const ss = await ensureLive();
       if (ss) {

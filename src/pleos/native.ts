@@ -2,8 +2,8 @@
 //  - 안드로이드 앱(android/)이 이 사이트를 WebView로 열고, 'pleosNative' 통로를 우리 주소에만 열어 줌
 //    (androidx.webkit addWebMessageListener: 허용한 출처에서만 보임 → 다른 사이트는 차에 접근 불가)
 //  - 차 → 웹: 차량 SDK 값 { 'EvBattery.getCurrentEvBatteryStateOfCharge': 80, ... }
-//  - 웹 → 차: 말하기(TTS) · 듣기(STT). 지금은 차의 기본 음성 엔진,
-//    Gleo AI 음성 SDK(SpeechToText · TextToSpeech)가 열리면 안드로이드 쪽만 바꾸면 됨
+//  - 웹 → 차: 말하기(TTS) · 듣기(STT). 듣기는 Pleos SpeechToText SDK(차 안 On-device 인식)만 씀
+//    → 차량 마이크 음성은 외부 음성 인식 서비스로 나가지 않음 (Gemini에는 인식된 글자만 보냄)
 //  - 브라우저(휴대폰 · PC)에서는 아무것도 하지 않음
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -184,8 +184,9 @@ export function installPleosNative(): boolean {
     }
   });
   const w = window as any;
-  // WebView에는 브라우저 음성 인식 · 읽어 주기가 없음 → 차 음성으로
-  if (!w.SpeechRecognition && !w.webkitSpeechRecognition) w.SpeechRecognition = NativeRecognition;
+  // 차 안에서는 음성 인식을 항상 차 음성(Pleos SpeechToText SDK)으로: 브라우저 음성 인식은 외부 서버로 보낼 수 있어 덮어씀
+  w.SpeechRecognition = NativeRecognition;
+  w.webkitSpeechRecognition = NativeRecognition;
   if (!('speechSynthesis' in w)) { w.speechSynthesis = nativeSynth; w.SpeechSynthesisUtterance = NativeUtterance; }
   document.documentElement.classList.add('pleos-app');
   sendNative({ type: 'hello' });
