@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 개발용(debug) 빌드에만 붙는 차 제어 권한. 제출용 release APK 에는 들어가지 않음 -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-permission android:name="pleos.car.permission.CONTROL_CAR_DOORS" />
+    <uses-permission android:name="pleos.car.permission.CONTROL_CAR_WINDOWS" />
+    <uses-permission android:name="pleos.car.permission.CONTROL_CAR_CLIMATE" />
+    <uses-permission android:name="pleos.car.permission.CONTROL_CAR_SEATS" />
+    <uses-permission android:name="pleos.car.permission.CONTROL_CAR_LIGHTS" />
+    <uses-permission android:name="pleos.car.permission.CONTROL_CAR_MIRRORS" />
+    <uses-permission android:name="pleos.car.permission.CONTROL_CAR_DRIVE" />
+    <uses-permission android:name="pleos.car.permission.CONTROL_CAR_ENERGY" />
+    <uses-permission android:name="pleos.car.permission.CONTROL_CAR_INFO" />
+    <uses-permission android:name="pleos.car.permission.CONTROL_CAR_SAFETY" />
+    <uses-permission android:name="pleos.car.permission.CONTROL_CAR_TOLL" />
+    <uses-permission android:name="pleos.car.permission.CONTROL_WINDSHIELD_WIPERS" />
+</manifest>

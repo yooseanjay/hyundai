@@ -36,7 +36,12 @@ android {
     }
 
     buildTypes {
+        // 차 제어(문 · 창문 · 공조 · 좌석 … set/move/select): 개발용 debug 빌드에서만 켬. 제출용 release 는 읽기 전용
+        debug {
+            buildConfigField("boolean", "VEHICLE_CONTROL", "true")
+        }
         release {
+            buildConfigField("boolean", "VEHICLE_CONTROL", "false")
             if (storeFilePath != null) signingConfig = signingConfigs.getByName("release")
             isMinifyEnabled = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")

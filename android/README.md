@@ -20,6 +20,7 @@ android/app/src/main/java/io/github/yooseanjay/ourcaralive/
   MainActivity.kt   WebView, 위치 권한(우리 주소에만), 웹 화면 마이크는 막음, 바깥 링크는 바깥 앱으로
   NativeBridge.kt   웹 ↔ 차 통로 (addWebMessageListener, 우리 출처에만)
   VehicleReader.kt  Vehicle SDK 값을 3초마다 읽어 보냄 (리플렉션, 읽기 전용)
+  VehicleHub.kt     Vehicle SDK 전체(19개 도메인) 함수 목록 · 부르기 · 구독 (제어는 debug 빌드만)
   CarVoice.kt       음성 인식(Pleos SpeechToText SDK) · 읽어 주기
 ```
 
@@ -28,10 +29,28 @@ android/app/src/main/java/io/github/yooseanjay/ourcaralive/
 - `window.SpeechRecognition`과 `speechSynthesis`를 차 음성으로 채워요. 그래서 기존 음성 코드를 그대로 써요.
 - 차량 값으로 홈 화면의 배터리, 주행 가능 거리 같은 값을 덮어써요.
 
+## 차량 SDK 콘솔 (내 기능 만들기 전 확인용)
+
+주소에 `?vehicle`을 붙이면 차량 SDK 콘솔이 열려요. 19개 도메인(문 · 창문 · 공조 · 좌석 · 조명 · 배터리 · 와이퍼 …)의 함수를 골라 바로 **읽기 · 제어 · 구독**해 볼 수 있어요.
+
+- **차 앱 안:** 앱이 SDK에서 실제 함수와 매개변수 모양을 읽어 와요 (`VehicleHub.kt`, 공식 예제처럼 리플렉션). 콜백과 리스너는 앱이 끼워 주니 웹은 값(자리 · 숫자 · on/off)만 넘겨요.
+- **개발 서버:** `http://localhost:5174/?fakecar&vehicle` → 가짜 차(`src/pleos/fakeVehicle.ts`). 제어하면 상태가 바뀌고 구독한 곳에 변화가 와요. 범위를 벗어난 값은 실제 SDK처럼 "보냄" 뒤에 거절돼요. `&readonly`를 붙이면 제출용처럼 제어가 막혀요. 가짜 차의 매개변수 모양은 추측이에요.
+- **제어 권한:** `CONTROL_CAR_*` 권한은 `src/debug/AndroidManifest.xml`에만 있어요. 개발용 debug APK만 제어하고, 제출용 release APK는 읽기 전용이에요 (`BuildConfig.VEHICLE_CONTROL`).
+
+코드에서 쓰기 (`src/pleos/vehicle.ts`):
+
+```ts
+const s = await vehicleSchema();                                   // 도메인 · 함수 · 매개변수
+await callVehicle('EvBattery', 'getEvBatteryStateOfCharge');       // 읽기 → 78
+await callVehicle('HVAC', 'setHvacTemperature', ['ROW_1_LEFT', 22]); // 제어 → 'sent' (거절은 onLateError)
+await callVehicle('Door', 'registerDoorLockState');                // 구독
+onVehicleEvent((e) => console.log(e.domain, e.from, e.args));      // 바뀔 때마다
+```
+
 ## 보안
 
 - **통로:** 허용한 출처(`https://yooseanjay.github.io`)의 메인 프레임에만 열려요. Spotify 같은 iframe이나 다른 사이트는 통로를 볼 수 없어요.
-- **권한:** 위치는 우리 주소가 요청할 때만 허락해요. 웹 화면에는 마이크를 주지 않고, 차 마이크는 SpeechToText SDK로만 써요 (Gemini에는 인식된 글자만 보냄). 차량 권한은 읽기 권한만 받고 제어 권한은 받지 않아요.
+- **권한:** 위치는 우리 주소가 요청할 때만 허락해요. 웹 화면에는 마이크를 주지 않고, 차 마이크는 SpeechToText SDK로만 써요 (Gemini에는 인식된 글자만 보냄). 차량 권한은 제출용(release)에는 읽기 권한만 넣고, 제어 권한은 개발용(debug) 빌드에만 넣어요.
 - **WebView:** http, 파일, 콘텐츠 접근을 막았어요. 우리 주소가 아닌 링크는 바깥 앱으로 열어요.
 
 ## 빌드 · 실행

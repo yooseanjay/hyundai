@@ -13,12 +13,12 @@ import org.json.JSONObject
 /**
  * 웹 앱 ↔ 차 통로 (웹 쪽: src/pleos/native.ts)
  *
- * 웹 → 차   { type: 'hello' | 'listen' | 'listen-stop' | 'speak' | 'speak-stop' }
- * 차 → 웹   { type: 'caps' | 'vehicle' | 'stt' | 'tts' }
+ * 웹 → 차   { type: 'hello' | 'listen' | 'listen-stop' | 'speak' | 'speak-stop' | 'vehicle-schema' | 'vehicle-call' }
+ * 차 → 웹   { type: 'caps' | 'vehicle' | 'stt' | 'tts' | 'vehicle-schema' | 'vehicle-result' | 'vehicle-event' }
  *
  * addWebMessageListener 는 허용한 출처(appOrigin)의 메인 프레임에만 'pleosNative' 를 넣어 줌
  * → 다른 사이트나 안에 들어간 iframe(Spotify 등)은 이 통로를 볼 수 없음.
- * 주고받는 건 글자(JSON)뿐이고, 차를 움직이는 명령은 받지 않음(읽기 전용).
+ * 주고받는 건 글자(JSON)뿐. 차 제어(set · move · select)는 BuildConfig.VEHICLE_CONTROL 인 빌드(디버그)에서만 받음.
  */
 class NativeBridge(
     private val activity: Activity,
@@ -33,6 +33,7 @@ class NativeBridge(
         send(JSONObject().put("type", "vehicle").put("values", JSONObject(values)))
     }
     private val voice = CarVoice(activity) { msg -> send(msg) }
+    private val hub = VehicleHub({ vehicle.vehicleOrNull() }, BuildConfig.VEHICLE_CONTROL) { msg -> send(msg) }
 
     fun attach() {
         if (!WebViewFeature.isFeatureSupported(WebViewFeature.WEB_MESSAGE_LISTENER)) return
@@ -70,6 +71,14 @@ class NativeBridge(
                 rate = m.optDouble("rate", 1.0).toFloat().coerceIn(0.5f, 2f),
             )
             "speak-stop" -> voice.stopSpeaking()
+            // 차량 SDK 전체: 함수 목록 · 부르기(읽기 · 구독, 디버그 빌드는 제어까지)
+            "vehicle-schema" -> hub.schema()
+            "vehicle-call" -> hub.call(
+                id = m.optString("id").take(40),
+                domain = m.optString("domain").take(40),
+                method = m.optString("method").take(80),
+                args = m.optJSONArray("args") ?: org.json.JSONArray(),
+            )
         }
     }
 
@@ -81,6 +90,7 @@ class NativeBridge(
     fun pause() { vehicle.pause(); voice.stopListening() }
 
     fun release() {
+        hub.release()
         vehicle.release()
         voice.release()
     }

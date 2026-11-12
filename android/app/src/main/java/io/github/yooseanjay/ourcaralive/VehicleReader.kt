@@ -28,6 +28,9 @@ class VehicleReader(context: Context, private val onValues: (Map<String, Any?>) 
 
     val available: Boolean get() = vehicle != null && init()
 
+    /** 시작된 SDK 객체 (VehicleHub 가 같은 연결을 씀) */
+    fun vehicleOrNull(): Vehicle? = if (vehicle != null && init()) vehicle else null
+
     private fun init(): Boolean {
         if (ready) return true
         val v = vehicle ?: return false

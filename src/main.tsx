@@ -22,7 +22,10 @@ const root = createRoot(document.getElementById('root')!);
 
 // 앱 코드는 금고가 열린 다음에야 불러옴 → 잠긴 상태에서는 기록을 읽는 코드가 아예 실행되지 않음
 async function start() {
-  const Root = (await import('./App')).default;
+  // ?vehicle: 차량 SDK 콘솔 (차에서 무엇이 읽히고 · 움직이고 · 구독되는지 확인하는 개발 화면)
+  const Root = new URLSearchParams(location.search).has('vehicle')
+    ? (await import('./components/VehicleConsole')).default
+    : (await import('./App')).default;
   root.render(
     <StrictMode>
       <PleosChrome />
