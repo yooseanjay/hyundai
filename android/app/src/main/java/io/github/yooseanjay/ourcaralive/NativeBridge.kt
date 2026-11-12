@@ -13,8 +13,8 @@ import org.json.JSONObject
 /**
  * 웹 앱 ↔ 차 통로 (웹 쪽: src/pleos/native.ts)
  *
- * 웹 → 차   { type: 'hello' | 'listen' | 'listen-stop' | 'speak' | 'speak-stop' | 'vehicle-schema' | 'vehicle-call' }
- * 차 → 웹   { type: 'caps' | 'vehicle' | 'stt' | 'tts' | 'vehicle-schema' | 'vehicle-result' | 'vehicle-event' }
+ * 웹 → 차   { type: 'hello' | 'listen' | 'listen-stop' | 'speak' | 'speak-stop' | 'llm-ask' | 'vehicle-schema' | 'vehicle-call' }
+ * 차 → 웹   { type: 'caps' | 'vehicle' | 'stt' | 'tts' | 'llm-result' | 'vehicle-schema' | 'vehicle-result' | 'vehicle-event' }
  *
  * addWebMessageListener 는 허용한 출처(appOrigin)의 메인 프레임에만 'pleosNative' 를 넣어 줌
  * → 다른 사이트나 안에 들어간 iframe(Spotify 등)은 이 통로를 볼 수 없음.
@@ -33,6 +33,7 @@ class NativeBridge(
         send(JSONObject().put("type", "vehicle").put("values", JSONObject(values)))
     }
     private val voice = CarVoice(activity) { msg -> send(msg) }
+    private val brain = GleoBrain(activity) { msg -> send(msg) }
     private val hub = VehicleHub({ vehicle.vehicleOrNull() }, BuildConfig.VEHICLE_CONTROL) { msg -> send(msg) }
 
     fun attach() {
@@ -55,6 +56,7 @@ class NativeBridge(
                         .put("stt", voice.canListen)
                         .put("tts", true)
                         .put("engine", voice.engineName)
+                        .put("llm", brain.available)
                         .put("app", BuildConfig.VERSION_NAME)
                 )
                 vehicle.start()
@@ -71,6 +73,7 @@ class NativeBridge(
                 rate = m.optDouble("rate", 1.0).toFloat().coerceIn(0.5f, 2f),
             )
             "speak-stop" -> voice.stopSpeaking()
+            "llm-ask" -> brain.ask(id = m.optString("id").take(32), prompt = m.optString("prompt").take(4000))
             // 차량 SDK 전체: 함수 목록 · 부르기(읽기 · 구독, 디버그 빌드는 제어까지)
             "vehicle-schema" -> hub.schema()
             "vehicle-call" -> hub.call(
@@ -91,6 +94,7 @@ class NativeBridge(
 
     fun release() {
         hub.release()
+        brain.release()
         vehicle.release()
         voice.release()
     }

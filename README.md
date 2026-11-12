@@ -14,7 +14,7 @@
 | APK | [`apk/ysj_우리차가살아있다면_release.apk`](apk/) (release, 서명됨, 패키지 `io.github.yooseanjay.ourcaralive`, minSdk 28) |
 | 개발 · 테스트 에뮬레이터 | **Pleos Connect Emulator v2.1.0** (시스템 이미지 `release_connect_v2.1.0`, Android 14 · API 34 Automotive, x86_64) |
 | 화면 규격 | 기기 정의 **Pleos Connect v2.1.0**: 2560×1440 px 가로, 12.8인치. 앱 화면은 가로 **1280×720 (CSS px)** 기준으로 한 화면에 스크롤 없이 배치 |
-| 사용 Pleos SDK | Vehicle 2.3.2 · SpeechToText 3.3.1 (On-device) — `android/` / Vehicle 2.3.2 · TextToSpeech 3.3.1 — `pleos/` |
+| 사용 Pleos SDK | Vehicle 2.3.2 · 글레오 AI SpeechToText 3.3.1 · TextToSpeech 3.3.1 · LLM 2.1.3.2 (모두 On-device) — `android/` / Vehicle 2.3.2 · TextToSpeech 3.3.1 — `pleos/` |
 
 ### APK 실행 방법
 
@@ -30,7 +30,7 @@
 
 - **인터넷 연결 필요**: 출품 APK(`android/`)는 Kotlin 앱이 차량 SDK · 음성 SDK를 맡고, 화면(3D 차 · 대화 · 음악)은 배포된 웹 화면(`https://yooseanjay.github.io/hyundai/?pleos`)을 WebView로 엽니다.
 - **API 키 불필요**: 대화 AI(Gemini)와 음악 검색은 배포 서버가 대신 호출합니다. 저장소에는 비밀값이 없습니다.
-- **음성**: 차 마이크 음성은 Pleos SpeechToText SDK(On-device)로만 글자로 바꾸고, AI에는 인식된 글자만 보냅니다. 웹 화면에는 마이크 권한을 주지 않습니다.
+- **음성 (차 안)**: 듣기 · 대답 · 목소리 모두 현대 **글레오 AI**(Pleos SpeechToText · LLM · TextToSpeech SDK, On-device)로 처리합니다. 차에서 글레오 언어 모델을 쓸 수 없을 때만 인식된 글자를 Gemini에 보내 대답을 받습니다. 웹 화면에는 마이크 권한을 주지 않습니다.
 - **SDK 저장소**: `https://nexus-playground.pleos.ai/repository/maven-releases/` (로그인 없이 받음)
 - **빌드**: JDK 17, Gradle 8.10, Kotlin. `cd android && ./gradlew assembleRelease` (서명 키는 저장소 밖 `~/.gradle/gradle.properties`의 `OURCAR_*` 값을 씀. 없으면 서명 안 된 APK)
 - **웹 화면만 보기**: 에뮬레이터 없이 [체험 링크](https://yooseanjay.github.io/hyundai/)를 넓은 가로 화면에서 열면 차 화면 배치로 보입니다.
@@ -72,8 +72,8 @@
 | "이번 주 운전 어땠어?" | 주간 운전 리포트 |
 | "신나는 노래 틀어줘" | Spotify 재생 카드 (서버에 Spotify 키가 없으면 Spotify 검색으로 연결) |
 
-- 대화: Google Gemini (서버가 대신 호출, 키는 브라우저에 오지 않음). 키가 없거나 무료 사용량을 넘으면 기본 대답으로 자동 전환
-- 목소리: Gemini TTS (여자·남자 목소리 선택), 브라우저 안에서 도는 오픈소스 Supertonic 2
+- 대화: 차 안에서는 현대 글레오 AI 언어 모델(Pleos LLM SDK) → 안 되면 Google Gemini (서버가 대신 호출, 키는 브라우저에 오지 않음) → 그것도 안 되면 기본 대답
+- 목소리: 차 안에서는 글레오 AI 목소리(Pleos TextToSpeech SDK) / 브라우저에서는 Gemini TTS (여자·남자 목소리 선택), 브라우저 안에서 도는 오픈소스 Supertonic 2
 
 > 💻 **차 화면 미리보기**: 체험 링크를 컴퓨터 같은 넓은 가로 화면에서 열면 Pleos Connect 차 화면처럼 보입니다 (위 상태 바 · 왼쪽 메뉴 · 2열 · 아래 시스템 바). 휴대폰 배치로 보려면 주소에 `?phone`, 좁은 화면에서도 차 화면으로 보려면 `?pleos`.
 
@@ -102,7 +102,7 @@ cd pleos
 ./gradlew assembleRelease     # 네이티브 버전 (출품 APK는 android/ 쪽)
 ```
 
-실제 차 값은 **Pleos Connect Emulator**(Android 14, API 34)나 Pleos 차에서 확인합니다. 에뮬레이터 설치와 SDK 사용 신청은 [Pleos 개발자 문서](https://document.pleos.ai/docs/connect/guide/getting-started/application-development/setup-connect-sdk-emulator) 참고. SDK(`ai.pleos.playground:Vehicle:2.3.2`, `TextToSpeech:3.3.1`, `SpeechToText:3.3.1`)는 공개 Maven 저장소에서 받습니다.
+실제 차 값은 **Pleos Connect Emulator**(Android 14, API 34)나 Pleos 차에서 확인합니다. 에뮬레이터 설치와 SDK 사용 신청은 [Pleos 개발자 문서](https://document.pleos.ai/docs/connect/guide/getting-started/application-development/setup-connect-sdk-emulator) 참고. SDK(`ai.pleos.playground:Vehicle:2.3.2`, `TextToSpeech:3.3.1`, `SpeechToText:3.3.1`, `LLM:2.1.3.2`)는 공개 Maven 저장소에서 받습니다.
 
 ## 실행
 
@@ -144,7 +144,7 @@ src/
   voice/        대화 AI · 음성 · 말로 하는 기능(지도·날씨·음악 등)
   components/   화면 구성 요소
   security/     기기 저장 암호화 · PIN 잠금 · 개인정보 가리기
-android/        출품 APK: Kotlin 차 앱 (Vehicle · SpeechToText SDK) + 웹 화면 WebView
+android/        출품 APK: Kotlin 차 앱 (Vehicle · 글레오 AI SpeechToText · TextToSpeech · LLM SDK) + 웹 화면 WebView
 apk/            release APK
 pleos/          Pleos Connect 차 안 네이티브 앱 (Kotlin · Compose · Vehicle SDK · TTS)
 api/            배포 서버 함수 (현대 OAuth · 차량 API 중계 · Gemini · Spotify)
@@ -158,4 +158,4 @@ api/            배포 서버 함수 (현대 OAuth · 차량 API 중계 · Gemin
 
 - **Supertonic 2** (Supertone Inc.) — 한국어 음성 합성. 모델 가중치 [OpenRAIL-M](https://huggingface.co/supertone-oss-archive/supertonic-2), 추론 예제 코드 MIT. 저장소에 포함하지 않고 고정 버전(`7edbcd0`)을 브라우저에서 직접 내려받아 실행
 - [ONNX Runtime Web](https://github.com/microsoft/onnxruntime) (MIT), [three.js](https://threejs.org) (MIT), React (MIT), lucide-react (ISC)
-- Google Gemini API (대화 · 음성), Spotify Web API (음악 검색), Open-Meteo (날씨, CC BY 4.0), 카카오맵 · 네이버 지도 (링크)
+- 현대 Pleos 글레오 AI SDK (차 안 듣기 · 대답 · 목소리), Google Gemini API (차 밖 대화 · 음성, 차 안 예비), Spotify Web API (음악 검색), Open-Meteo (날씨, CC BY 4.0), 카카오맵 · 네이버 지도 (링크)

@@ -2,8 +2,8 @@
 //  - 안드로이드 앱(android/)이 이 사이트를 WebView로 열고, 'pleosNative' 통로를 우리 주소에만 열어 줌
 //    (androidx.webkit addWebMessageListener: 허용한 출처에서만 보임 → 다른 사이트는 차에 접근 불가)
 //  - 차 → 웹: 차량 SDK 값 { 'EvBattery.getCurrentEvBatteryStateOfCharge': 80, ... }
-//  - 웹 → 차: 말하기(TTS) · 듣기(STT). 듣기는 Pleos SpeechToText SDK(차 안 On-device 인식)만 씀
-//    → 차량 마이크 음성은 외부 음성 인식 서비스로 나가지 않음 (Gemini에는 인식된 글자만 보냄)
+//  - 웹 → 차: 말하기 · 듣기 · 대답 = 글레오 AI (Pleos TextToSpeech · SpeechToText · LLM SDK, 모두 차 안 On-device)
+//    → 차량 마이크 음성은 외부 음성 인식 서비스로 나가지 않음 (글레오가 못 할 때만 Gemini에 인식된 글자를 보냄)
 //  - 브라우저(휴대폰 · PC)에서는 아무것도 하지 않음
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -12,10 +12,11 @@ import type { VehicleSnapshot } from '../api/types';
 interface NativePort { postMessage(msg: string): void; onmessage: ((e: { data: string }) => void) | null }
 
 export type NativeMsg =
-  | { type: 'caps'; vehicle: boolean; stt: boolean; tts: boolean; engine: string; app: string }
+  | { type: 'caps'; vehicle: boolean; stt: boolean; tts: boolean; llm?: boolean; engine: string; app: string }
   | { type: 'vehicle'; values: Record<string, unknown> }
   | { type: 'stt'; event: 'start' | 'partial' | 'final' | 'end' | 'error'; text?: string; error?: string }
-  | { type: 'tts'; event: 'start' | 'end'; id: string };
+  | { type: 'tts'; event: 'start' | 'end'; id: string }
+  | { type: 'llm-result'; id: string; ok: boolean; text?: string; error?: string };
 
 const port = (): NativePort | null => {
   if (typeof window === 'undefined') return null;
@@ -43,6 +44,35 @@ export function receiveNative(raw: string) {
   if (m.type === 'vehicle') vehicleValues = { ...vehicleValues, ...m.values };
   listeners.forEach((f) => f(m));
 }
+
+// ───────── 글레오 AI 대답 (Pleos LLM SDK) ─────────
+let llmSeq = 0;
+let llmBroken = false; // 차에서 언어 모델이 꺼져 있으면(에뮬레이터 등) 다시 기다리지 않음
+
+/** 차에 글레오 언어 모델이 있는지 */
+export const carLlmReady = () => !!caps?.llm && !llmBroken;
+
+/** 글레오 AI에게 묻기 → 대답 글자. 못 하면 null (그때는 Gemini · 규칙 대답으로) */
+export function askCarLlm(prompt: string, timeoutMs = 12000): Promise<string | null> {
+  if (!carLlmReady()) return Promise.resolve(null);
+  const id = `l${++llmSeq}`;
+  return new Promise((resolve) => {
+    let off = () => {};
+    const timer = setTimeout(() => { off(); resolve(null); }, timeoutMs);
+    off = onNative((m) => {
+      if (m.type !== 'llm-result' || m.id !== id) return;
+      clearTimeout(timer);
+      off();
+      const text = m.ok ? (m.text ?? '').trim() : '';
+      if (!m.ok && /unavailable|disabled|NOT_SUPPORTED|UNAUTH/i.test(m.error ?? '')) llmBroken = true;
+      resolve(text || null);
+    });
+    sendNative({ type: 'llm-ask', id, prompt });
+  });
+}
+
+/** 테스트용 */
+export function _resetCarLlm() { llmBroken = false; llmSeq = 0; }
 
 // ───────── 차량 SDK 값 → 앱의 차량 상태 ─────────
 const num = (v: unknown): number | null => {
@@ -187,7 +217,10 @@ export function installPleosNative(): boolean {
   // 차 안에서는 음성 인식을 항상 차 음성(Pleos SpeechToText SDK)으로: 브라우저 음성 인식은 외부 서버로 보낼 수 있어 덮어씀
   w.SpeechRecognition = NativeRecognition;
   w.webkitSpeechRecognition = NativeRecognition;
-  if (!('speechSynthesis' in w)) { w.speechSynthesis = nativeSynth; w.SpeechSynthesisUtterance = NativeUtterance; }
+  // 읽어 주기도 항상 차 목소리(글레오 TTS)로
+  // (speechSynthesis 는 읽기 전용 속성이라 대입 대신 덮어 정의)
+  try { Object.defineProperty(w, 'speechSynthesis', { value: nativeSynth, configurable: true, writable: true }); } catch { /* 무시 */ }
+  try { Object.defineProperty(w, 'SpeechSynthesisUtterance', { value: NativeUtterance, configurable: true, writable: true }); } catch { /* 무시 */ }
   document.documentElement.classList.add('pleos-app');
   sendNative({ type: 'hello' });
   return true;

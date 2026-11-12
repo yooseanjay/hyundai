@@ -83,4 +83,31 @@ describe('Pleos 차 앱 다리', () => {
     expect(ev).toEqual(['start', 'end']);
     expect(g.speechSynthesis.speaking).toBe(false);
   });
+
+  it('글레오 AI 대답: 있으면 글자, 꺼져 있으면 null 뒤 다시 묻지 않음', async () => {
+    const { m, sent, from } = await load();
+    m.installPleosNative();
+    expect(await m.askCarLlm('안녕')).toBeNull(); // caps 전(=글레오 없음)
+    from({ type: 'caps', vehicle: true, stt: true, tts: true, llm: true, engine: 'gleo', app: 't' });
+    const a = m.askCarLlm('안녕');
+    const ask = sent.find((x) => x.type === 'llm-ask');
+    expect(ask).toMatchObject({ prompt: '안녕' });
+    from({ type: 'llm-result', id: ask.id, ok: true, text: ' 안녕하세요! ' });
+    expect(await a).toBe('안녕하세요!');
+    const b = m.askCarLlm('또');
+    const ask2 = sent.filter((x) => x.type === 'llm-ask')[1];
+    from({ type: 'llm-result', id: ask2.id, ok: false, error: 'on-device LLM is disabled' });
+    expect(await b).toBeNull();
+    expect(m.carLlmReady()).toBe(false);
+    expect(await m.askCarLlm('다시')).toBeNull();
+    expect(sent.filter((x) => x.type === 'llm-ask')).toHaveLength(2);
+  });
+
+  it('글레오에게 줄 질문 · 대답 다듬기', async () => {
+    const { carLlmPrompt, tidyReply } = await import('../src/voice/gemini');
+    const p = carLlmPrompt('배터리 80%', [{ role: 'user', text: '안녕' }, { role: 'model', text: '안녕하세요!' }], '배고파?');
+    expect(p).toContain('배터리 80%');
+    expect(p).toContain('사용자: 안녕\n나: 안녕하세요!\n사용자: 배고파?\n나:');
+    expect(tidyReply('나: 괜찮아요 😀  고마워요!')).toBe('괜찮아요 고마워요!');
+  });
 });

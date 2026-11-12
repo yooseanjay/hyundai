@@ -8,10 +8,11 @@
 | 웹 앱이 받는 것 | 어디서 |
 | --- | --- |
 | 배터리 · 연료 %, 주행 가능 거리, 누적 거리, 충전 상태 | Pleos **Vehicle SDK** (읽기만 함) |
-| 음성 인식 (호출어 "현대", 말 걸기) | **Pleos SpeechToText SDK 3.3.1** (On-device 모드: 음성이 차 밖으로 나가지 않음, 앱 등록 불필요) |
-| 읽어 주기 | 차의 음성 합성 엔진 → 나중에 **Gleo AI TextToSpeech** |
+| 음성 인식 (호출어 "현대", 말 걸기) | 글레오 AI **Pleos SpeechToText SDK 3.3.1** (On-device 모드: 음성이 차 밖으로 나가지 않음, 앱 등록 불필요) |
+| 대답 만들기 | 글레오 AI **Pleos LLM SDK 2.1.3.2** (42dot 언어 모델, On-device). 차에서 꺼져 있으면 웹이 Gemini → 기본 대답으로 |
+| 읽어 주기 | 글레오 AI **Pleos TextToSpeech SDK 3.3.1** (On-device). 차가 아닌 기기에서는 안드로이드 기본 음성 |
 
-Gleo AI 음성 SDK는 2026년 11월 현재 Pleos Playground에서 "준비 중(Coming Soon)" 상태예요. 열리면 `CarVoice.kt` 안만 바꾸면 돼요. 웹 앱과 주고받는 메시지 모양은 그대로예요.
+LLM SDK는 2026년 11월 현재 공개 사용법 문서가 없어요. 공개 Maven 저장소에 있는 SDK를 쓰고, 실제 차에서 응답하는지는 아직 확인하지 못했어요 (Pleos Connect Emulator에서는 기기 안 언어 모델이 꺼져 있다는 보고가 있어요). 그래서 실패하면 바로 다음 방법으로 넘어가요.
 
 ## 구조
 
@@ -21,7 +22,8 @@ android/app/src/main/java/io/github/yooseanjay/ourcaralive/
   NativeBridge.kt   웹 ↔ 차 통로 (addWebMessageListener, 우리 출처에만)
   VehicleReader.kt  Vehicle SDK 값을 3초마다 읽어 보냄 (리플렉션, 읽기 전용)
   VehicleHub.kt     Vehicle SDK 전체(19개 도메인) 함수 목록 · 부르기 · 구독 (제어는 debug 빌드만)
-  CarVoice.kt       음성 인식(Pleos SpeechToText SDK) · 읽어 주기
+  CarVoice.kt       음성 인식(Pleos SpeechToText SDK) · 읽어 주기(Pleos TextToSpeech SDK)
+  GleoBrain.kt      글레오 AI 대답 (Pleos LLM SDK): 웹 'llm-ask' → 'llm-result'
 ```
 
 웹 쪽 짝은 `src/pleos/native.ts`예요. 차 앱 안에서 열리면 하는 일은 아래와 같아요.
@@ -50,7 +52,7 @@ onVehicleEvent((e) => console.log(e.domain, e.from, e.args));      // 바뀔 때
 ## 보안
 
 - **통로:** 허용한 출처(`https://yooseanjay.github.io`)의 메인 프레임에만 열려요. Spotify 같은 iframe이나 다른 사이트는 통로를 볼 수 없어요.
-- **권한:** 위치는 우리 주소가 요청할 때만 허락해요. 웹 화면에는 마이크를 주지 않고, 차 마이크는 SpeechToText SDK로만 써요 (Gemini에는 인식된 글자만 보냄). 차량 권한은 제출용(release)에는 읽기 권한만 넣고, 제어 권한은 개발용(debug) 빌드에만 넣어요.
+- **권한:** 위치는 우리 주소가 요청할 때만 허락해요. 웹 화면에는 마이크를 주지 않고, 차 마이크는 SpeechToText SDK로만 써요 (글레오 언어 모델이 안 될 때만 Gemini에 인식된 글자를 보냄). 차량 권한은 제출용(release)에는 읽기 권한만 넣고, 제어 권한은 개발용(debug) 빌드에만 넣어요.
 - **WebView:** http, 파일, 콘텐츠 접근을 막았어요. 우리 주소가 아닌 링크는 바깥 앱으로 열어요.
 
 ## 빌드 · 실행

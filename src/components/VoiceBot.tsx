@@ -10,9 +10,9 @@ import { cleanForSpeech, cuteSpeech, pcmStreamPlayer, pickKoVoice, playAudioFile
 const engine = () => import('../voice/supertonic');
 import { loadVoicePrefs, saveVoicePrefs, type VoicePrefs } from '../voice/voicePrefs';
 import { buildContext, reply, type BotContext } from '../game/voiceBot';
-import { chatReply, GEMINI_VOICES, geminiSource, geminiSpeech, geminiSpeechStream, setUserKey, type Turn } from '../voice/gemini';
+import { carLlmPrompt, chatReply, GEMINI_VOICES, tidyReply, geminiSource, geminiSpeech, geminiSpeechStream, setUserKey, type Turn } from '../voice/gemini';
 import { LiveSession } from '../voice/live';
-import { inPleosApp } from '../pleos/native';
+import { askCarLlm, inPleosApp } from '../pleos/native';
 import { detectTool, runTool, summaryOf, type ActionCard } from '../voice/actions';
 import { ActionCardView } from './ActionCardView';
 import { VoiceOrb } from './VoiceOrb';
@@ -179,7 +179,7 @@ export function VoiceBot({ ctx, onLine, variant = 'screen' }: {
     };
 
     void (async () => {
-      // 1) 대답 내용: 앱 기능(여행지·주변·날씨·소모품·리포트) → Gemini(무슨 말이든) → 규칙 기반 대답
+      // 1) 대답 내용: 앱 기능(여행지·주변·날씨·소모품·리포트) → 차 안이면 글레오 AI → Gemini(무슨 말이든) → 규칙 기반 대답
       let text = rule.text;
       let fromAi = false;
       const tool = detectTool(question);
@@ -192,6 +192,11 @@ export function VoiceBot({ ctx, onLine, variant = 'screen' }: {
           text = summaryOf(r.card);
           fromAi = true;
         } catch { /* 일반 대답으로 */ }
+      }
+      if (!fromAi && inPleosApp()) {
+        // 현대 글레오 AI 언어 모델 (Pleos LLM SDK, 차 안에서 처리)
+        const g = await askCarLlm(carLlmPrompt(buildContext(ctxRef.current), history.current, question));
+        if (g && tidyReply(g)) { text = tidyReply(g); fromAi = true; }
       }
       if (!fromAi && gemRef.current && gemRef.current !== 'checking') {
         try {
@@ -214,7 +219,8 @@ export function VoiceBot({ ctx, onLine, variant = 'screen' }: {
       }
       speechSynthesis.cancel();
       (rule.intent === 'unknown' && !fromAi ? sfx.confused : () => sfx.reply(mood))();
-      // 2) 목소리: Gemini(사람 같은) → 오프라인 음성 AI → 휴대폰 기본
+      // 2) 목소리: 차 안이면 글레오 AI 목소리(Pleos TextToSpeech) / 아니면 Gemini(사람 같은) → 오프라인 음성 AI → 휴대폰 기본
+      if (inPleosApp()) return browserSpeak(text, mood, done);
       if (await speakGemini(text, mood)) return done();
       if (await speakAi(text, mood)) return done();
       browserSpeak(text, mood, done);
@@ -363,7 +369,7 @@ export function VoiceBot({ ctx, onLine, variant = 'screen' }: {
     if (detectTool(question)?.name === 'play_music') return answerClassic(question);
     setPhase('thinking');
     void (async () => {
-      const ss = await ensureLive();
+      const ss = inPleosApp() ? null : await ensureLive(); // 차 안에서는 글레오 AI가 대답 (Gemini Live 안 씀)
       if (ss) {
         try {
           stopVoice();
@@ -397,7 +403,7 @@ export function VoiceBot({ ctx, onLine, variant = 'screen' }: {
     // 차 안(Pleos 앱)에서는 마이크 소리를 Gemini로 보내지 않음 → 아래 차 음성 인식(SpeechToText SDK)으로 글자만
     if (!inPleosApp() && typeof navigator.mediaDevices?.getUserMedia === 'function' && prefsRef.current.engine === 'gemini') {
       setPhase('thinking');
-      const ss = await ensureLive();
+      const ss = inPleosApp() ? null : await ensureLive(); // 차 안에서는 글레오 AI가 대답 (Gemini Live 안 씀)
       if (ss) {
         try {
           stopVoice();

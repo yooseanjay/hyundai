@@ -115,20 +115,31 @@ async function chatModel(): Promise<string> {
 
 export interface Turn { role: 'user' | 'model'; text: string }
 
+/** 차 캐릭터 말투 규칙 (Gemini · 글레오 AI 같이 씀) */
+export const PERSONA_RULES = [
+  '- 너는 사용자의 자동차 캐릭터다. 자신을 "저"라고 부르고, 사용자는 "주인님" 대신 그냥 다정하게 대한다.',
+  '- 말투: 항상 "~요"로 끝나는 귀엽고 다정한 존댓말. 반말 금지. 문장 끝에 마침표·물음표·느낌표를 붙인다.',
+  '- 무조건 짧게: 1~2문장, 40자 안팎. 설명·목록·숫자 나열·이모지 금지. 소리 내어 읽기 좋게.',
+  '- 일상 대화가 목적이다. 차 상태는 사용자가 물어보거나 꼭 필요할 때만 한마디로 언급한다.',
+  '- 모르는 사실(실시간 뉴스, 길 안내 등)은 지어내지 말고 가볍게 넘긴다.',
+  '- 운전 중일 수 있으니 길게 말 걸지 않는다.',
+];
+
+/** 글레오 AI(차 안 언어 모델)에게 줄 한 덩어리 질문: 차 상태 + 규칙 + 최근 대화 + 이번 말 */
+export function carLlmPrompt(carContext: string, history: Turn[], userText: string): string {
+  const talk = history.slice(-6).map((t) => `${t.role === 'user' ? '사용자' : '나'}: ${t.text}`);
+  return [carContext, '규칙:', ...PERSONA_RULES, '', '대화:', ...talk, `사용자: ${userText}`, '나:'].join('\n');
+}
+
+/** 대답 다듬기: 앞에 붙은 "나:" · 이모지 · 겹친 공백 빼기 */
+export const tidyReply = (t: string) =>
+  t.replace(/^\s*(나|자동차|assistant)\s*:\s*/i, '').replace(/[\p{Extended_Pictographic}‍️]/gu, '').replace(/\s+/g, ' ').trim();
+
 /** 무슨 말이든 짧게 대답 (1~2문장, 차 캐릭터 말투) */
 export async function chatReply(carContext: string, history: Turn[], userText: string): Promise<string> {
   const model = await chatModel();
   // 개인정보 가리기: 차 상태 요약·대화 기록·이번 질문 모두 (전화번호·주민번호·차량번호·정밀 좌표 등)
-  const system = [
-    redactText(carContext),
-    '규칙:',
-    '- 너는 사용자의 자동차 캐릭터다. 자신을 "저"라고 부르고, 사용자는 "주인님" 대신 그냥 다정하게 대한다.',
-    '- 말투: 항상 "~요"로 끝나는 귀엽고 다정한 존댓말. 반말 금지. 문장 끝에 마침표·물음표·느낌표를 붙인다.',
-    '- 무조건 짧게: 1~2문장, 40자 안팎. 설명·목록·숫자 나열·이모지 금지. 소리 내어 읽기 좋게.',
-    '- 일상 대화가 목적이다. 차 상태는 사용자가 물어보거나 꼭 필요할 때만 한마디로 언급한다.',
-    '- 모르는 사실(실시간 뉴스, 길 안내 등)은 지어내지 말고 가볍게 넘긴다.',
-    '- 운전 중일 수 있으니 길게 말 걸지 않는다.',
-  ].join('\n');
+  const system = [redactText(carContext), '규칙:', ...PERSONA_RULES].join('\n');
   const json = await call(`/v1beta/models/${model}:generateContent`, {
     systemInstruction: { parts: [{ text: system }] },
     contents: [...history.slice(-8), { role: 'user', text: userText }].map((t) => ({ role: t.role, parts: [{ text: redactText(t.text) }] })),

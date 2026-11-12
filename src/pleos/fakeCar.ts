@@ -28,9 +28,24 @@ export function installFakeCar() {
       let m: any;
       try { m = JSON.parse(raw); } catch { return; }
       if (m.type === 'hello') {
-        reply({ type: 'caps', vehicle: true, stt: false, tts: false, engine: 'fake', app: 'fakecar' });
+        reply({ type: 'caps', vehicle: true, stt: false, tts: true, llm: true, engine: 'fake', app: 'fakecar' });
         push();
         timer ??= setInterval(drive, 3000);
+        return;
+      }
+      // 글레오 목소리 흉내: 소리 없이 시작 → 글자 수만큼 뒤에 끝
+      if (m.type === 'speak') {
+        reply({ type: 'tts', event: 'start', id: m.id });
+        setTimeout(() => reply({ type: 'tts', event: 'end', id: m.id }), 600 + String(m.text ?? '').length * 40);
+        return;
+      }
+      if (m.type === 'speak-stop' || m.type === 'listen' || m.type === 'listen-stop') return;
+      // 글레오 언어 모델 흉내 (?fakecar&nollm 이면 꺼진 차 = 에뮬레이터처럼)
+      if (m.type === 'llm-ask') {
+        const off = new URLSearchParams(location.search).has('nollm');
+        setTimeout(() => reply(off
+          ? { type: 'llm-result', id: m.id, ok: false, error: 'on-device LLM is disabled' }
+          : { type: 'llm-result', id: m.id, ok: true, text: '나: 글레오가 대신 대답했어요. 오늘도 같이 달려요!' }), 400);
         return;
       }
       sdk.handle(m);
